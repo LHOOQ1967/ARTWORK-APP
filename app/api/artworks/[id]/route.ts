@@ -3,21 +3,18 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await context.params
   const accessToken = req.cookies.get('sb-access-token')?.value
 
   if (!accessToken) {
-    return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
-    )
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks
-      ?id=eq.${params.id}
-      &select=*,artists(id,last_name),contacts(id,company_name)`.replace(/\s+/g, ''),
+  // 1️⃣ Fetch artwork (sans jointure)
+  const artworkRes = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks?id=eq.${id}&select=*`,
     {
       headers: {
         apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -26,21 +23,42 @@ export async function GET(
     }
   )
 
-  const text = await response.text()
-
-  if (!response.ok) {
-    console.error('SUPABASE ARTWORK ERROR:', response.status, text)
-    return NextResponse.json({ error: text }, { status: response.status })
-  }
-
-  const data = JSON.parse(text)
-
-  if (data.length === 0) {
+  if (!artworkRes.ok) {
     return NextResponse.json(
-      { error: 'Artwork not found' },
-      { status: 404 }
+      { error: 'Failed to fetch artwork' },
+      { status: artworkRes.status }
     )
   }
 
-  return NextResponse.json(data[0])
+  const artworks = await artworkRes.json()
+  const artwork = artworks[0]
+
+  if (!artwork) {
+    return NextResponse.json({ error: 'Artwork not found' }, { status: 404 })
+  }
+
+  // 2️⃣ Fetch artist explicitly
+  let artist = null
+  if (artwork.artist_id) {
+    const artistRes = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artists?id=eq.${artwork.artist_id}&select=first_name,last_name,year_of_birth,year_of_death`,
+      {
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
+
+    if (artistRes.ok) {
+      const artists = await artistRes.json()
+      artist = artists[0] ?? null
+    }
+  }
+
+  // 3️⃣ Return merged object
+  return NextResponse.json({
+    ...artwork,
+    artist,
+  })
 }

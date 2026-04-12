@@ -1,59 +1,39 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-/**
- * ✅ LIRE les artworks
- */
+/* ---------- GET /api/artworks ---------- */
 export async function GET(req: NextRequest) {
   const accessToken = req.cookies.get('sb-access-token')?.value
-
   if (!accessToken) {
-    return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
-    )
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
 
-    const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks?select=id,title,status,artist_id,artists(id,last_name)&order=created_at.desc`,
-    {
-        headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
-        },
-    }
-    )
-
-
-  const text = await response.text()
-
-  if (!response.ok) {
-    return NextResponse.json(
-      { error: 'Failed to fetch artworks' },
-      { status: response.status }
-    )
+const res = await fetch(
+  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks?select=*,artist:artists!artworks_artist_id_fkey!inner(first_name,last_name,year_of_birth,year_of_death)`,
+  {
+    headers: {
+      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      Authorization: `Bearer ${accessToken}`,
+    },
   }
+)
 
-  return NextResponse.json(JSON.parse(text))
+
+  const data = await res.json()
+  return NextResponse.json(data)
 }
 
-/**
- * ✅ CRÉER un artwork
- */
+/* ---------- POST /api/artworks ---------- */
 export async function POST(req: NextRequest) {
   const accessToken = req.cookies.get('sb-access-token')?.value
-
   if (!accessToken) {
-    return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
-    )
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const body = await req.json()
 
-  const response = await fetch(
+  const res = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks`,
     {
       method: 'POST',
@@ -61,23 +41,20 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         Authorization: `Bearer ${accessToken}`,
-        Prefer: 'return=minimal',
+        Prefer: 'return=representation',
       },
       body: JSON.stringify(body),
     }
   )
 
-  
-if (!response.ok) {
-  const text = await response.text()
-  console.error('SUPABASE INSERT ERROR:', response.status, text)
+  if (!res.ok) {
+    const text = await res.text()
+    return NextResponse.json(
+      { error: text || 'Insert failed' },
+      { status: res.status }
+    )
+  }
 
-  return NextResponse.json(
-    { error: text },
-    { status: response.status }
-  )
-}
-
-
-  return NextResponse.json({ success: true })
+  const data = await res.json()
+  return NextResponse.json(data[0], { status: 201 })
 }
