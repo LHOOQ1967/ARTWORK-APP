@@ -1,5 +1,4 @@
 
-// app/api/artists/search/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
@@ -9,12 +8,16 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const q = searchParams.get('q') || ''
+  const q = searchParams.get('q') ?? ''
+
+  if (q.length < 2) {
+    return NextResponse.json([])
+  }
 
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artists?` +
-      `select=id,first_name,last_name` +
-      `&or=(first_name.ilike.*${q}*,last_name.ilike.*${q}*)` +
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artists` +
+      `?select=id,first_name,last_name` +
+      `&or=(first_name.ilike.*${encodeURIComponent(q)}*,last_name.ilike.*${encodeURIComponent(q)}*)` +
       `&order=last_name.asc` +
       `&limit=20`,
     {
@@ -24,6 +27,11 @@ export async function GET(req: NextRequest) {
       },
     }
   )
+
+  if (!res.ok) {
+    const text = await res.text()
+    return NextResponse.json({ error: text }, { status: res.status })
+  }
 
   const data = await res.json()
   return NextResponse.json(data)
