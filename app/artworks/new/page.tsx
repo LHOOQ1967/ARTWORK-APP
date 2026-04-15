@@ -140,6 +140,22 @@ if (!res.ok) {
   }
 
   return (
+    
+return (
+  <main style={{ padding: 40 }}>
+    <h1>Artwork debug view</h1>
+    <pre style={{ whiteSpace: 'pre-wrap' }}>
+      {JSON.stringify(artwork, null, 2)}
+    </pre>
+
+    <hr />
+
+    <pre style={{ whiteSpace: 'pre-wrap' }}>
+      {JSON.stringify(form, null, 2)}
+    </pre>
+  </main>
+)
+
     <main style={{ padding: 40, maxWidth: 900 }}>
       <h1>New Artwork</h1>
 
