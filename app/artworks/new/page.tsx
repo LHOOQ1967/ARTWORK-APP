@@ -139,77 +139,79 @@ if (!res.ok) {
     }
   }
 
-  return (
-    
+  
 return (
-  <main style={{ padding: 40 }}>
-    <h1>Artwork debug view</h1>
-    <pre style={{ whiteSpace: 'pre-wrap' }}>
-      {JSON.stringify(artwork, null, 2)}
-    </pre>
+  <main style={{ padding: 40, maxWidth: 900 }}>
+    <h1>New Artwork</h1>
 
-    <hr />
+    {error && <p style={{ color: 'red' }}>{error}</p>}
 
-    <pre style={{ whiteSpace: 'pre-wrap' }}>
-      {JSON.stringify(form, null, 2)}
-    </pre>
+    {/* DEBUG FORM (optionnel) */}
+    <details style={{ marginBottom: 20 }}>
+      <summary style={{ cursor: 'pointer' }}>Debug form state</summary>
+      <pre style={{ whiteSpace: 'pre-wrap' }}>
+        {JSON.stringify(form, null, 2)}
+      </pre>
+    </details>
+
+    <form onSubmit={handleSubmit}>
+      <section>
+        <h2>Identification</h2>
+
+        <input
+          placeholder="Title *"
+          value={form.title}
+          onChange={e => updateField('title', e.target.value)}
+        />
+
+        <select
+          value={form.artist_id}
+          onChange={e => updateField('artist_id', e.target.value)}
+        >
+          <option value="">— Artist —</option>
+          {artists.map(a => (
+            <option key={a.id} value={a.id}>
+              {a.last_name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={form.proposed_by_id}
+          onChange={e => updateField('proposed_by_id', e.target.value)}
+        >
+          <option value="">— Select contact —</option>
+          {contacts.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.company_name}
+              {c.contact_person ? `, ${c.contact_person}` : ''}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="date"
+          value={form.date_proposition}
+          onChange={e =>
+            updateField('date_proposition', e.target.value)
+          }
+        />
+      </section>
+
+      <section>
+        <h2>Description</h2>
+
+        <input
+          placeholder="Medium"
+          value={form.medium}
+          onChange={e => updateField('medium', e.target.value)}
+        />
+      </section>
+
+      <button type="submit" disabled={loading}>
+        {loading ? 'Saving…' : 'Create artwork'}
+      </button>
+    </form>
   </main>
 )
-
-    <main style={{ padding: 40, maxWidth: 900 }}>
-      <h1>New Artwork</h1>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      <form onSubmit={handleSubmit}>
-        <section>
-          <h2>Identification</h2>
-
-          <input placeholder="Title *"
-            value={form.title}
-            onChange={e => updateField('title', e.target.value)}
-          />
-
-          <select
-            value={form.artist_id}
-            onChange={e => updateField('artist_id', e.target.value)}
-          >
-            <option value="">— Artist —</option>
-            {artists.map(a => (
-              <option key={a.id} value={a.id}>{a.last_name}</option>
-            ))}
-          </select>
-
-          <select
-            value={form.proposed_by_id}
-            onChange={e => updateField('proposed_by_id', e.target.value)}
-          >
-            <option value="">— Select contact —</option>
-            {contacts.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.company_name}{c.contact_person ? `, ${c.contact_person}` : ''}
-              </option>
-            ))}
-          </select>
-
-          <input type="date"
-            value={form.date_proposition}
-            onChange={e => updateField('date_proposition', e.target.value)}
-          />
-        </section>
-
-        <section>
-          <h2>Description</h2>
-          <input placeholder="Medium"
-            value={form.medium}
-            onChange={e => updateField('medium', e.target.value)}
-          />
-        </section>
-
-        <button type="submit" disabled={loading}>
-          {loading ? 'Saving…' : 'Create artwork'}
-        </button>
-      </form>
-    </main>
-  )
 }
