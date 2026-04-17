@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useSortable } from '@dnd-kit/sortable'
@@ -7,15 +8,18 @@ export function SortableImage({
   image,
   isEditing,
   onDelete,
+  onOpen,
 }: {
   image: any
   isEditing: boolean
   onDelete: (id: string) => void
+  onOpen: (url: string) => void
 }) {
   const {
+    setNodeRef,
+    setActivatorNodeRef,
     attributes,
     listeners,
-    setNodeRef,
     transform,
     transition,
   } = useSortable({ id: image.id })
@@ -35,21 +39,33 @@ export function SortableImage({
         borderRadius: 6,
         overflow: 'hidden',
         backgroundColor: '#fafafa',
-        cursor: isEditing ? 'grab' : 'default',
       }}
-      {...(isEditing ? { ...attributes, ...listeners } : {})}
     >
-      <img
-        src={image.url}
-        alt={image.label || ''}
-        style={{
-          width: '100%',
-          height: 140,
-          objectFit: 'cover',
-          display: 'block',
+      {/* ✅ IMAGE CLIQUABLE (LECTURE SEULEMENT) */}
+      <div
+        onClick={() => {
+          if (!isEditing) {
+            onOpen(image.url)
+          }
         }}
-      />
+        style={{
+          cursor: isEditing ? 'default' : 'zoom-in',
+        }}
+      >
+        <img
+          src={image.url}
+          alt={image.label || ''}
+          style={{
+            width: '100%',
+            height: 140,
+            objectFit: 'cover',
+            display: 'block',
+            pointerEvents: 'none', // ⭐ CRITIQUE : empêche conflit click / drag
+          }}
+        />
+      </div>
 
+      {/* ✅ LABEL */}
       {image.label && (
         <div
           style={{
@@ -68,6 +84,31 @@ export function SortableImage({
         </div>
       )}
 
+      {/* ✅ POIGNÉE DRAG (MODE ÉDITION UNIQUEMENT) */}
+      {isEditing && (
+        <div
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          style={{
+            position: 'absolute',
+            bottom: 6,
+            left: 6,
+            background: 'rgba(0,0,0,0.6)',
+            color: 'white',
+            borderRadius: 4,
+            padding: '2px 6px',
+            fontSize: 12,
+            cursor: 'grab',
+            userSelect: 'none',
+          }}
+          title="Reorder image"
+        >
+          ⠿
+        </div>
+      )}
+
+      {/* ✅ DELETE */}
       {isEditing && (
         <button
           onClick={() => onDelete(image.id)}

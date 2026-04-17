@@ -4,9 +4,156 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import ImageUploader from '@/app/components/ImageUploader'
+import { SortableDocument } from '@/app/components/SortableDocument'
 import { SortableImage } from '@/app/components/SortableImage'
 import { DndContext, closestCenter, } from '@dnd-kit/core'
-import { SortableContext, rectSortingStrategy, arrayMove, } from '@dnd-kit/sortable'
+import { SortableContext, verticalListSortingStrategy, rectSortingStrategy, arrayMove, } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+import { ArtworkSection } from '@/app/components/artwork/ArtworkSection'
+
+import { EditModeProvider, useEditMode } from '@/app/contexts/EditModeContext'
+
+export default function ArtworkDetailPage() {
+  return (
+    <EditModeProvider>
+      <ArtworkDetailContent />
+    </EditModeProvider>
+  )
+}
+
+
+
+function ActionButton({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        backgroundColor: '#f3f3f3',
+        border: '1px solid #ccc',
+        borderRadius: 4,
+        padding: '6px 12px',
+        fontSize: '0.9rem',
+        cursor: 'pointer',
+        color: '#333',
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.backgroundColor = '#e9e9e9')
+      }
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.backgroundColor = '#f3f3f3')
+      }
+      onFocus={(e) =>
+        (e.currentTarget.style.boxShadow = '0 0 0 2px #ddd')
+      }
+      onBlur={(e) =>
+        (e.currentTarget.style.boxShadow = 'none')
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+
+function HeaderActions() {
+  const { isEditing, toggle } = useEditMode()
+
+  return (
+    <ActionButton
+      onClick={() => {
+      
+        toggle()
+      }}
+      style={{
+        padding: '6px 12px',
+        marginRight: 10,
+      }}
+    >
+      {isEditing ? 'Cancel' : 'Edit'}
+    </ActionButton>
+  )
+}
+
+
+
+function InlineRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '160px 1fr',
+        alignItems: 'flex-start', // ✅ CRUCIAL
+        gap: 12,
+        marginBottom: 10,
+      }}
+    >
+      <div
+        style={{
+          color: '#777',
+          fontSize: '0.9rem',
+          whiteSpace: 'nowrap',
+          paddingTop: 2, // ✅ micro-alignement optique
+        }}
+      >
+        {label}
+      </div>
+
+      {/* ✅ Forcer la colonne Value à être un bloc vertical */}
+      <div style={{ minWidth: 0 }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+
+
+function ArtworkDetailContent() {
+  const { isEditing, setIsEditing, toggle } = useEditMode()
+  const params = useParams() as { id?: string }
+  const id = params?.id ?? null
+
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [artwork, setArtwork] = useState<Artwork | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [openImage, setOpenImage] = useState<string | null>(null)
+
+  const STATUS_OPTIONS = ['draft', 'viewed', 'negotiation', 'bought']
+  const PRIORITY_OPTIONS = ['low', 'medium', 'high']
+  const CURRENCY_OPTIONS = ['CHF', 'EUR', 'USD', 'GBP']
+
+  const auctionContact =
+    contacts.find(c => c.id === artwork?.auction_contact_id) || null
+
+  const buyerContact =
+    artwork && contacts.find(c => c.id === artwork.buyer_contact_id) || null
+
+  const destinationContact =
+    artwork &&
+    contacts.find(c => c.id === artwork.destination_contact_id) ||
+    null
+
+  const proposedByContact =
+    artwork && contacts.find(c => c.id === artwork.proposed_by_id) || null
+
+  const [artists, setArtists] = useState<Artist[]>([])
+
+  // 👉 le reste de ton code (useEffects, handlers, JSX, etc.)
+
 
 
 type Artwork = {
@@ -14,21 +161,6 @@ type Artwork = {
   title: string
 }
 
-export default function ArtworkDetailPage() {
-  const [isEditing, setIsEditing] = useState(false)
-  const params = useParams() as { id?: string }
-  const id = params?.id ?? null
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [artwork, setArtwork] = useState<Artwork | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const STATUS_OPTIONS = ['draft', 'viewed', 'negotiation', 'bought']
-  const PRIORITY_OPTIONS = ['low', 'medium', 'high']
-  const CURRENCY_OPTIONS = ['CHF', 'EUR', 'USD', 'GBP']
-  const auctionContact = contacts.find(c => c.id === artwork?.auction_contact_id) || null
-  const buyerContact = artwork && contacts.find(c => c.id === artwork.buyer_contact_id) || null
-  const destinationContact =   artwork && contacts.find(c => c.id === artwork.destination_contact_id) || null
-  const proposedByContact = artwork && contacts.find(c => c.id === artwork.proposed_by_id) || null
 
 
 
@@ -46,36 +178,97 @@ type Document = {
   const [newDocType, setNewDocType] = useState<'onedrive' | 'image'>('onedrive')
   const [newDocLabel, setNewDocLabel] = useState('')
   const [newDocUrl, setNewDocUrl] = useState('')
+  const [newProposalContactId, setNewProposalContactId] = useState('');
+  const [newProposedAt, setNewProposedAt] = useState('');
 
   
-function handleDragEnd(event: any) {
+async function handleImagesDragEnd(event: any) {
   const { active, over } = event
   if (!over || active.id === over.id) return
 
-  setDocuments(prev => {
-    const images = prev
-      .filter(d => d.document_type === 'image')
-      .sort((a, b) => a.position - b.position)
+  const currentImages = documents
+    .filter(d => d.document_type === 'image')
+    .sort((a, b) => a.position - b.position)
 
-    const oldIndex = images.findIndex(i => i.id === active.id)
-    const newIndex = images.findIndex(i => i.id === over.id)
+  const oldIndex = currentImages.findIndex(img => img.id === active.id)
+  const newIndex = currentImages.findIndex(img => img.id === over.id)
 
-    const reordered = arrayMove(images, oldIndex, newIndex)
+  if (oldIndex === -1 || newIndex === -1) return
 
-    const updatedImages = reordered.map((img, index) => ({
-      ...img,
-      position: index,
-    }))
+  const reordered = arrayMove(currentImages, oldIndex, newIndex)
 
-    // TODO: PATCH backend pour persister les positions
+  const updatedImages = reordered.map((img, index) => ({
+    ...img,
+    position: index,
+  }))
 
-    return [
-      ...prev.filter(d => d.document_type !== 'image'),
-      ...updatedImages,
-    ]
-  })
+  setDocuments(prev => [
+    ...prev.filter(d => d.document_type !== 'image'),
+    ...updatedImages,
+  ])
+
+  try {
+    await fetch('/api/documents/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        updatedImages.map(img => ({ id: img.id, position: img.position }))
+      ),
+    })
+  } catch (err) {
+    console.error(err)
+  }
 }
+``
 
+
+
+async function handleDocumentsDragEnd(event: any) {
+  const { active, over } = event
+  if (!over || active.id === over.id) return
+
+  const currentDocs = documents
+    .filter(d => d.document_type === 'onedrive')
+    .sort((a, b) => a.position - b.position)
+
+  const oldIndex = currentDocs.findIndex(d => d.id === active.id)
+  const newIndex = currentDocs.findIndex(d => d.id === over.id)
+
+  if (oldIndex === -1 || newIndex === -1) return
+
+  const reordered = arrayMove(currentDocs, oldIndex, newIndex)
+
+  const updatedDocs = reordered.map((doc, index) => ({
+    ...doc,
+    position: index,
+  }))
+
+  // UI immédiate
+  setDocuments(prev => [
+    ...prev.filter(d => d.document_type !== 'onedrive'),
+    ...updatedDocs,
+  ])
+
+  // Persistance (même API que les images ✅)
+  const payload = updatedDocs.map(doc => ({
+    id: doc.id,
+    position: doc.position,
+  }))
+
+  try {
+    const res = await fetch('/api/documents/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      console.error(await res.text())
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
 
 
 
@@ -95,7 +288,12 @@ function handleDragEnd(event: any) {
           return
         }
 
-        setArtwork(data)
+        
+setArtwork({
+  ...data,
+  artist_id: data.artist_id ?? data.artist?.id ?? null,
+})
+
       } catch {
         setError('Network error')
       } finally {
@@ -121,6 +319,9 @@ useEffect(() => {
     }
 
     const data = await res.json()
+
+    console.log('CONTACTS LOADED:', data) // ✅ AJOUT ICI
+
     setContacts(data)
   }
 
@@ -145,6 +346,23 @@ useEffect(() => {
 }, [artwork?.id])
 
 
+
+
+useEffect(() => {
+  async function loadArtists() {
+    const res = await fetch('/api/artists/search?q=')
+    if (res.ok) {
+      const data = await res.json()
+      console.log('ARTISTS LOADED:', data)
+      setArtists(data)
+    }
+  }
+
+  loadArtists()
+}, [])
+
+
+
 async function saveArtwork() {
   if (!artwork) return
 
@@ -156,7 +374,8 @@ async function saveArtwork() {
       title: artwork.title,
       medium: artwork.medium,
       year_execution: artwork.year_execution,
-      location_of_work: artwork.location_of_work,
+      dimensions: artwork.dimensions,
+      location_contact_id: artwork.location_contact_id,
       status: artwork.status,
       priority: artwork.priority,
       asking_price: artwork.asking_price,
@@ -169,7 +388,6 @@ async function saveArtwork() {
       estimate_low: artwork.estimate_low, 
       estimate_high: artwork.estimate_high,
       guarantee: artwork.guarantee,
-      bought: artwork.bought,
       buyer_contact_id: artwork.buyer_contact_id,
       cost_amount: artwork.cost_amount,
       cost_currency: artwork.cost_currency,
@@ -179,9 +397,12 @@ async function saveArtwork() {
       view_date: artwork.view_date,
       condition: artwork.condition,
       certificate: artwork.certificate,
-      certificate_location: artwork.certificate_location,
+      certificate_location_contact_id: artwork.certificate_location_contact_id,
       check_seller: artwork.check_seller,
       notes: artwork.notes,
+      artist_id: artwork.artist_id,
+      insurance_value: artwork.insurance_value,
+      insurance_currency: artwork.insurance_currency,
     }),
   })
 
@@ -205,6 +426,65 @@ async function saveArtwork() {
   if (!artwork) {
     return <p style={{ padding: 40 }}>Artwork not found</p>
   }
+
+
+
+async function addProposal() {
+  if (!newProposalContactId) {
+    alert('Please select a contact');
+    return;
+  }
+
+  const res = await fetch(
+    `/api/artworks/${artwork.id}/proposals`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contact_id: newProposalContactId,
+        proposed_at: newProposedAt || null,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const error = await res.json();
+    console.error('Add proposal failed:', error);
+    alert(error.error || 'Failed to add proposal');
+    return;
+  }
+
+  // ✅ reload artwork
+  const refreshed = await fetch(`/api/artworks/${artwork.id}`);
+  setArtwork(await refreshed.json());
+
+  // reset UI
+  setNewProposalContactId('');
+  setNewProposedAt('');
+}
+
+
+async function removeProposal(proposalId: string) {
+  const confirmed = confirm('Remove this proposal?')
+  if (!confirmed) return
+
+  const res = await fetch(
+    `/api/artworks/${artwork.id}/proposals/${proposalId}`,
+    {
+      method: 'DELETE',
+    }
+  )
+
+  if (!res.ok) {
+    const err = await res.json()
+    alert(err.error || 'Failed to remove proposal')
+    return
+  }
+
+  // ✅ Recharger l'artwork
+  const refreshed = await fetch(`/api/artworks/${artwork.id}`)
+  setArtwork(await refreshed.json())
+}
 
 
 async function addDocument() {
@@ -244,9 +524,20 @@ const images = documents
   .filter(d => d.document_type === 'image')
   .sort((a, b) => a.position - b.position)
 
-console.log('DEBUG: before return')
+const onedriveDocuments = documents
+  .filter(d => d.document_type === 'onedrive')
+  .sort((a, b) => a.position - b.position)
 
+  
+const editInputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 8px',
+  border: '1px solid #ccc',
+  borderRadius: 4,
+  fontSize: '0.95rem',
+};
 
+const isBought = artwork.status === 'bought'
 
 return (
   <main
@@ -258,22 +549,18 @@ return (
     }}
   >
     
-<div style={{ marginBottom: 20 }}>
-  <button
-    onClick={() => setIsEditing(!isEditing)}
-    style={{
-      padding: '6px 12px',
-      marginRight: 10,
-      borderRadius: 4,
-      border: '1px solid #ccc',
-      cursor: 'pointer',
-    }}
-  >
-    {isEditing ? 'Cancel' : 'Edit'}
-  </button>
+<div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 20 }}>
+
+<ActionButton
+  onClick={() => { toggle()
+  }}
+>
+  {isEditing ? 'Cancel' : 'Edit'}
+</ActionButton>
+
 
   {isEditing && (
-    <button
+    <ActionButton
       onClick={saveArtwork}
       style={{
         padding: '6px 12px',
@@ -283,25 +570,28 @@ return (
       }}
     >
       Save
-    </button>
+    </ActionButton>
   )}
 </div>
+
+
+
+
+
 
 <section
   style={{
     marginBottom: 30,
-    padding: 20,
-    backgroundColor: 'white',
+    padding: 16,
+    backgroundColor: '#f7f7f7',
     borderRadius: 6,
     color: 'black',
   }}
 >
-  {/* Date proposition */}
-  <div style={{ marginBottom: 12 }}>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>
-      Date proposed
-    </div>
+  <h2 style={{ marginBottom: 15 }}>Proposal</h2>
 
+  {/* Date proposed */}
+  <InlineRow label="Date proposed">
     {isEditing ? (
       <input
         type="date"
@@ -312,22 +602,17 @@ return (
             date_proposition: e.target.value || null,
           })
         }
+        style={editInputStyle}
       />
+    ) : artwork.date_proposition ? (
+      new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
     ) : (
-      <div>
-        {artwork.date_proposition
-          ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
-          : '—'}
-      </div>
+      '—'
     )}
-  </div>
+  </InlineRow>
 
   {/* Proposed by */}
-  <div style={{ marginBottom: 12 }}>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>
-      Proposed by
-    </div>
-
+  <InlineRow label="Proposed by">
     {isEditing ? (
       <select
         value={artwork.proposed_by_id || ''}
@@ -337,387 +622,355 @@ return (
             proposed_by_id: e.target.value || null,
           })
         }
+        style={editInputStyle}
       >
         <option value="">—</option>
-        {contacts.map(c => (
+        {contacts.map((c) => (
           <option key={c.id} value={c.id}>
             {c.company_name ||
               [c.first_name, c.last_name].filter(Boolean).join(' ')}
           </option>
         ))}
       </select>
+    ) : proposedByContact ? (
+      proposedByContact.company_name ||
+      [proposedByContact.first_name, proposedByContact.last_name]
+        .filter(Boolean)
+        .join(' ')
     ) : (
-      <div>
-        {proposedByContact
-          ? proposedByContact.company_name ||
-            [proposedByContact.first_name, proposedByContact.last_name]
-              .filter(Boolean)
-              .join(' ')
-          : '—'}
-      </div>
+      '—'
     )}
-  </div>
+  </InlineRow>
 
-</section>
+  {/* Proposed to */}
 
-    {/* Section always visible */}
-    <section
+
+
+<InlineRow label="Proposed to">
+  {!artwork.artwork_proposals || artwork.artwork_proposals.length === 0 ? (
+    <span style={{ color: '#777', fontStyle: 'italic' }}>
+      Not proposed yet
+    </span>
+  ) : (
+    <div
       style={{
-        marginBottom: 30,
-        padding: 20,
-        backgroundColor: 'white',
-        borderRadius: 6,
-        color: 'black',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
       }}
     >
-      <h2 style={{ marginBottom: 15 }}>Artwork</h2>
-
-      <div>
-        <div style={{ color: '#777', fontSize: '0.9rem', }}>Artist</div>
-        <div>
-          {artwork.artist
-            ? [artwork.artist.first_name, artwork.artist.last_name]
+      {artwork.artwork_proposals.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 8,
+          }}
+        >
+          {/* ✅ Nom + date */}
+          <span style={{ fontWeight: 500 }}>
+            {p.contact.company_name ||
+              [p.contact.first_name, p.contact.last_name]
                 .filter(Boolean)
-                .join(' ')
-            : '—'}
-            
+                .join(' ')}
+          </span>
+
+          <span style={{ fontSize: '0.85rem', color: '#666' }}>
+            ({new Date(p.proposed_at).toLocaleDateString('fr-CH')})
+          </span>
+
+          {/* ✅ Delete — EDIT ONLY */}
+          {isEditing && (
+            <button
+              onClick={() => removeProposal(p.id)}
+              style={{
+                marginLeft: 6,
+                border: 'none',
+                background: 'none',
+                color: '#999',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+              title="Remove proposal"
+            >
+              ✕
+            </button>
+          )}
         </div>
-      </div> 
-
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>Title</div>
-
-  {isEditing ? (
-    <input
-      type="text"
-      value={artwork.title}
-      onChange={(e) =>
-        setArtwork({ ...artwork, title: e.target.value })
-      }
-    onKeyDown={(e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        saveArtwork()
-      }
-    }
-  }
-      autoFocus
-      style={{
-        width: 120,
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-        }}
-    />
-  ) : (
-    <div style={{ fontSize: '1rem' }}>
-      {artwork.title || '—'}
+      ))}
     </div>
   )}
-</div>
+</InlineRow>
 
 
-<div style={{ marginTop: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>Year</div>
 
-  {isEditing ? (
-    <input
-      type="number"
-      value={artwork.year_execution ?? ''}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          year_execution: e.target.value
-            ? Number(e.target.value)
-            : null,
-        })
-      }
-    onKeyDown={(e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        saveArtwork()
-      }
-    }
-  }
-      style={{
-        width: 120,
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    />
-  ) : (
-    <div>
-      {artwork.year_execution || '—'}
-    </div>
+  {/* Add proposal (EDIT ONLY) */}
+  {isEditing && (
+    <InlineRow label="">
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select
+          value={newProposalContactId}
+          onChange={(e) => setNewProposalContactId(e.target.value)}
+        >
+          <option value="">— Select contact —</option>
+          {contacts.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.company_name ||
+                [c.first_name, c.last_name].filter(Boolean).join(' ')}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="date"
+          value={newProposedAt}
+          onChange={(e) => setNewProposedAt(e.target.value)}
+        />
+
+        <button onClick={addProposal}>Add</button>
+      </div>
+    </InlineRow>
   )}
-</div>
+</section>
 
 
-
-<div style={{ marginTop: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>Medium</div>
-
-  {isEditing ? (
-    <input
-      type="text"
-      value={artwork.medium || ''}
-      onChange={(e) =>
-        setArtwork({ ...artwork, medium: e.target.value })
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          saveArtwork()
-        }
-      }}
-      style={{
-        width: '100%',
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    />
+<section
+  style={{
+    marginBottom: 30,
+    padding: '20px 24px',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    color: 'black',
+  }}
+>
+  
+  {images.length === 0 ? (
+    <div style={{ color: '#777', fontStyle: 'italic' }}>
+      No images
+    </div>
   ) : (
-    <div>
-      {artwork.medium || '—'}
-    </div>
+    <DndContext
+      collisionDetection={closestCenter}
+      onDragEnd={handleImagesDragEnd}
+    >
+      <SortableContext
+        items={images.map(img => img.id)}
+        strategy={rectSortingStrategy}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          {images.map(img => (
+            <SortableImage
+              key={img.id}
+              image={img}
+              isEditing={isEditing}
+              onDelete={deleteDocument}
+              onOpen={setOpenImage}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   )}
-</div>
 
-
-
-<div style={{ marginTop: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Dimensions (cm)
-  </div>
-  <div>
-    {artwork.height_cm && artwork.width_cm
-      ? `${artwork.height_cm} × ${artwork.width_cm}` +
-        (artwork.depth_cm ? ` × ${artwork.depth_cm}` : '')
-      : '—'}
-  </div>
-</div>
-
-
-<div style={{ marginTop: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Current location
-  </div>
-
-  {isEditing ? (
-    <input
-      type="text"
-      value={artwork.location_of_work || ''}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          location_of_work: e.target.value,
-        })
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          saveArtwork()
-        }
-      }}
+  {isEditing && artwork && (
+    <div
       style={{
-        width: '100%',
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
+        marginTop: 10,
+        paddingTop: 16,
+        borderTop: '2px dashed #ddd',
       }}
-    />
-  ) : (
-    <div>
-      {artwork.location_of_work || '—'}
-    </div>
-  )}
-</div>
-
-  {/* Viewing date */}
-  <div>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>
-      Viewed on
-    </div>
-
-    {isEditing ? (
-      <input
-        type="date"
-        value={artwork.view_date || ''}
-        onChange={(e) =>
-          setArtwork({
-            ...artwork,
-            view_date: e.target.value || null,
-          })
+    >
+      <ImageUploader
+        artworkId={artwork.id}
+        onUploaded={(doc) =>
+          setDocuments(prev => [...prev, doc])
         }
       />
-    ) : (
-      <div>
-        {artwork.view_date
-          ? new Date(artwork.view_date).toLocaleDateString('fr-CH')
-          : '—'}
-      </div>
-    )}
-  </div>
+    </div>
+  )}
+</section>
+ 
+      <ArtworkSection
+        artwork={artwork}
+        isEditing={isEditing}
+        setArtwork={setArtwork}
+        artists={artists}
+        contacts={contacts}
+      />
 
-    </section>
 
 <section
   style={{
     marginBottom: 30,
     padding: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#f7f7f7',
     borderRadius: 6,
     color: 'black',
   }}
 >
   <h2 style={{ marginBottom: 15 }}>Auction</h2>
 
-  {/* Auction planned — TOUJOURS visible */}
-  <div style={{ marginBottom: 12 }}>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>
-      Auction
-    </div>
+  {/* Auction Yes / No — sans label */}
 
-    {isEditing ? (
-      
-<select
-  value={artwork.auctions ? 'yes' : 'no'}
-  onChange={(e) => {
-    const isAuction = e.target.value === 'yes'
 
-    setArtwork({
-      ...artwork,
-      auctions: isAuction,
-
-      // ✅ CLEANUP AUTOMATIQUE SI AUCTION = NO
-      auction_contact_id: isAuction ? artwork.auction_contact_id : null,
-      sale_date: isAuction ? artwork.sale_date : null,
-      sale_time: isAuction ? artwork.sale_time : null,
-      auction_link: isAuction ? artwork.auction_link : null,
-      estimate_low: isAuction ? artwork.estimate_low : null,
-      estimate_high: isAuction ? artwork.estimate_high : null,
-      auction_currency: isAuction ? artwork.auction_currency : null,
-      guarantee: isAuction ? artwork.guarantee : false,
-    })
+<div
+  style={{
+    display: 'grid',
+    gridTemplateColumns: '160px 1fr',
+    alignItems: 'center',
+    marginBottom: 12,
   }}
 >
-  <option value="no">No</option>
-  <option value="yes">Yes</option>
-</select>
+  {/* Colonne gauche */}
+  <div>
+    {isEditing ? (
+      <select
+        value={artwork.auctions ? 'yes' : 'no'}
+        onChange={(e) => {
+          const isAuction = e.target.value === 'yes'
 
+          setArtwork({
+            ...artwork,
+            auctions: isAuction,
+            auction_contact_id: isAuction
+              ? artwork.auction_contact_id
+              : null,
+            sale_date: isAuction ? artwork.sale_date : null,
+            sale_time: isAuction ? artwork.sale_time : null,
+            auction_link: isAuction ? artwork.auction_link : null,
+            estimate_low: isAuction ? artwork.estimate_low : null,
+            estimate_high: isAuction ? artwork.estimate_high : null,
+            auction_currency: isAuction
+              ? artwork.auction_currency
+              : null,
+            guarantee: isAuction ? artwork.guarantee : false,
+          })
+        }}
+        style={{ ...editInputStyle, width: 90 }}
+      >
+        <option value="no">No</option>
+        <option value="yes">Yes</option>
+      </select>
     ) : (
       <div>{artwork.auctions ? 'Yes' : 'No'}</div>
     )}
   </div>
 
-  {/* DÉTAILS — visibles uniquement si auctions === true */}
+  {/* Colonne droite — alignée exactement avec “Blondeau” */}
+  <a
+    href="https://buyerspremium.blondeau.ch/auction_time.php"
+    target="_blank"
+    rel="noopener noreferrer"
+    style={{
+      color: '#555',
+      textDecoration: 'underline',
+      fontSize: '0.85rem',
+      cursor: 'pointer',
+      width: 'fit-content',
+    }}
+  >
+    Calculate auction time
+  </a>
+</div>
+
+
+<div
+  style={{
+    borderTop: '1px solid #e5e5e53a',
+    margin: '8px 0 12px 0',
+  }}
+/>
+
+
+  {/* Auction details */}
   {artwork.auctions && (
     <>
+      {/* Auction house */}
+      <InlineRow label="Auction house">
+        {isEditing ? (
+          <select
+            value={artwork.auction_contact_id || ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                auction_contact_id: e.target.value || null,
+              })
+            }
+            style={editInputStyle}
+          >
+            <option value="">—</option>
+            {contacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.company_name ||
+                  [c.first_name, c.last_name].filter(Boolean).join(' ')}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div>
+            {auctionContact
+              ? auctionContact.company_name ||
+                [auctionContact.first_name, auctionContact.last_name]
+                  .filter(Boolean)
+                  .join(' ')
+              : '—'}
+          </div>
+        )}
+      </InlineRow>
 
+      {/* Sale date */}
+      <InlineRow label="Sale date">
+        {isEditing ? (
+          <input
+            type="date"
+            value={artwork.sale_date || ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                sale_date: e.target.value || null,
+              })
+            }
+            style={editInputStyle}
+          />
+        ) : (
+          <div>
+            {artwork.sale_date
+              ? new Date(artwork.sale_date).toLocaleDateString('fr-CH')
+              : '—'}
+          </div>
+        )}
+      </InlineRow>
 
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Auction house
-  </div>
+      {/* Sale time */}
+      <InlineRow label="Sale time">
+        {isEditing ? (
+          <input
+            type="time"
+            value={artwork.sale_time || ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                sale_time: e.target.value || null,
+              })
+            }
+            style={editInputStyle}
+          />
+        ) : (
+          <div>{artwork.sale_time || '—'}</div>
+        )}
+      </InlineRow>
 
-  {isEditing ? (
+      {/* Auction website */}
 
-<select
-  value={artwork.auction_contact_id || ''}
-  onChange={(e) =>
-    setArtwork({
-      ...artwork,
-      auction_contact_id: e.target.value || null,
-    })
-  }
->
-  <option value="">—</option>
-  {contacts.map((c) => (
-    <option key={c.id} value={c.id}>
-      {c.company_name ||
-        [c.first_name, c.last_name].filter(Boolean).join(' ')}
-    </option>
-  ))}
-</select>
-
-  ) : (
-    <div>
-      {auctionContact
-        ? auctionContact.company_name ||
-          [auctionContact.first_name, auctionContact.last_name]
-            .filter(Boolean)
-            .join(' ')
-        : '—'}
-    </div>
-  )}
-</div>
-
-
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Sale date
-  </div>
-
-  {isEditing ? (
-    <input
-      type="date"
-      value={artwork.sale_date || ''}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          sale_date: e.target.value || null,
-        })
-      }
-      style={{
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    />
-  ) : (
-    <div>
-      {artwork.sale_date
-        ? new Date(artwork.sale_date).toLocaleDateString('fr-CH')
-        : '—'}
-    </div>
-  )}
-</div>
-
-
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Sale time
-  </div>
-
-  {isEditing ? (
-    <input
-      type="time"
-      value={artwork.sale_time || ''}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          sale_time: e.target.value || null,
-        })
-      }
-      style={{
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    />
-  ) : (
-    <div>{artwork.sale_time || '—'}</div>
-  )}
-</div>
-
-
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Auction website
-  </div>
-
+<InlineRow label="Auction website">
   {isEditing ? (
     <input
       type="url"
@@ -728,239 +981,206 @@ return (
           auction_link: e.target.value || null,
         })
       }
-      style={{
-        width: '100%',
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
+      style={editInputStyle}
     />
   ) : artwork.auction_link ? (
-    <a href={artwork.auction_link} target="_blank">
-      Open link
+    <a
+      href={artwork.auction_link}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        color: '#007a5e',
+        textDecoration: 'underline',
+        wordBreak: 'break-all',
+      }}
+    >
+      {new URL(artwork.auction_link).hostname}
     </a>
   ) : (
     '—'
   )}
-</div>
+</InlineRow>
 
 
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Estimate
-  </div>
+      {/* Estimate */}
+      <InlineRow label="Estimate">
+        {isEditing ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="number"
+              placeholder="Low"
+              value={artwork.estimate_low ?? ''}
+              onChange={(e) =>
+                setArtwork({
+                  ...artwork,
+                  estimate_low: e.target.value
+                    ? Number(e.target.value)
+                    : null,
+                })
+              }
+            />
+            <input
+              type="number"
+              placeholder="High"
+              value={artwork.estimate_high ?? ''}
+              onChange={(e) =>
+                setArtwork({
+                  ...artwork,
+                  estimate_high: e.target.value
+                    ? Number(e.target.value)
+                    : null,
+                })
+              }
+            />
+            <select
+              value={artwork.auction_currency || ''}
+              onChange={(e) =>
+                setArtwork({
+                  ...artwork,
+                  auction_currency: e.target.value || null,
+                })
+              }
+            >
+              <option value="">—</option>
+              {CURRENCY_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            {artwork.estimate_low && artwork.estimate_high
+              ? `${artwork.auction_currency} ${artwork.estimate_low} – ${artwork.estimate_high}`
+              : '—'}
+          </div>
+        )}
+      </InlineRow>
 
-  {isEditing ? (
-    <div style={{ display: 'flex', gap: 8 }}>
-      <input
-        type="number"
-        placeholder="Low"
-        value={artwork.estimate_low ?? ''}
-        onChange={(e) =>
-          setArtwork({
-            ...artwork,
-            estimate_low: e.target.value
-              ? Number(e.target.value)
-              : null,
-          })
-        }
-      />
-      <input
-        type="number"
-        placeholder="High"
-        value={artwork.estimate_high ?? ''}
-        onChange={(e) =>
-          setArtwork({
-            ...artwork,
-            estimate_high: e.target.value
-              ? Number(e.target.value)
-              : null,
-          })
-        }
-      />
-      <select
-        value={artwork.auction_currency || ''}
-        onChange={(e) =>
-          setArtwork({
-            ...artwork,
-            auction_currency: e.target.value || null,
-          })
-        }
-      >
-        <option value="">—</option>
-        {CURRENCY_OPTIONS.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-    </div>
-  ) : (
-    <div>
-      {artwork.estimate_low && artwork.estimate_high
-        ? `${artwork.auction_currency} ${artwork.estimate_low} – ${artwork.estimate_high}`
-        : '—'}
-    </div>
-  )}
-</div>
-
-
-<div>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Guarantee
-  </div>
-
-  {isEditing ? (
-    <select
-      value={artwork.guarantee ? 'yes' : 'no'}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          guarantee: e.target.value === 'yes',
-        })
-      }
-    >
-      <option value="no">No</option>
-      <option value="yes">Yes</option>
-    </select>
-  ) : (
-    <div>{artwork.guarantee ? 'Yes' : 'No'}</div>
-  )}
-</div>
-
+      {/* Guarantee */}
+      <InlineRow label="Guarantee">
+        {isEditing ? (
+          <select
+            value={artwork.guarantee ? 'yes' : 'no'}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                guarantee: e.target.value === 'yes',
+              })
+            }
+          >
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+          </select>
+        ) : (
+          <div>{artwork.guarantee ? 'Yes' : 'No'}</div>
+        )}
+      </InlineRow>
     </>
   )}
 </section>
-
-
 
 <section
   style={{
     marginBottom: 30,
     padding: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#f7f7f7',
     borderRadius: 6,
     color: 'black',
   }}
 >
   <h2 style={{ marginBottom: 15 }}>Market</h2>
 
-
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Asking price
-  </div>
-
-  {isEditing ? (
-    <input
-      type="number"
-      value={artwork.asking_price ?? ''}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          asking_price: e.target.value
-            ? Number(e.target.value)
-            : null,
-        })
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          saveArtwork()
+  {/* ✅ Currency — EDIT ONLY */}
+  {isEditing && (
+    <InlineRow label="Currency">
+      <select
+        value={artwork.currency || ''}
+        onChange={(e) =>
+          setArtwork({
+            ...artwork,
+            currency: e.target.value,
+          })
         }
-      }}
-      style={{
-        width: 160,
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    />
-  ) : (
-    <div>
-      {artwork.asking_price !== null
-        ? `${artwork.currency} ${new Intl.NumberFormat('fr-CH').format(
-            artwork.asking_price
-          )}`
-        : '—'}
-    </div>
+        style={editInputStyle}
+      >
+        <option value="">—</option>
+        {CURRENCY_OPTIONS.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+    </InlineRow>
   )}
-</div>
 
 
-<div>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Currency
-  </div>
-
-  {isEditing ? (
-    <select
-      value={artwork.currency || ''}
-      onChange={(e) =>
-        setArtwork({
-          ...artwork,
-          currency: e.target.value,
-        })
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          saveArtwork()
+  {/* Asking price */}
+  <InlineRow label="Asking price">
+    {isEditing ? (
+      <input
+        type="number"
+        value={artwork.asking_price ?? ''}
+        onChange={(e) =>
+          setArtwork({
+            ...artwork,
+            asking_price: e.target.value
+              ? Number(e.target.value)
+              : null,
+          })
         }
-      }}
-      style={{
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-        marginTop: 4,
-      }}
-    >
-      <option value="">—</option>
-      {CURRENCY_OPTIONS.map((c) => (
-        <option key={c} value={c}>
-          {c}
-        </option>
-      ))}
-    </select>
-  ) : (
-    <div>
-      {artwork.currency || '—'}
-    </div>
-  )}
-</div>
-</section>
+        style={{ ...editInputStyle, width: 160 }}
+      />
+    ) : (
+      <div>
+        {artwork.asking_price !== null
+          ? `${artwork.currency} ${new Intl.NumberFormat('fr-CH').format(
+              artwork.asking_price
+            )}`
+          : '—'}
+      </div>
+    )}
+  </InlineRow>
 
 
-<section
-  style={{
-    marginBottom: 30,
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 6,
-    color: 'black',
-  }}
->
-  <h2 style={{ marginBottom: 15 }}>Status & Priority</h2>
+  {/* Priority */}
+  <InlineRow label="Priority">
+    {isEditing ? (
+      <select
+        value={artwork.priority || ''}
+        onChange={(e) =>
+          setArtwork({ ...artwork, priority: e.target.value })
+        }
+        style={editInputStyle}
+      >
+        <option value="">—</option>
+        {PRIORITY_OPTIONS.map((priority) => (
+          <option key={priority} value={priority}>
+            {priority}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <div>{artwork.priority || '—'}</div>
+    )}
+  </InlineRow>
 
+  {/* Status */}
 
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>Status</div>
-
+<InlineRow label="Status">
   {isEditing ? (
     <select
       value={artwork.status || ''}
-      onChange={(e) =>
-        setArtwork({ ...artwork, status: e.target.value })
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          saveArtwork()
-        }
+      onChange={(e) => {
+        const newStatus = e.target.value
+
+        setArtwork({
+          ...artwork,
+          status: newStatus,
+        })
       }}
-      style={{
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
+      style={editInputStyle}
     >
       <option value="">—</option>
       {STATUS_OPTIONS.map((status) => (
@@ -972,44 +1192,10 @@ return (
   ) : (
     <div>{artwork.status || '—'}</div>
   )}
-</div>
+</InlineRow>
 
-
-<div>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>Priority</div>
-
-  {isEditing ? (
-    <select
-      value={artwork.priority || ''}
-      onChange={(e) =>
-        setArtwork({ ...artwork, priority: e.target.value })
-      }
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          saveArtwork()
-        }
-      }}
-      style={{
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    >
-      <option value="">—</option>
-      {PRIORITY_OPTIONS.map((priority) => (
-        <option key={priority} value={priority}>
-          {priority}
-        </option>
-      ))}
-    </select>
-  ) : (
-    <div>{artwork.priority || '—'}</div>
-  )}
-</div>
 
 </section>
-
 
 
 
@@ -1017,316 +1203,204 @@ return (
   style={{
     marginBottom: 30,
     padding: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#f7f7f7',
     borderRadius: 6,
     color: 'black',
   }}
 >
   <h2 style={{ marginBottom: 15 }}>Acquisition</h2>
 
+  {(() => {
+    const isBought = artwork.status === 'bought'
 
-<div style={{ marginBottom: 12 }}>
-  <div style={{ color: '#777', fontSize: '0.9rem' }}>
-    Bought
-  </div>
+    return (
+      <>
+        {!isBought && (
+          <InlineRow label="Bought">
+            <div>No</div>
+          </InlineRow>
+        )}
 
-  {isEditing ? (
-    <select
-      value={artwork.bought ? 'yes' : 'no'}
+        {isBought && (
+          <>
+            <InlineRow label="Bought">
+              <div>Yes</div>
+            </InlineRow>
 
-onChange={(e) => {
-  const isBought = e.target.value === 'yes'
+            {/* Buyer */}
+            <InlineRow label="Buyer">
+              {isEditing ? (
+                <select
+                  value={artwork.buyer_contact_id || ''}
+                  onChange={(e) =>
+                    setArtwork({
+                      ...artwork,
+                      buyer_contact_id: e.target.value || null,
+                    })
+                  }
+                  style={editInputStyle}
+                >
+                  <option value="">—</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.company_name ||
+                        [c.first_name, c.last_name]
+                          .filter(Boolean)
+                          .join(' ')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                buyerContact
+                  ? buyerContact.company_name ||
+                    [buyerContact.first_name, buyerContact.last_name]
+                      .filter(Boolean)
+                      .join(' ')
+                  : '—'
+              )}
+            </InlineRow>
 
-  setArtwork({
-    ...artwork,
-    bought: isBought,
+            {/* Cost */}
+            <InlineRow label="Cost">
+              {isEditing ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={artwork.cost_amount ?? ''}
+                    onChange={(e) =>
+                      setArtwork({
+                        ...artwork,
+                        cost_amount: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      })
+                    }
+                    style={{ ...editInputStyle, width: 140 }}
+                  />
 
-    // ✅ CLEANUP automatique
-    buyer_contact_id: isBought ? artwork.buyer_contact_id : null,
-    cost_amount: isBought ? artwork.cost_amount : null,
-    cost_currency: isBought ? artwork.cost_currency : null,
-    destination_contact_id: isBought
-      ? artwork.destination_contact_id
-      : null,
-  })
-}}
-
-      style={{
-        padding: '6px 8px',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-      }}
-    >
-      <option value="no">No</option>
-      <option value="yes">Yes</option>
-    </select>
-  ) : (
-    <div>{artwork.bought ? 'Yes' : 'No'}</div>
-  )}
-</div>
-
-
-
-{/* ⬇️ CHAMPS APPLICABLES UNIQUEMENT SI BOUGHT = YES */}
-{artwork.bought === true && (
-  <>
-    {/* Buyer */}
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ color: '#777', fontSize: '0.9rem' }}>Buyer</div>
-
-      {isEditing ? (
-        <select
-          value={artwork.buyer_contact_id || ''}
-          onChange={(e) =>
-            setArtwork({
-              ...artwork,
-              buyer_contact_id: e.target.value || null,
-            })
-          }
-          style={{
-            padding: '6px 8px',
-            border: '1px solid #ccc',
-            borderRadius: 4,
-          }}
-        >
-          <option value="">—</option>
-          {contacts.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.company_name ||
-                [c.first_name, c.last_name]
-                  .filter(Boolean)
-                  .join(' ')}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <div>
-          {buyerContact
-            ? buyerContact.company_name ||
-              [buyerContact.first_name, buyerContact.last_name]
-                .filter(Boolean)
-                .join(' ')
-            : '—'}
-        </div>
-      )}
-    </div>
-
-    {/* Cost */}
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ color: '#777', fontSize: '0.9rem' }}>Cost</div>
-
-      {isEditing ? (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="number"
-            placeholder="Amount"
-            value={artwork.cost_amount ?? ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                cost_amount: e.target.value
-                  ? Number(e.target.value)
-                  : null,
-              })
-            }
-          />
-
-          <select
-            value={artwork.cost_currency || ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                cost_currency: e.target.value || null,
-              })
-            }
-          >
-            <option value="">—</option>
-            {CURRENCY_OPTIONS.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div>
-          {artwork.cost_amount
-            ? `${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(
+                  <select
+                    value={artwork.cost_currency || ''}
+                    onChange={(e) =>
+                      setArtwork({
+                        ...artwork,
+                        cost_currency: e.target.value || null,
+                      })
+                    }
+                    style={editInputStyle}
+                  >
+                    <option value="">—</option>
+                    {CURRENCY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
                 artwork.cost_amount
-              )}`
-            : '—'}
-        </div>
-      )}
-    </div>
+                  ? `${artwork.cost_currency} ${new Intl.NumberFormat(
+                      'fr-CH'
+                    ).format(artwork.cost_amount)}`
+                  : '—'
+              )}
+            </InlineRow>
 
-    {/* Destination */}
-    <div>
-      <div style={{ color: '#777', fontSize: '0.9rem' }}>Destination</div>
 
-      {isEditing ? (
-        <select
-          value={artwork.destination_contact_id || ''}
-          onChange={(e) =>
-            setArtwork({
-              ...artwork,
-              destination_contact_id:
-                e.target.value || null,
-            })
-          }
-        >
-          <option value="">—</option>
-          {contacts.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.company_name ||
-                [c.first_name, c.last_name]
-                  .filter(Boolean)
-                  .join(' ')}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <div>
-          {destinationContact
-            ? destinationContact.company_name ||
-              [destinationContact.first_name, destinationContact.last_name]
-                .filter(Boolean)
-                .join(' ')
-            : '—'}
-        </div>
-      )}
-    </div>
-  </>
-)}
- 
+
+            {/* Insurance */}
+            <InlineRow label="Insurance">
+              {isEditing ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="number"
+                    placeholder="Amount"
+                    value={artwork.insurance_value ?? ''}
+                    onChange={(e) =>
+                      setArtwork({
+                        ...artwork,
+                        insurance_value: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      })
+                    }
+                    style={{ ...editInputStyle, width: 140 }}
+                  />
+
+                  <select
+                    value={artwork.insurance_currency || ''}
+                    onChange={(e) =>
+                      setArtwork({
+                        ...artwork,
+                        insurance_currency: e.target.value || null,
+                      })
+                    }
+                    style={editInputStyle}
+                  >
+                    <option value="">—</option>
+                    {CURRENCY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : artwork.insurance_value ? (
+                `${artwork.insurance_currency} ${new Intl.NumberFormat(
+                  'fr-CH'
+                ).format(artwork.insurance_value)}`
+              ) : (
+                '—'
+              )}
+            </InlineRow>
+
+
+            {/* Destination */}
+            <InlineRow label="Destination">
+              {isEditing ? (
+                <select
+                  value={artwork.destination_contact_id || ''}
+                  onChange={(e) =>
+                    setArtwork({
+                      ...artwork,
+                      destination_contact_id:
+                        e.target.value || null,
+                    })
+                  }
+                  style={editInputStyle}
+                >
+                  <option value="">—</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.company_name ||
+                        [c.first_name, c.last_name]
+                          .filter(Boolean)
+                          .join(' ')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                destinationContact
+                  ? destinationContact.company_name ||
+                    [destinationContact.first_name,
+                      destinationContact.last_name]
+                      .filter(Boolean)
+                      .join(' ')
+                  : '—'
+              )}
+            </InlineRow>
+          </>
+        )}
+      </>
+    )
+  })()}
 </section>
-
-
-
 
 <section
   style={{
     marginBottom: 30,
     padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 6,
-    color: 'black',
-  }}
->
-  <h2 style={{ marginBottom: 15 }}>Condition & Certificate</h2>
-
-  {/* Condition */}
-  <div style={{ marginBottom: 12 }}>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>Condition</div>
-
-    {isEditing ? (
-      <textarea
-        value={artwork.condition || ''}
-        onChange={(e) =>
-          setArtwork({ ...artwork, condition: e.target.value })
-        }
-        style={{ width: '100%' }}
-      />
-    ) : (
-      <div>{artwork.condition || '—'}</div>
-    )}
-  </div>
-
-  {/* Certificate */}
-  <div style={{ marginBottom: 12 }}>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>
-      Certificate
-    </div>
-
-    {isEditing ? (
-      <select
-        value={artwork.certificate ? 'yes' : 'no'}
-        onChange={(e) =>
-          setArtwork({
-            ...artwork,
-            certificate: e.target.value === 'yes',
-            certificate_location:
-              e.target.value === 'yes'
-                ? artwork.certificate_location
-                : null,
-          })
-        }
-      >
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
-    ) : (
-      <div>{artwork.certificate ? 'Yes' : 'No'}</div>
-    )}
-  </div>
-
-  {/* Certificate location */}
-  {artwork.certificate === true && (
-    <div>
-      <div style={{ color: '#777', fontSize: '0.9rem' }}>
-        Certificate location
-      </div>
-
-      {isEditing ? (
-        <input
-          type="text"
-          value={artwork.certificate_location || ''}
-          onChange={(e) =>
-            setArtwork({
-              ...artwork,
-              certificate_location: e.target.value || null,
-            })
-          }
-        />
-      ) : (
-        <div>{artwork.certificate_location || '—'}</div>
-      )}
-    </div>
-  )}
-</section>
-
-
-
-<section
-  style={{
-    marginBottom: 30,
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 6,
-    color: 'black',
-  }}
->
-  <h2 style={{ marginBottom: 15 }}>Checks</h2>
-
-  <div>
-    <div style={{ color: '#777', fontSize: '0.9rem' }}>
-      Seller checked
-    </div>
-
-    {isEditing ? (
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input
-          type="checkbox"
-          checked={!!artwork.check_seller}
-          onChange={(e) =>
-            setArtwork({
-              ...artwork,
-              check_seller: e.target.checked,
-            })
-          }
-        />
-        <span>Seller verified</span>
-      </label>
-    ) : (
-      <div>{artwork.check_seller ? 'Yes' : 'No'}</div>
-    )}
-  </div>
-</section>
-
-
-
-<section
-  style={{
-    marginBottom: 30,
-    padding: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#f7f7f7',
     borderRadius: 6,
     color: 'black',
   }}
@@ -1348,89 +1422,51 @@ onChange={(e) => {
 
 
 
+
 <section
   style={{
     marginBottom: 30,
     padding: '20px 24px',
-    backgroundColor: 'white',
+    backgroundColor: '#f7f7f7',
     borderRadius: 8,
     color: 'black',
   }}
 >
   <h2 style={{ marginBottom: 16 }}>Documents</h2>
 
-  {/* LISTE DES DOCUMENTS (OneDrive uniquement) */}
   {documents.filter(d => d.document_type === 'onedrive').length === 0 ? (
     <div style={{ color: '#777', fontStyle: 'italic' }}>
       No documents
     </div>
   ) : (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {documents
-        .filter(d => d.document_type === 'onedrive')
-        .map(doc => (
-          <div
-            key={doc.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 12px',
-              border: '1px solid #e0e0e0',
-              borderRadius: 6,
-              backgroundColor: '#fafafa',
-            }}
-          >
-            {/* Label */}
-            <div
-              style={{
-                flex: 1,
-                fontWeight: 500,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title={doc.label || 'Untitled'}
-            >
-              {doc.label || 'Untitled'}
-            </div>
-
-            {/* Lien */}
-            <a
-              href={doc.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                fontSize: 14,
-                color: '#0070f3',
-                textDecoration: 'none',
-              }}
-            >
-              Open
-            </a>
-
-            {/* Delete (mode édition) */}
-            {isEditing && (
-              <button
-                onClick={() => deleteDocument(doc.id)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#999',
-                  cursor: 'pointer',
-                  fontSize: 16,
-                }}
-                title="Delete document"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-    </div>
+    <DndContext
+      collisionDetection={closestCenter}
+      onDragEnd={handleDocumentsDragEnd}
+    >
+      <SortableContext
+        items={documents
+          .filter(d => d.document_type === 'onedrive')
+          .sort((a, b) => a.position - b.position)
+          .map(d => d.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {documents
+            .filter(d => d.document_type === 'onedrive')
+            .sort((a, b) => a.position - b.position)
+            .map(doc => (
+              <SortableDocument
+                key={doc.id}
+                document={doc}
+                isEditing={isEditing}
+                onDelete={deleteDocument}
+              />
+            ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   )}
 
-  {/* AJOUT DOCUMENT */}
   {isEditing && (
     <div
       style={{
@@ -1446,7 +1482,7 @@ onChange={(e) => {
           type="text"
           placeholder="Label (optional)"
           value={newDocLabel}
-          onChange={(e) => setNewDocLabel(e.target.value)}
+          onChange={e => setNewDocLabel(e.target.value)}
           style={{ flex: 1 }}
         />
 
@@ -1454,86 +1490,46 @@ onChange={(e) => {
           type="url"
           placeholder="OneDrive URL"
           value={newDocUrl}
-          onChange={(e) => setNewDocUrl(e.target.value)}
+          onChange={e => setNewDocUrl(e.target.value)}
           style={{ flex: 2 }}
         />
 
-        <button onClick={addDocument}>
+        <ActionButton onClick={addDocument}>
           Add
-        </button>
+        </ActionButton>
       </div>
     </div>
   )}
 </section>
 
 
-
-
-
-<section
-  style={{
-    marginBottom: 30,
-    padding: '20px 24px',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    color: 'black',
-  }}
->
-  <h2 style={{ marginBottom: 16 }}>Images</h2>
-
-  {images.length === 0 ? (
-    <div style={{ color: '#777', fontStyle: 'italic' }}>
-      No images
-    </div>
-  ) : (
-    <DndContext
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext
-        items={images.map(img => img.id)}
-        strategy={rectSortingStrategy}
-      >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          {images.map(img => (
-            <SortableImage
-              key={img.id}
-              image={img}
-              isEditing={isEditing}
-              onDelete={deleteDocument}
-            />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
-  )}
-
-  {isEditing && artwork && (
-    <div
+{openImage && (
+  <div
+    onClick={() => setOpenImage(null)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0,0,0,0.85)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999,
+      cursor: 'zoom-out',
+    }}
+  >
+    <img
+      src={openImage}
+      alt=""
       style={{
-        marginTop: 10,
-        paddingTop: 16,
-        borderTop: '1px dashed #ddd',
+        maxWidth: '90vw',
+        maxHeight: '90vh',
+        objectFit: 'contain',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
       }}
-    >
-      <ImageUploader
-        artworkId={artwork.id}
-        onUploaded={(doc) =>
-          setDocuments(prev => [...prev, doc])
-        }
-      />
-    </div>
-  )}
-</section>
-
-
+      onClick={(e) => e.stopPropagation()}
+    />
+  </div>
+)}
   </main>
 )
 }

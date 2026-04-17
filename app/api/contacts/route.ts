@@ -1,35 +1,33 @@
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
-export async function GET(req: NextRequest) {
-  const accessToken = req.cookies.get('sb-access-token')?.value
+export async function GET() {
+  // ✅ OBLIGATOIRE : await cookies()
+  const cookieStore = await cookies()
 
-  if (!accessToken) {
-    return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
-    )
-  }
-
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/contacts?select=id,company_name&order=company_name`,
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
       },
     }
   )
 
-  const text = await response.text()
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('id, company_name, first_name, last_name, email')
+    .order('company_name')
 
-  if (!response.ok) {
-    console.error('SUPABASE CONTACTS ERROR:', response.status, text)
-    return NextResponse.json(
-      { error: text },
-      { status: response.status }
-    )
+  if (error) {
+    console.error('CONTACTS ERROR:', error)
+    return NextResponse.json([], { status: 200 })
   }
 
-  return NextResponse.json(JSON.parse(text))
+  return NextResponse.json(data ?? [], { status: 200 })
 }

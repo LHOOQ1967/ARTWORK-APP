@@ -40,11 +40,69 @@ export async function GET(
   const supabase = await getSupabase()
 
   /* ---- Artwork ---- */
-  const { data: artworks, error } = await supabase
-    .from('artworks')
-    .select('*')
-    .eq('id', id)
-    .limit(1)
+
+
+const { data: artworks, error } = await supabase
+  .from('artworks')
+  .select(`
+    *,
+    artist:artists (
+      id,
+      first_name,
+      last_name,
+      year_of_birth,
+      year_of_death
+    ),
+    proposed_by:contacts!artworks_proposed_by_id_fkey (
+      id,
+      first_name,
+      last_name,
+      company_name
+    ),
+    auction_house:contacts!artworks_auction_contact_id_fkey (
+      id,
+      first_name,
+      last_name,
+      company_name
+    ),
+    buyer:contacts!artworks_buyer_contact_id_fkey (
+      id,
+      first_name,
+      last_name,
+      company_name
+    ),
+    destination:contacts!artworks_destination_contact_id_fkey (
+      id,
+      first_name,
+      last_name,
+      company_name
+    ),
+    location_contact:contacts!artworks_location_contact_fkey (
+      id,
+      first_name,
+      last_name,
+      company_name
+    ),
+    certificate_location_contact:contacts!artworks_certificate_location_contact_fkey (
+      id,
+      first_name,
+      last_name,
+      company_name
+    ),
+    artwork_proposals (
+      id,
+      proposed_at,
+      contact:contacts (
+        id,
+        first_name,
+        last_name,
+        company_name
+      )
+    )
+  `)
+  .eq('id', id)
+  .limit(1);
+
 
   if (error) {
     return NextResponse.json(
@@ -53,7 +111,8 @@ export async function GET(
     )
   }
 
-  const artwork = artworks?.[0]
+
+const artwork = artworks?.[0]
 
 if (!artwork) {
   return NextResponse.json(
@@ -62,46 +121,40 @@ if (!artwork) {
   )
 }
 
+const isBought = artwork.status === 'bought'
 
-  /* ---- Relations ---- */
-  const loadContact = async (contactId: string | null) => {
-    if (!contactId) return null
-    const { data } = await supabase
-      .from('contacts')
-      .select('id,first_name,last_name,company_name')
-      .eq('id', contactId)
-      .limit(1)
-    return data?.[0] ?? null
-  }
-
-  const artist = artwork.artist_id
-    ? (await supabase
-        .from('artists')
-        .select('id,first_name,last_name,year_of_birth,year_of_death')
-        .eq('id', artwork.artist_id)
-        .limit(1)
-      ).data?.[0] ?? null
-    : null
-
-  const proposed_by = await loadContact(artwork.proposed_by_id)
-  const auction_house = await loadContact(artwork.auction_contact_id)
-  const buyer = await loadContact(artwork.buyer_contact_id)
-  const destination = await loadContact(artwork.destination_contact_id)
-
-  return NextResponse.json({
-    ...artwork,
-    artist,
-    proposed_by,
-    auction_house,
-    buyer,
-    destination,
-  })
+return NextResponse.json(artwork)
 }
 
 /* =========================================================
    PATCH /api/artworks/[id]
    ========================================================= */
-export async function PATCH(
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const body = await req.json();
+  const supabase = await getSupabase();
+
+  const { error } = await supabase
+    .from('artwork_proposals')
+    .insert({
+      artwork_id: params.id,
+      contact_id: body.contact_id,
+      proposed_at: body.proposed_at ?? null,
+    });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
+
+
+   export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {

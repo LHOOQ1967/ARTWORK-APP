@@ -1,30 +1,33 @@
 
-// app/api/artists/search/route.ts
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
-export async function GET(req: NextRequest) {
-  const accessToken = req.cookies.get('sb-access-token')?.value
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export async function GET() {
+  // ✅ OBLIGATOIRE : await cookies()
+  const cookieStore = await cookies()
 
-  const { searchParams } = new URL(req.url)
-  const q = searchParams.get('q') || ''
-
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artists?` +
-      `select=id,first_name,last_name` +
-      `&or=(first_name.ilike.*${q}*,last_name.ilike.*${q}*)` +
-      `&order=last_name.asc` +
-      `&limit=20`,
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
       },
     }
   )
 
-  const data = await res.json()
-  return NextResponse.json(data)
+  const { data, error } = await supabase
+    .from('artists')
+    .select('id, first_name, last_name')
+    .order('last_name')
+
+  if (error) {
+    console.error('ARTISTS ERROR:', error)
+    return NextResponse.json([], { status: 200 })
+  }
+
+  return NextResponse.json(data ?? [], { status: 200 })
 }
