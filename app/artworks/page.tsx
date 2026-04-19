@@ -1,33 +1,33 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-
-type Artwork = {
-  id: string
-  date_proposition: string
-  title: string
-  asking_price: number | null
-  currency: string
-  priority: string
-  status: string
-  artist?: {
-    last_name: string
-  } | null
-}
+import ArtworkList from '@/app/components/artwork/ArtworkList'
+import { fetchWithAuth } from '@/lib/fetchWithAuth'
 
 export default function ArtworksPage() {
-  const [artworks, setArtworks] = useState<Artwork[]>([])
+  /* ======================
+     STATE
+     ====================== */
+  const [artworks, setArtworks] = useState<any[]>([])
+  const [artists, setArtists] = useState<any[]>([])
+  const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
   const router = useRouter()
 
+  /* ======================
+     EFFECTS — TOUJOURS EN HAUT
+     ====================== */
+
+  // ✅ Artworks
   useEffect(() => {
-    const loadArtworks = async () => {
+    async function loadArtworks() {
       try {
-        const res = await fetch('/api/artworks')
+        const res = await fetchWithAuth('/api/artworks')
         const data = await res.json()
 
         if (!res.ok || !Array.isArray(data)) {
@@ -46,9 +46,64 @@ export default function ArtworksPage() {
     loadArtworks()
   }, [])
 
-  if (loading) return <p style={{ padding: 40 }}>Loading artworks…</p>
-  if (error) return <p style={{ padding: 40, color: 'red' }}>{error}</p>
+  // ✅ Artists (liste complète, pas search)
+  useEffect(() => {
+    fetchWithAuth('/api/artists')
+      .then(res => res.json())
+      .then(data => {
+        setArtists(Array.isArray(data) ? data : data.data || [])
+      })
+  }, [])
 
+  // ✅ Documents
+  useEffect(() => {
+    fetchWithAuth('/api/documents')
+      .then(res => res.json())
+      .then(data => {
+        setDocuments(Array.isArray(data) ? data : data.data || [])
+      })
+  }, [])
+
+  /* ======================
+     ENRICHED ARTWORKS
+     ====================== */
+  const enrichedArtworks = useMemo(() => {
+    return artworks.map(a => ({
+      ...a,
+      artist: artists.find(ar => ar.id === a.artist_id) || null,
+      documents: documents.filter(d => d.artwork_id === a.id),
+    }))
+  }, [artworks, artists, documents])
+
+  /* ======================
+     FILTERING
+     ====================== */
+  const activeArtworks = enrichedArtworks.filter(a =>
+    ['viewed', 'draft', 'negotiation', 'bought'].includes(a.status)
+  )
+
+  const archivedArtworks = enrichedArtworks.filter(
+    a => a.status === 'archived'
+  )
+
+  /* ======================
+     CONDITIONAL RENDER (APRÈS HOOKS)
+     ====================== */
+  if (loading) {
+    return <p style={{ padding: 40 }}>Loading artworks…</p>
+  }
+
+  if (error) {
+    return (
+      <p style={{ padding: 40, color: 'red' }}>
+        {error}
+      </p>
+    )
+  }
+
+  /* ======================
+     RENDER
+     ====================== */
   return (
     <main
       style={{
@@ -57,120 +112,68 @@ export default function ArtworksPage() {
         backgroundColor: '#007a5e',
       }}
     >
-      
-      <h1 style={{ color: 'white', textAlign: 'center', fontWeight: 600, marginBottom: 20 }}>
-        Artworks</h1>
-
-      <table
+      <div
         style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          backgroundColor: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
         }}
       >
-        <thead>
-          <tr>
-            <th style={th}>Date proposed</th>
-            <th style={th}>Artist</th>
-            <th style={th}>Title</th>
-            <th style={th}>Asking</th>
-            <th style={th}>Priority</th>
-            <th style={th}>Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {artworks.map((a) => (
-            
-          <tr
-            key={a.id}
-            onClick={() => router.push(`/artworks/${a.id}`)}
-            style={{
-              cursor: 'pointer',
-              transition: 'background-color 0.2s',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#eeeeee')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = 'white')
-            }
-          >
-
-              <td style={td}>
-                {a.date_proposition
-                  ? new Date(a.date_proposition).toLocaleDateString('fr-CH')
-                  : '—'}
-              </td>
-
-              
-<td style={td}>
-  {a.artist
-    ? `${a.artist.last_name}`.trim()
-    : '—'}
-</td>
-
-
-              {/* ✅ LIEN CORRECT */}
-              <td style={td}>
-                <Link href={`/artworks/${a.id}`}>
-                  {a.title}
-                </Link>
-              </td>
-
-              <td style={td}>
-                {a.asking_price
-                  ? `${a.asking_price.toLocaleString('fr-CH')} ${a.currency}`
-                  : '—'}
-              </td>
-
-              <td style={td}><strong>{a.priority}</strong></td>
-              <td style={td}>{a.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
- 
-        <div
+        <h2
           style={{
-            marginTop: 30,
-            textAlign: 'center',
+            color: 'white',
+            fontSize: '1.8rem',
+            fontWeight: 700,
+            margin: 0,
           }}
         >
-          <Link href="/artworks/new">
-            <span
-              style={{
-                display: 'inline-block',
-                padding: '12px 24px',
-                fontWeight: 700,
-                backgroundColor: '#f5f5f5',
-                borderBottom: '2px solid #ccc',
-                color: 'black',
-                borderRadius: 6,
-                cursor: 'pointer',
-                textDecoration: 'none',
-              }}
-            >
-              + New Artwork
-            </span>
-          </Link>
-        </div>
+          Primary and Secondary Market ({activeArtworks.length})
+        </h2>
 
+        <Link href="/artworks/new">
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '12px 24px',
+              fontWeight: 700,
+              backgroundColor: '#f5f5f5',
+              borderBottom: '2px solid #ccc',
+              color: 'black',
+              borderRadius: 6,
+              cursor: 'pointer',
+              textDecoration: 'none',
+            }}
+          >
+            + New artwork
+          </span>
+        </Link>
+      </div>
 
+      <ArtworkList artworks={activeArtworks} />
+
+      {archivedArtworks.length > 0 && (
+        <section
+          style={{
+            marginTop: 40,
+            paddingTop: 24,
+            borderTop: '2px solid #ccc',
+          }}
+        >
+          <h2
+            style={{
+              color: 'white',
+              fontSize: '1.8rem',
+              fontWeight: 700,
+              marginBottom: 20,
+            }}
+          >
+            Archived artworks ({archivedArtworks.length})
+          </h2>
+
+          <ArtworkList artworks={archivedArtworks} />
+        </section>
+      )}
     </main>
   )
-}
-
-/* ---------- styles ---------- */
-
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '8px 10px',
-  borderBottom: '2px solid #ccc',
-  background: '#f5f5f5',
-}
-
-const td: React.CSSProperties = {
-  padding: '8px 10px',
-  borderBottom: '1px solid #ddd',
 }

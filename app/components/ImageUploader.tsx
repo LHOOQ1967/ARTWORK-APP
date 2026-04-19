@@ -33,16 +33,20 @@ export default function ImageUploader({ artworkId, onUploaded }: Props) {
     const publicUrl = data.publicUrl
 
     // 3️⃣ Création du document en DB
-    const res = await fetch(`/api/artworks/${artworkId}/documents`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        document_type: 'image',
-        label: null,
-        url: publicUrl,
-      }),
-    })
+
+// 3️⃣ Création du document en DB
+const res = await fetch(`/api/artworks/${artworkId}/documents`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify({
+    document_type: 'image',
+    label: null,
+    url: publicUrl,
+    position: 0, // ✅ AJOUT CRUCIAL
+  }),
+})
+
 
     if (res.ok) {
       const doc = await res.json()

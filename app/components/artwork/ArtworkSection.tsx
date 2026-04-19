@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { fetchWithAuth } from '@/lib/fetchWithAuth'
 
 
 type Artist = {
@@ -120,8 +121,13 @@ function ArtworkView({ artwork }: { artwork: Artwork }) {
         {artwork.medium || '—'}
       </div>
 
+      {/* Signature */}
+      <div style={{ marginTop: 6 }}>
+        {artwork.signature || '—'}
+      </div>
+
       {/* Dimensions */}
-      <div style={{ marginTop: 4, color: '#555' }}>
+      <div style={{ marginTop: 4,  }}>
         {artwork.height_cm && artwork.width_cm
           ? `${artwork.height_cm} × ${artwork.width_cm}` +
             (artwork.depth_cm ? ` × ${artwork.depth_cm}` : '')
@@ -279,7 +285,7 @@ const currentCertificateLocationContact =
 
     const timeout = setTimeout(async () => {
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `/api/artists/search?q=${encodeURIComponent(query)}`,
           { signal: controller.signal }
         )
@@ -326,6 +332,97 @@ const currentCertificateLocationContact =
    * ----------------------------- */
   return (
     <>
+
+<EditRow label="Date proposition">
+  <input
+    type="date"
+    value={artwork.date_proposition ?? ''}
+    onChange={e =>
+      setArtwork({
+        ...artwork,
+        date_proposition: e.target.value || null,
+      })
+    }
+    style={{ ...editInputStyle, width: 180 }}
+  />
+</EditRow>
+
+
+<EditRow label="Proposed by">
+  {/* Contact currently selected */}
+  {artwork.proposed_by_id && (
+    <div
+      style={{
+        fontSize: '0.85rem',
+        fontWeight: 500,
+        color: '#555',
+        marginBottom: 6,
+      }}
+    >
+      Current:&nbsp;
+      {contacts.find(c => c.id === artwork.proposed_by_id)
+        ? contacts.find(c => c.id === artwork.proposed_by_id)!.company_name ||
+          [
+            contacts.find(c => c.id === artwork.proposed_by_id)!.first_name,
+            contacts.find(c => c.id === artwork.proposed_by_id)!.last_name,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        : '—'}
+    </div>
+  )}
+
+  {/* Select */}
+  <select
+    value={artwork.proposed_by_id || ''}
+    onChange={e =>
+      setArtwork({
+        ...artwork,
+        proposed_by_id: e.target.value || null,
+      })
+    }
+    style={editInputStyle}
+  >
+    <option value="">—</option>
+
+    {contacts.map(contact => (
+      <option key={contact.id} value={contact.id}>
+        {contact.company_name ||
+          [contact.first_name, contact.last_name]
+            .filter(Boolean)
+            .join(' ')}
+      </option>
+    ))}
+  </select>
+
+  {/* Add contact */}
+  <div
+    style={{
+      marginTop: 6,
+      display: 'flex',
+      justifyContent: 'flex-end',
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => window.open('/contacts/new', '_blank')}
+      style={{
+        fontSize: '0.8rem',
+        background: 'none',
+        border: 'none',
+        color: '#006b54',
+        cursor: 'pointer',
+        textDecoration: 'underline',
+        padding: 0,
+      }}
+    >
+      + Add contact
+    </button>
+  </div>
+</EditRow>
+
+
+
       <EditRow label="Artist">
 
         {/* ✅ Current artist always visible */}
@@ -382,6 +479,32 @@ const currentCertificateLocationContact =
           ))}
         </select>
 
+
+<div
+  style={{
+    marginTop: 6,
+    display: 'flex',
+    justifyContent: 'flex-end',
+  }}
+>
+  <button
+    type="button"
+    onClick={() => window.open('/artists/new', '_blank')}
+    style={{
+      fontSize: '0.8rem',
+      background: 'none',
+      border: 'none',
+      color: '#006b54',
+      cursor: 'pointer',
+      textDecoration: 'underline',
+      padding: 0,
+    }}
+  >
+    + Add artist
+  </button>
+</div>
+
+
         {isSearching && (
           <div
             style={{
@@ -434,6 +557,78 @@ const currentCertificateLocationContact =
           style={editInputStyle}
         />
       </EditRow>
+
+      <EditRow label="Signature">
+        <input
+          type="text"
+          value={artwork.signature ?? ''}
+          onChange={e =>
+            setArtwork({ ...artwork, signature: e.target.value })
+          }
+          style={editInputStyle}
+        />
+      </EditRow>
+
+
+{/* Dimensions */}
+<EditRow label="Dimensions (cm)">
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
+  >
+    <input
+      type="number"
+      placeholder="Height"
+      value={artwork.height_cm ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          height_cm: e.target.value
+            ? Number(e.target.value)
+            : null,
+        })
+      }
+      style={{ ...editInputStyle, width: 100 }}
+    />
+
+    <span>×</span>
+
+    <input
+      type="number"
+      placeholder="Width"
+      value={artwork.width_cm ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          width_cm: e.target.value
+            ? Number(e.target.value)
+            : null,
+        })
+      }
+      style={{ ...editInputStyle, width: 100 }}
+    />
+
+    <span>×</span>
+
+    <input
+      type="number"
+      placeholder="Depth"
+      value={artwork.depth_cm ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          depth_cm: e.target.value
+            ? Number(e.target.value)
+            : null,
+        })
+      }
+      style={{ ...editInputStyle, width: 100 }}
+    />
+  </div>
+</EditRow>
 
       
 <EditRow label="Location">

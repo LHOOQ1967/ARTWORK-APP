@@ -57,8 +57,8 @@ export function SortableImage({
           alt={image.label || ''}
           style={{
             width: '100%',
-            height: 140,
-            objectFit: 'cover',
+            height: 'auto',
+            objectFit: 'contain',
             display: 'block',
             pointerEvents: 'none', // ⭐ CRITIQUE : empêche conflit click / drag
           }}

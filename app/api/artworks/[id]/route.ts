@@ -3,18 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-type Contact = {
-  id: string
-  first_name: string | null
-  last_name: string | null
-  company_name: string | null
-}
-
 /* =========================================================
-   Helper: Supabase server client (SSR, cookies + RLS)
+   Supabase server client (SSR, cookies + RLS)
    ========================================================= */
 async function getSupabase() {
-  const cookieStore = await cookies()
+  const cookieStore = await cookies() // ✅ IMPORTANT
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,140 +27,200 @@ async function getSupabase() {
    ========================================================= */
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params
-  const supabase = await getSupabase()
+  const { id } = await params
 
-  /* ---- Artwork ---- */
-
-
-const { data: artworks, error } = await supabase
-  .from('artworks')
-  .select(`
-    *,
-    artist:artists (
-      id,
-      first_name,
-      last_name,
-      year_of_birth,
-      year_of_death
-    ),
-    proposed_by:contacts!artworks_proposed_by_id_fkey (
-      id,
-      first_name,
-      last_name,
-      company_name
-    ),
-    auction_house:contacts!artworks_auction_contact_id_fkey (
-      id,
-      first_name,
-      last_name,
-      company_name
-    ),
-    buyer:contacts!artworks_buyer_contact_id_fkey (
-      id,
-      first_name,
-      last_name,
-      company_name
-    ),
-    destination:contacts!artworks_destination_contact_id_fkey (
-      id,
-      first_name,
-      last_name,
-      company_name
-    ),
-    location_contact:contacts!artworks_location_contact_fkey (
-      id,
-      first_name,
-      last_name,
-      company_name
-    ),
-    certificate_location_contact:contacts!artworks_certificate_location_contact_fkey (
-      id,
-      first_name,
-      last_name,
-      company_name
-    ),
-    artwork_proposals (
-      id,
-      proposed_at,
-      contact:contacts (
-        id,
-        first_name,
-        last_name,
-        company_name
-      )
-    )
-  `)
-  .eq('id', id)
-  .limit(1);
-
-
-  if (error) {
+  if (!id) {
     return NextResponse.json(
-      { error: error.message },
+      { error: 'Missing artwork id' },
       { status: 400 }
     )
   }
 
+  const supabase = await getSupabase()
 
-const artwork = artworks?.[0]
+  const { data, error } = await supabase
+    .from('artworks')
+    .select(`
+      *,
+      artist:artists (
+        id,
+        first_name,
+        last_name,
+        year_of_birth,
+        year_of_death
+      ),
+      proposed_by:contacts!artworks_proposed_by_id_fkey (
+        id,
+        first_name,
+        last_name,
+        company_name
+      ),
+      auction_house:contacts!artworks_auction_contact_id_fkey (
+        id,
+        first_name,
+        last_name,
+        company_name
+      ),
+      buyer:contacts!artworks_buyer_contact_id_fkey (
+        id,
+        first_name,
+        last_name,
+        company_name
+      ),
+      destination:contacts!artworks_destination_contact_id_fkey (
+        id,
+        first_name,
+        last_name,
+        company_name
+      ),
+      location_contact:contacts!artworks_location_contact_fkey (
+        id,
+        first_name,
+        last_name,
+        company_name
+      ),
+      certificate_location_contact:contacts!artworks_certificate_location_contact_id_fkey (
+        id,
+        first_name,
+        last_name,
+        company_name
+      ),
+      artwork_proposals (
+        id,
+        proposed_at,
+        contact:contacts (
+          id,
+          first_name,
+          last_name,
+          company_name
+        )
+      )
+    `)
+    .eq('id', id)
+    .maybeSingle()
 
-if (!artwork) {
-  return NextResponse.json(
-    { warning: 'No visible artwork for this user' },
-    { status: 200 }
-  )
-}
+  if (error) {
+    console.error('Supabase GET artwork error:', error)
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500 }
+    )
+  }
 
-const isBought = artwork.status === 'bought'
+  if (!data) {
+    return NextResponse.json(
+      { error: 'Artwork not found' },
+      { status: 404 }
+    )
+  }
 
-return NextResponse.json(artwork)
+  return NextResponse.json(data)
 }
 
 /* =========================================================
    PATCH /api/artworks/[id]
    ========================================================= */
-
-export async function POST(
+export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const body = await req.json();
-  const supabase = await getSupabase();
-
-  const { error } = await supabase
-    .from('artwork_proposals')
-    .insert({
-      artwork_id: params.id,
-      contact_id: body.contact_id,
-      proposed_at: body.proposed_at ?? null,
-    });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  const { id } = await params
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Missing artwork id' },
+      { status: 400 }
+    )
   }
 
-  return NextResponse.json({ success: true });
-}
-
-
-
-   export async function PATCH(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const { id } = await context.params
   const supabase = await getSupabase()
   const body = await req.json()
 
+  const {
+    title,
+    medium,
+    year_execution,
+    signature,
+    dimensions,
+    location_contact_id,
+    status,
+    priority,
+    asking_price,
+    currency,
+    auctions,
+    auction_contact_id,
+    sale_date,
+    sale_time,
+    auction_link,
+    estimate_low,
+    estimate_high,
+    auction_currency,
+    sold_hammer,
+    sold_premium,
+    underbidder,
+    guarantee,
+    buyer_contact_id,
+    destination_contact_id,
+    cost_amount,
+    cost_currency,
+    date_proposition,
+    proposed_by_id,
+    view_date,
+    condition,
+    certificate,
+    certificate_location_contact_id,
+    check_seller,
+    notes,
+    artist_id,
+    insurance_value,
+    insurance_currency,
+  } = body
+
   const { data, error } = await supabase
     .from('artworks')
-    .update(body)
+    .update({
+      title,
+      medium,
+      year_execution,
+      signature,
+      dimensions,
+      location_contact_id,
+      status,
+      priority,
+      asking_price,
+      currency,
+      auctions,
+      auction_contact_id,
+      sale_date,
+      sale_time,
+      auction_link,
+      estimate_low,
+      estimate_high,
+      auction_currency,
+      sold_hammer,
+      sold_premium,
+      underbidder,
+      guarantee,
+      buyer_contact_id,
+      destination_contact_id,
+      cost_amount,
+      cost_currency,
+      date_proposition,
+      proposed_by_id,
+      view_date,
+      condition,
+      certificate,
+      certificate_location_contact_id,
+      check_seller,
+      notes,
+      artist_id,
+      insurance_value,
+      insurance_currency,
+    })
     .eq('id', id)
     .select()
-    .limit(1)
+    .maybeSingle()
 
   if (error) {
     return NextResponse.json(
@@ -176,5 +229,51 @@ export async function POST(
     )
   }
 
-  return NextResponse.json(data?.[0] ?? null)
+  return NextResponse.json(data)
+}
+
+/* =========================================================
+   DELETE /api/artworks/[id]
+   ========================================================= */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  if (!id) {
+    return NextResponse.json(
+      { error: 'Missing artwork id' },
+      { status: 400 }
+    )
+  }
+
+  const accessToken = req.cookies.get('sb-access-token')?.value
+  if (!accessToken) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401 }
+    )
+  }
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks?id=eq.${id}`,
+    {
+      method: 'DELETE',
+      headers: {
+        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        Authorization: `Bearer ${accessToken}`,
+        Prefer: 'return=minimal',
+      },
+    }
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    return NextResponse.json(
+      { error: text || 'Delete artwork failed' },
+      { status: res.status }
+    )
+  }
+
+  return NextResponse.json({ success: true })
 }

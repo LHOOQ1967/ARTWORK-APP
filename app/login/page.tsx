@@ -34,7 +34,7 @@ export default function LoginPage() {
       console.log('Login success:', data)
 
       // ✅ Redirection métier
-      router.replace('/artworks')
+      window.location.href = '/'
 
     } catch (err) {
       console.error(err)

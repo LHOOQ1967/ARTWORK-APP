@@ -1,50 +1,58 @@
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 /* ======================
-   PATCH contact (UPDATE)
+   PATCH contact
    ====================== */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const accessToken = req.cookies.get('sb-access-token')?.value
+  // ✅ OBLIGATOIRE
+  const { id } = await context.params
 
-  if (!accessToken) {
+  if (!id) {
     return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
+      { error: 'Invalid contact id' },
+      { status: 400 }
     )
   }
 
   const body = await req.json()
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/contacts?id=eq.${params.id}`,
+  // ✅ cookies() DOIT être await
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      method: 'PATCH',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
       },
-      body: JSON.stringify(body),
     }
   )
 
-  const text = await response.text()
+  const { data, error } = await supabase
+    .from('contacts')
+    .update(body)
+    .eq('id', id)
+    .select()
+    .single()
 
-  if (!response.ok) {
-    console.error('SUPABASE CONTACT UPDATE ERROR:', response.status, text)
+  if (error) {
+    console.error('SUPABASE CONTACT UPDATE ERROR:', error)
     return NextResponse.json(
-      { error: text },
-      { status: response.status }
+      { error: error.message },
+      { status: 400 }
     )
   }
 
-  const data = JSON.parse(text)
-  return NextResponse.json(data[0])
+  return NextResponse.json(data)
 }
 
 /* ======================
@@ -52,32 +60,41 @@ export async function PATCH(
    ====================== */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const accessToken = req.cookies.get('sb-access-token')?.value
+  const { id } = await context.params
 
-  if (!accessToken) {
+  if (!id) {
     return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
+      { error: 'Invalid contact id' },
+      { status: 400 }
     )
   }
 
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/contacts?id=eq.${params.id}`,
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      method: 'DELETE',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
       },
     }
   )
 
-  if (!response.ok) {
+  const { error } = await supabase
+    .from('contacts')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('SUPABASE CONTACT DELETE ERROR:', error)
     return NextResponse.json(
-      { error: await response.text() },
-      { status: response.status }
+      { error: error.message },
+      { status: 400 }
     )
   }
 
