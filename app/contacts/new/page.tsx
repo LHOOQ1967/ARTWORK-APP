@@ -28,20 +28,24 @@ export default function NewContactPage() {
     setLoading(true)
     setError(null)
 
-    const res = await fetchWithAuth('/api/contacts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company_name: companyName.trim() || null,
-        first_name: firstName.trim() || null,
-        last_name: lastName.trim() || null,
-        email: email.trim() || null,
-        telephone: telephone.trim() || null,
-        city: city.trim() || null,
-        role: role.trim() || null,
-        notes: notes.trim() || null,
-      }),
-    })
+ 
+
+const res = await fetchWithAuth('/api/contacts', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    company_name: companyName.trim() || null,
+    first_name: firstName.trim() || null,
+    last_name: lastName.trim() || null,
+    email: email.trim() || null,
+    telephone: telephone.trim() || null,
+    city: city.trim() || null,
+    role: role.trim() || null,
+    notes: notes.trim() || null,
+  }),
+})
+
+
 
     if (!res.ok) {
       setError(await res.text())
@@ -58,7 +62,7 @@ export default function NewContactPage() {
       style={{
         padding: 40,
         minHeight: '100vh',
-        backgroundColor: '#007a5e', // ✅ fond vert app
+        backgroundColor: '#006039', // ✅ fond vert app
       }}
     >
       <section

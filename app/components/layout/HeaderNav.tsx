@@ -28,13 +28,13 @@ export default function HeaderNav() {
     pathname === href || pathname.startsWith(href + '/')
 
   return (
-    <header
+    <header className="no-print"
       style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '12px 24px',
-        backgroundColor: '#006b54',
+        backgroundColor: '#02804d',
       }}
     >
       {/* LEFT NAV */}

@@ -2,8 +2,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { fetchWithAuth } from '@/lib/fetchWithAuth'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
+import { supabase } from '@/lib/supabaseClient'
+
 
 
 /* ======================
@@ -28,7 +29,6 @@ const PRIORITY_ORDER: Record<string, number> = {
    ====================== */
 function sortArtworks(
   artworks: any[],
-  artists: any[],
   sortKey: string,
   direction: 'asc' | 'desc'
 ) {
@@ -37,15 +37,12 @@ function sortArtworks(
     let vb: any
 
     switch (sortKey) {
-      case 'artist':
 
-  const artistA = artists.find(ar => ar.id === a.artist_id)
-  const artistB = artists.find(ar => ar.id === b.artist_id)
+case 'artist':
+  va = a.artist?.last_name ?? ''
+  vb = b.artist?.last_name ?? ''
+  break
 
-  va = artistA?.last_name || ''
-  vb = artistB?.last_name || ''
-
-        break
 
       case 'date':
         va = a.date_proposition
@@ -120,101 +117,78 @@ const [auctionFilter, setAuctionFilter] =
 
  
 useEffect(() => {
-  let cancelled = false
-
-  async function loadAll() {
+  const loadArtworks = async () => {
     try {
-      // 1️⃣ artworks
-      const artworksRes = await fetchWithAuth('/api/artworks')
-      if (!artworksRes.ok) return
-      const artworksJson = await artworksRes.json()
-      if (cancelled) return
-      setArtworks(Array.isArray(artworksJson) ? artworksJson : [])
 
-      // 2️⃣ references
-      const [artistsRes, documentsRes, contactsRes] = await Promise.all([
-        fetchWithAuth('/api/artists'),
-        fetchWithAuth('/api/documents'),
-        fetchWithAuth('/api/contacts'),
-      ])
 
-      const artistsJson = artistsRes.ok ? await artistsRes.json() : []
-      const documentsJson = documentsRes.ok ? await documentsRes.json() : []
-      const contactsJson = contactsRes.ok ? await contactsRes.json() : []
+const { data, error } = await supabase
+  .from('artworks')
+  .select(`
+    *,
+    artist:artists!artworks_artist_id_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    documents:documents (
+      id,
+      document_type,
+      url
+    ),
+    auctionContact:contacts!artworks_auction_contact_id_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    proposedBy:contacts!artworks_proposed_by_id_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    location:contacts!artworks_location_contact_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    certificateLocation:contacts!artworks_certificate_location_contact_id_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    buyer:contacts!artworks_buyer_contact_id_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    destination:contacts!artworks_destination_contact_id_fkey (
+      id,
+      first_name,
+      last_name
+    )
+  `)
 
-      if (cancelled) return
 
-      setArtists(Array.isArray(artistsJson) ? artistsJson : artistsJson.data || [])
-      setDocuments(Array.isArray(documentsJson) ? documentsJson : documentsJson.data || [])
-      setContacts(Array.isArray(contactsJson) ? contactsJson : contactsJson.data || [])
 
+      if (error) {
+        console.error(error)
+        setArtworks([])
+        return
+      }
+
+      setArtworks(data ?? [])
     } catch (err) {
-      console.error('PRINT load error', err)
+      console.error(err)
       setArtworks([])
-      setArtists([])
-      setDocuments([])
-      setContacts([])
     } finally {
-      if (!cancelled) setLoading(false)
+      setLoading(false)
     }
   }
 
-  loadAll()
-  return () => {
-    cancelled = true
-  }
+  loadArtworks()
 }, [])
+
  
-
-
-
-
-
-  /* ======================
-     Hydration (clé !)
-     ====================== */
-
-
-
-const hydratedArtworks = useMemo(() => {
-  return artworks.map(a => {
-    const artistId = a.artist_id ?? null
-
-    return {
-      ...a,
-
-      // ✅ Artiste (comme /artworks/[id])
-      artist:
-        artists.find(ar => ar.id === artistId) || null,
-
-      // ✅ Documents liés à l’œuvre
-      documents:
-        documents.filter(d => d.artwork_id === a.id),
-
-      // ✅ Contacts
-      proposedBy:
-        contacts.find(c => c.id === a.proposed_by_id) || null,
-
-      location:
-        contacts.find(c => c.id === a.location_contact_id) || null,
-
-      certificateLocation:
-        contacts.find(
-          c => c.id === a.certificate_location_contact_id
-        ) || null,
-    }
-  })
-}, [artworks, artists, documents, contacts])
-
-
-
-
-
-  /* ======================
-     Filter
-     ====================== */
-
-const filtered = hydratedArtworks
+const filtered = artworks
   .filter(a => {
     if (statusFilter === 'all') return true
     if (statusFilter === 'archived') return a.status === 'archived'
@@ -230,12 +204,9 @@ const filtered = hydratedArtworks
     return a.auctions !== true
   })
 
-    
+  const sorted = sortArtworks(filtered, sortKey, sortDirection)
 
-  /* ======================
-     Sort
-     ====================== */
-  const sorted = sortArtworks(filtered, artists, sortKey, sortDirection)
+
 
   if (loading) {
     return <p style={{ padding: 40 }}>Loading…</p>
@@ -246,8 +217,30 @@ const filtered = hydratedArtworks
   return (
     <main style={{ padding: 40 }}>
       {/* ===== Controls (screen only) ===== */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 0, backgroundColor: '#a8aaa9' }}> Tri </div>
-      <div className="print-controls" style={{ display: 'flex', gap: 12, marginBottom: 24, backgroundColor: '#a8aaa9' }}>
+
+
+<button
+  className="print-controls no-print"
+  onClick={async () => {
+    const res = await fetch('/api/pdf/adobe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        html: document.documentElement.outerHTML,
+      }),
+    })
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    window.open(url)
+  }}
+>
+  Export PDF (Adobe)
+</button>
+
+
+      <div className="print-controls no-print" style={{ fontWeight: 700, justifyContent: 'center', display: 'flex', gap: 12, marginBottom: 0, backgroundColor: '#e9eceb' }}> Filtre et tri </div>
+      <div className="print-controls no-print" style={{ display: 'flex', gap: 12, marginBottom: 24, backgroundColor: '#e9eceb' }}>
         <select value={sortKey} onChange={e => setSortKey(e.target.value as any)}>
           <option value="artist">Artist</option>
           <option value="date">Date proposed</option>
@@ -305,6 +298,28 @@ const filtered = hydratedArtworks
       {sorted.map(artwork => (
         <ArtworkSheet key={artwork.id} artwork={artwork} />
       ))}
+
+
+<button
+  className="no-print"
+  onClick={async () => {
+    const res = await fetch('/api/pdf/adobe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        html: document.documentElement.outerHTML,
+      }),
+    })
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    window.open(url)
+  }}
+>
+  Export PDF (Adobe)
+</button>
+
+      
     </main>
   )
 }

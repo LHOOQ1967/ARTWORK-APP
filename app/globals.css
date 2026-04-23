@@ -34,13 +34,94 @@ body {
 }
 
 
+
 @media print {
-  .print-controls {
+  /* 🔴 Cacher TOUT le header et la navigation */
+  .no-print,
+  header,
+  nav {
     display: none !important;
   }
 
+  /* Nettoyage layout écran */
   body {
+    margin: 0;
+    padding: 0;
     background: white;
   }
+
+  main {
+    padding: 0 !important;
+  }
 }
+
+
+
+
+.page-break-indicator {
+  position: relative;
+  height: 0;
+  margin: 0;
+}
+
+/* Ligne visuelle à l’écran uniquement */
+.page-break-indicator::before {
+  content: '';
+  display: block;
+  border-top: 1px dashed ;
+  margin: 12px 0;
+}
+
+/* ✅ SUPPRIME LA MARGE DE LA SECTION SUIVANTE À L’ÉCRAN */
+.page-break-indicator + * {
+  margin-top: 0 !important;
+}
+
+/* Impression */
+@media print {
+  .page-break-indicator {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .page-break-indicator::before {
+    display: none;
+  }
+
+  /* sécurité print */
+  .page-break-indicator + * {
+    margin-top: 0 !important;
+  }
+}
+
+
+/* Boutons écran uniquement (print page) */
+@media screen {
+  .print-controls {
+    display: flex;
+    justify-content: flex-end; /* ✅ aligne à droite */
+    margin-bottom: 16px;
+  }
+}
+
+
+.info-row {
+  display: grid;
+  grid-template-columns: 160px 1fr; /* largeur fixe du label */
+  column-gap: 12px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.info-label {
+  color: #777;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.info-value {
+  min-width: 0;              /* important pour les liens longs */
+  word-break: break-word;    /* évite le débordement */
+}
+
 

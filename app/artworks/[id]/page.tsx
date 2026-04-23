@@ -1,16 +1,28 @@
 
-'use client'
-
-import { EditModeProvider } from '@/app/contexts/EditModeContext'
 import ArtworkDetailContent from '@/app/components/artwork/ArtworkDetailContent'
-import { useParams } from 'next/navigation'
+import { EditModeProvider } from '@/app/contexts/EditModeContext'
 
-export default function ArtworkDetailPage() {
-  const { id } = useParams<{ id: string }>()
+type PageProps = {
+  params: {
+    id: string
+  }
+}
+
+
+
+
+export default async function ArtworkDetailPage({ params }: PageProps) {
+  const { id } = await params; // ✅ INDISPENSABLE
+
+  console.log('Server page resolved id =', id);
+
+  if (!id) {
+    throw new Error("ID de l'œuvre manquant");
+  }
 
   return (
     <EditModeProvider>
       <ArtworkDetailContent artworkId={id} />
     </EditModeProvider>
-  )
+  );
 }

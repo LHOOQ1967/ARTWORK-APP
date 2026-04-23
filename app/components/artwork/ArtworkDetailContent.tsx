@@ -8,22 +8,18 @@ import { useEffect, useState } from 'react'
 import { useEditMode } from '@/app/contexts/EditModeContext'
 import ImageUploader from '@/app/components/ImageUploader'
 import { DndContext, closestCenter } from '@dnd-kit/core'
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  rectSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable'
+import { SortableContext, verticalListSortingStrategy, rectSortingStrategy, arrayMove, } from '@dnd-kit/sortable'
 import { SortableImage } from '@/app/components/SortableImage'
 import { SortableDocument } from '@/app/components/SortableDocument'
-import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { useSearchParams } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
+import { useRouter } from 'next/navigation'
 
 
 // ✅ types
 type Props = {
-  artworkId?: string | null
+  artwork: Artwork
 }
-
 
 type Document = {
   id: string
@@ -34,9 +30,17 @@ type Document = {
   position: number
 }
 
-
-
 // ✅ constante hors composant
+
+const CURRENCY_OPTIONS = ['CHF', 'EUR', 'USD', 'GBP', 'HKD']
+const PRIORITY_OPTIONS = ['information', 'medium', 'high']
+const STATUS_OPTIONS = [
+  'draft',
+  'viewed',
+  'negotiation',
+  'bought',
+  'archived',
+]
 const EMPTY_ARTWORK = {
   title: '',
   medium: null,
@@ -50,7 +54,14 @@ const EMPTY_ARTWORK = {
   currency: 'CHF',
   artist_id: null,
   date_proposition: null,
+  sold_hammer: null,
+  sold_premium: null,
+  auction_currency: null,
+  documents: [],
+  artwork_proposals: []
 }
+
+
 
 
 function ActionButton({
@@ -91,7 +102,6 @@ function ActionButton({
   )
 }
 
-
 function InlineRow({
   label,
   children,
@@ -127,351 +137,399 @@ function InlineRow({
   )
 }
 
+function normalizeArtwork(a: any) {
+  if (!a) return a
 
-export default function ArtworkDetailContent({ artworkId }: Props) {
-  // ✅ ID & mode
-  const id = artworkId ?? null
+  return {
+    ...a,
+
+    estimate_low:
+      a.estimate_low !== null && a.estimate_low !== ''
+        ? Number(a.estimate_low)
+        : null,
+
+    estimate_high:
+      a.estimate_high !== null && a.estimate_high !== ''
+        ? Number(a.estimate_high)
+        : null,
+
+    cost_amount:
+      a.cost_amount !== null && a.cost_amount !== ''
+        ? Number(a.cost_amount)
+        : null,
+
+    sold_hammer:
+      a.sold_hammer !== null && a.sold_hammer !== ''
+        ? Number(a.sold_hammer)
+        : null,
+
+    sold_premium:
+      a.sold_premium !== null && a.sold_premium !== ''
+        ? Number(a.sold_premium)
+        : null,
+  }
+}
+
+
+export default function ArtworkDetailContent({ artworkId }: { artworkId: string }) {
+  /* ======================
+     ID & MODE
+     ====================== */
+  const id = decodeURIComponent(artworkId)
   const isNew = !id
+const router = useRouter()
+  /* ======================
+     EDIT MODE
+     ====================== */
+  const { isEditing, setIsEditing } = useEditMode()
 
-  // ✅ edit mode
-  const { isEditing, setIsEditing, toggle } = useEditMode()
-
-  // ✅ state minimum vital
+  /* ======================
+     STATE
+     ====================== */
   const [artwork, setArtwork] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [artists, setArtists] = useState<Artist[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [documents, setDocuments] = useState<Document[]>([])
   const [openImage, setOpenImage] = useState<string | null>(null)
-  const CURRENCY_OPTIONS = ['CHF', 'EUR', 'USD', 'GBP']
-  
-const [newDocType, setNewDocType] = useState<'onedrive' | 'image'>('onedrive')
-  
-const [newDocLabel, setNewDocLabel] = useState('')
-const [newDocUrl, setNewDocUrl] = useState('')
-
-  
-const PRIORITY_OPTIONS = ['Information', 'medium', 'high']
-const STATUS_OPTIONS = ['draft', 'viewed', 'negotiation', 'bought', 'archived']
-
-  
-const [newProposalContactId, setNewProposalContactId] = useState('')
-const [newProposedAt, setNewProposedAt] = useState('')
-
-const buyerContact =  artwork && contacts.find(c => c.id === artwork.buyer_contact_id) || null
-const destinationContact =  artwork && contacts.find(c => c.id === artwork.destination_contact_id) || null
-const proposedByContact =   artwork && contacts.find(c => c.id === artwork.proposed_by_id) || null
-
+  const [newDocLabel, setNewDocLabel] = useState('')
+  const [newDocUrl, setNewDocUrl] = useState('')
+  const [newDocType, setNewDocType] = useState<'image' | 'onedrive'>('onedrive')
+  const searchParams = useSearchParams()
+  const editParam = searchParams.get('edit')
   
 
-  // ✅ MODE CRÉATION
+ 
+
+ 
+  /* ======================
+     FORCE EDIT MODE
+     ====================== */
+  useEffect(() => {
+    if (isNew) {
+      setIsEditing(true)
+    }
+  }, [isNew, setIsEditing])
+
+
+  /* ======================
+     MODE CRÉATION
+     ====================== */
   useEffect(() => {
     if (isNew) {
       setArtwork(EMPTY_ARTWORK)
       setIsEditing(true)
       setLoading(false)
-      return
     }
   }, [isNew, setIsEditing])
 
-  // ✅ MODE ÉDITION
+  /* ======================
+     ✅ MODE ÉDITION – LOAD ARTWORK
+     ====================== */
   useEffect(() => {
     if (!id) return
 
-    async function loadArtwork() {
+    let isMounted = true
+
+    const loadArtwork = async () => {
       try {
-        const res = await fetchWithAuth(`/api/artworks/${id}`)
-        const data = await res.json()
+        if (!isMounted) return
 
-        if (!res.ok) {
-          setError(data.error || 'Failed to load artwork')
-          return
+        setLoading(true)
+        setError(null)
+
+        const { data, error } = await supabase
+          .from('artworks')
+          .select(`
+            *,
+            artist:artists!artworks_artist_id_fkey (
+              id,
+              first_name,
+              last_name
+            ),
+            documents:documents (
+              id,
+              document_type,
+              label,
+              url,
+              position
+            ),
+            auctionContact:contacts!artworks_auction_contact_id_fkey (
+              id,
+              company_name,
+              first_name,
+              last_name
+            ),
+            proposedBy:contacts!artworks_proposed_by_id_fkey (
+              id,
+              company_name,
+              first_name,
+              last_name
+            ),
+            location:contacts!artworks_location_contact_fkey (
+              id,
+              company_name,
+              first_name,
+              last_name
+            ),
+            certificateLocation:contacts!artworks_certificate_location_contact_id_fkey (
+              id,
+              company_name,
+              first_name,
+              last_name
+            ),
+            buyer:contacts!artworks_buyer_contact_id_fkey (
+              id,
+              company_name,
+              first_name,
+              last_name
+            ),
+            destination:contacts!artworks_destination_contact_id_fkey (
+              id,
+              company_name,
+              first_name,
+              last_name
+            ),
+            artwork_proposals (
+              id,
+              proposed_at,
+              contact:contacts (
+                id,
+                company_name,
+                first_name,
+                last_name
+              )
+            )
+          `)
+          .eq('id', id)
+          .single()
+
+        if (!isMounted) return
+
+        if (error) {
+          console.error(error)
+          setError('Failed to load artwork')
+          setArtwork(null)
+        } else {
+          setArtwork(data)
         }
-
-        setArtwork(data)
-      } catch {
-        setError('Network error')
+      } catch (err) {
+        if (!isMounted) return
+        console.error('Unexpected error loading artwork:', err)
+        setError('Unexpected error')
+        setArtwork(null)
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     loadArtwork()
+
+    return () => {
+      isMounted = false
+    }
   }, [id])
- 
- 
-
-
-const [localArtwork, setLocalArtwork] =
-  useState<Artwork>(artwork)
 
 
 
+async function saveArtwork() {
+  if (!artwork) return
+
+  setLoading(true)
+  setError(null)
+
+  const payload = {
+    title: artwork.title,
+    medium: artwork.medium,
+    signature: artwork.signature,
+    year_execution: artwork.year_execution,
+    location_contact_id: artwork.location_contact_id,
+    status: artwork.status,
+    priority: artwork.priority,
+    asking_price: artwork.asking_price,
+    currency: artwork.currency,
+    auctions: artwork.auctions,
+    auction_contact_id: artwork.auction_contact_id,
+    sale_date: artwork.sale_date,
+    sale_time: artwork.sale_time,
+    auction_link: artwork.auction_link,
+    estimate_low: artwork.estimate_low,
+    estimate_high: artwork.estimate_high,
+    auction_currency: artwork.auction_currency,
+    sold_hammer: artwork.sold_hammer,
+    sold_premium: artwork.sold_premium,
+    underbidder: artwork.underbidder,
+    guarantee: artwork.guarantee,
+    buyer_contact_id: artwork.buyer_contact_id,
+    cost_amount: artwork.cost_amount,
+    cost_currency: artwork.cost_currency,
+    destination_contact_id: artwork.destination_contact_id,
+    date_proposition: artwork.date_proposition,
+    proposed_by_id: artwork.proposed_by_id,
+    view_date: artwork.view_date,
+    condition: artwork.condition,
+    certificate: artwork.certificate,
+    certificate_location_contact_id:
+      artwork.certificate_location_contact_id,
+    check_seller: artwork.check_seller,
+    notes: artwork.notes,
+    artist_id: artwork.artist_id,
+    insurance_value: artwork.insurance_value,
+    insurance_currency: artwork.insurance_currency,
+    height_cm: artwork.height_cm || null,
+    width_cm: artwork.width_cm || null,
+    depth_cm: artwork.depth_cm || null,
+  }
+
+  try {
+    if (isNew) {
+      // ✅ CREATE
+      const { data, error } = await supabase
+        .from('artworks')
+        .insert(payload)
+        .select()
+        .single()
+
+      if (error || !data?.id) {
+        console.error('CREATE artwork failed:', error)
+        setError('Failed to create artwork')
+        return
+      }
+
+      // ✅ Toujours vers PRINT
+      router.push(`/artworks/print/${data.id}`)
+    } else {
+      // ✅ UPDATE
+      const { error } = await supabase
+        .from('artworks')
+        .update(payload)
+        .eq('id', artwork.id)
+
+      if (error) {
+        console.error('UPDATE artwork failed:', error)
+        setError('Failed to update artwork')
+        return
+      }
+
+      setIsEditing(false)
+      router.push(`/artworks/print/${artwork.id}`)
+    }
+  } finally {
+    setLoading(false)
+  }
+}
+
+
+
+
+async function addProposal(
+  contactId: string,
+  proposedAt?: string | null
+) {
+  if (!artwork?.id || !contactId) {
+    alert('Please select a contact')
+    return
+  }
+
+  const { error: supabaseError } = await supabase
+    .from('artwork_proposals')
+    .insert({
+      artwork_id: artwork.id,
+      contact_id: contactId,
+      proposed_at: proposedAt || null,
+    })
+
+  if (supabaseError) {
+    console.error('Add proposal failed:', supabaseError)
+    alert('Failed to add proposal')
+    return
+  }
+
+  // ✅ Recharger les proposals (simple et sûr)
+  const { data, error: reloadError } = await supabase
+    .from('artwork_proposals')
+    .select(`
+      id,
+      proposed_at,
+      contact:contacts (
+        id,
+        company_name,
+        first_name,
+        last_name
+      )
+    `)
+    .eq('artwork_id', artwork.id)
+
+  if (!reloadError && data) {
+    setArtwork(prev =>
+      prev
+        ? { ...prev, artwork_proposals: data }
+        : prev
+    )
+  }
+}
+
  
  
- useEffect(() => {
-   if (!id) {
-     setArtwork(EMPTY_ARTWORK)
-     setIsEditing(true)
-     setLoading(false)
-     return
-   }
+
  
-   async function loadArtwork() {
-     try {
-       const res = await fetchWithAuth(`/api/artworks/${id}`)
-       const data = await res.json()
- 
-       if (!res.ok) {
-         setError(data.error || 'Failed to load artwork')
-         return
-       }
- 
-       setArtwork({
-         ...data,
-         artist_id: data.artist_id ?? data.artist?.id ?? null,
-       })
-     } catch {
-       setError('Network error')
-     } finally {
-       setLoading(false)
-     }
-   }
- 
-   loadArtwork()
- }, [id])
- 
- 
-   
- 
- useEffect(() => {
-   async function loadContacts() {
-     const res = await fetchWithAuth('/api/contacts', {
-       credentials: 'include',
-     })
- 
-     if (!res.ok) {
-       const text = await res.text()
-       console.error('Failed to load contacts:', res.status, text)
-       return
-     }
- 
-     const data = await res.json()
- 
-     setContacts(data)
-   }
- 
-   loadContacts()
- }, [])
- 
- 
- useEffect(() => {
-   if (!artwork?.id) return
- 
-   async function loadDocuments() {
-     const res = await fetchWithAuth(`/api/artworks/${artwork.id}/documents`, {
-       credentials: 'include',
-     })
- 
-     if (res.ok) {
-       setDocuments(await res.json())
-     }
-   }
- 
-   loadDocuments()
- }, [artwork?.id])
- 
- 
- 
- 
- useEffect(() => {
-   async function loadArtists() {
-     const res = await fetchWithAuth('/api/artists/search?q=')
-     if (res.ok) {
-       const data = await res.json()
- 
-       setArtists(data)
-     }
-   }
- 
-   loadArtists()
- }, [])
- 
- 
- 
- 
- async function saveArtwork() {
-   if (!artwork) return
- 
-   const payload = {
-     title: artwork.title,
-     medium: artwork.medium,
-     signature: artwork.signature,
-     year_execution: artwork.year_execution,
-     location_contact_id: artwork.location_contact_id,
-     status: artwork.status,
-     priority: artwork.priority,
-     asking_price: artwork.asking_price,
-     currency: artwork.currency,
-     auctions: artwork.auctions,
-     auction_contact_id: artwork.auction_contact_id,
-     sale_date: artwork.sale_date,
-     sale_time: artwork.sale_time,
-     auction_link: artwork.auction_link,
-     estimate_low: artwork.estimate_low,
-     estimate_high: artwork.estimate_high,
-     auction_currency: artwork.auction_currency,
-     sold_hammer: artwork.sold_hammer,
-     sold_premium: artwork.sold_premium,
-     underbidder: artwork.underbidder,
-     guarantee: artwork.guarantee,
-     buyer_contact_id: artwork.buyer_contact_id,
-     cost_amount: artwork.cost_amount,
-     cost_currency: artwork.cost_currency,
-     destination_contact_id: artwork.destination_contact_id,
-     date_proposition: artwork.date_proposition,
-     proposed_by_id: artwork.proposed_by_id,
-     view_date: artwork.view_date,
-     condition: artwork.condition,
-     certificate: artwork.certificate,
-     certificate_location_contact_id: artwork.certificate_location_contact_id,
-     check_seller: artwork.check_seller,
-     notes: artwork.notes,
-     artist_id: artwork.artist_id,
-     insurance_value: artwork.insurance_value,
-     insurance_currency: artwork.insurance_currency,
-     height_cm: artwork.height_cm || null,
-     width_cm: artwork.width_cm || null,
-     depth_cm: artwork.depth_cm || null,
-   }
- 
-   const res = await fetchWithAuth(
-     isNew
-       ? '/api/artworks'
-       : `/api/artworks/${artwork.id}`,
-     {
-       method: isNew ? 'POST' : 'PATCH',
-       headers: { 'Content-Type': 'application/json' },
-       credentials: 'include',
-       body: JSON.stringify(payload),
-     }
-   )
- 
-   if (!res.ok) {
-     const text = await res.text()
-     console.error('SAVE ARTWORK FAILED:', text)
-     alert('Failed to save artwork')
-     return
-   }
- 
-   const saved = await res.json()
- 
-   if (isNew) {
-     // ✅ Après création → aller vers la page complète de l’œuvre
-     window.location.href = `/artworks/${saved.id}`
-   } else {
-     // ✅ Édition classique
-     setIsEditing(false)
-   }
- }
- 
- 
- 
-   if (loading) {
-     return <p style={{ padding: 40 }}>Loading artwork…</p>
-   }
- 
-   if (error) {
-     return <p style={{ padding: 40, color: 'red' }}>{error}</p>
-   }
- 
-   if (!artwork) {
-     return <p style={{ padding: 40 }}>Artwork not found</p>
-   }
+
+async function removeProposal(proposalId: string) {
+  const confirmed = confirm('Remove this proposal?')
+  if (!confirmed) return
+
+  const { error: supabaseError } = await supabase
+    .from('artwork_proposals')
+    .delete()
+    .eq('id', proposalId)
+
+  if (supabaseError) {
+    console.error('Remove proposal failed:', supabaseError)
+    alert('Failed to remove proposal')
+    return
+  }
+
+  // ✅ Mise à jour locale de l’état
+  setArtwork(prev =>
+    prev
+      ? {
+          ...prev,
+          artwork_proposals: prev.artwork_proposals?.filter(
+            p => p.id !== proposalId
+          ),
+        }
+      : prev
+  )
+}
+
  
  
  
- async function addProposal() {
-   if (!newProposalContactId) {
-     alert('Please select a contact');
-     return;
-   }
- 
-   const res = await fetchWithAuth(
-     `/api/artworks/${artwork.id}/proposals`,
-     {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({
-         contact_id: newProposalContactId,
-         proposed_at: newProposedAt || null,
-       }),
-     }
-   );
- 
-   if (!res.ok) {
-     const error = await res.json();
-     console.error('Add proposal failed:', error);
-     alert(error.error || 'Failed to add proposal');
-     return;
-   }
- 
-   // ✅ reload artwork
-   const refreshed = await fetchWithAuth(`/api/artworks/${artwork.id}`);
-   setArtwork(await refreshed.json());
- 
-   // reset UI
-   setNewProposalContactId('');
-   setNewProposedAt('');
- }
- 
- 
- async function removeProposal(proposalId: string) {
-   const confirmed = confirm('Remove this proposal?')
-   if (!confirmed) return
- 
-   const res = await fetchWithAuth(
-     `/api/artworks/${artwork.id}/proposals/${proposalId}`,
-     {
-       method: 'DELETE',
-     }
-   )
- 
-   if (!res.ok) {
-     const err = await res.json()
-     alert(err.error || 'Failed to remove proposal')
-     return
-   }
- 
-   // ✅ Recharger l'artwork
-   const refreshed = await fetchWithAuth(`/api/artworks/${artwork.id}`)
-   setArtwork(await refreshed.json())
- }
- 
- 
- 
- async function addDocument() {
-   if (!artwork || !newDocUrl) return
- 
-   const res = await fetchWithAuth(`/api/artworks/${artwork.id}/documents`, {
-     method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
-     credentials: 'include',
-     body: JSON.stringify({
-       document_type: newDocType,
-       label: newDocLabel || null,
-       url: newDocUrl,
-       position: documents.filter(d => d.document_type === newDocType).length,
-     }),
-   })
- 
-   if (!res.ok) {
-     const text = await res.text()
-     console.error('ADD DOCUMENT FAILED:', res.status, text)
-     alert(text)
-     return
-   }
+
+async function addDocument() {
+  if (!artwork?.id || !newDocUrl) return
+
+  const position =
+    documents.filter(d => d.document_type === newDocType).length
+
+  const { data, error: supabaseError } = await supabase
+    .from('documents')
+    .insert({
+      artwork_id: artwork.id,
+      document_type: newDocType,
+      label: newDocLabel || null,
+      url: newDocUrl,
+      position,
+    })
+    .select()
+    .single()
+
+  if (supabaseError) {
+    console.error('ADD DOCUMENT FAILED:', supabaseError)
+    alert('Failed to add document')
+    return
+  }
+
  
    const created = await res.json()
    setDocuments([...documents, created])
@@ -480,6 +538,8 @@ const [localArtwork, setLocalArtwork] =
  }
  
  
+
+
 async function deleteArtwork() {
   if (!artwork?.id) return
 
@@ -489,14 +549,13 @@ async function deleteArtwork() {
 
   if (!confirmed) return
 
-  const res = await fetchWithAuth(`/api/artworks/${artwork.id}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
+  const { error: supabaseError } = await supabase
+    .from('artworks')
+    .delete()
+    .eq('id', artwork.id)
 
-  if (!res.ok) {
-    const text = await res.text()
-    console.error('DELETE ARTWORK FAILED:', text)
+  if (supabaseError) {
+    console.error('DELETE ARTWORK FAILED:', supabaseError)
     alert('Failed to delete artwork')
     return
   }
@@ -505,22 +564,47 @@ async function deleteArtwork() {
   window.location.href = '/artworks'
 }
 
+
  
- async function deleteDocument(id: string) {
-   await fetchWithAuth(`/api/documents/${id}`, {
-     method: 'DELETE',
-     credentials: 'include',
-   })
+
+
+async function deleteDocument(id: string) {
+  if (!artwork?.id) return
+
+  // ✅ suppression en base
+  const { error } = await supabase
+    .from('documents')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('Delete document failed:', error)
+    alert('Failed to delete image')
+    return
+  }
+
+  // ✅ mise à jour locale via artwork (source de vérité)
+  setArtwork(prev =>
+    prev
+      ? {
+          ...prev,
+          documents: prev.documents?.filter(d => d.id !== id) ?? [],
+        }
+      : prev
+  )
+}
+
+
  
-   setDocuments(documents.filter(d => d.id !== id))
- }
  
+
+const images =
+  artwork?.documents
+    ?.filter(d => d.document_type === 'image')
+    .sort((a, b) => a.position - b.position) ?? []
+
  
- const images = documents
-   .filter(d => d.document_type === 'image')
-   .sort((a, b) => a.position - b.position)
- 
- const onedriveDocuments = documents
+ const onedriveDocuments = artwork?.documents
    .filter(d => d.document_type === 'onedrive')
    .sort((a, b) => a.position - b.position)
  
@@ -533,19 +617,7 @@ async function deleteArtwork() {
    fontSize: '0.95rem',
  };
  
- const isBought = artwork.status === 'bought'
  
- 
-  if (loading) {
-    return <p style={{ padding: 40 }}>Loading artwork…</p>
-  }
-
-  if (!artwork) {
-    return <p style={{ padding: 40 }}>Artwork not found</p>
-  }
-
-
-
 async function handleImagesDragEnd(event: any) {
   const { active, over } = event
   if (!over || active.id === over.id) return
@@ -566,86 +638,101 @@ async function handleImagesDragEnd(event: any) {
     position: index + 1,
   }))
 
-  // ✅ Mise à jour UI immédiate
+  // ✅ Mise à jour UI immédiate (optimistic update)
   setDocuments(prev => [
     ...prev.filter(d => d.document_type !== 'image'),
     ...updatedImages,
   ])
 
-  // ✅ Persistance backend
+  // ✅ Persistance backend via Supabase
   try {
-    await fetchWithAuth('/api/documents/reorder', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        updatedImages.map(img => ({
-          id: img.id,
-          position: img.position,
-        }))
-      ),
-    })
+    const updates = updatedImages.map(img =>
+      supabase
+        .from('documents')
+        .update({ position: img.position })
+        .eq('id', img.id)
+    )
+
+    const results = await Promise.all(updates)
+
+    const firstError = results.find(r => r.error)?.error
+    if (firstError) {
+      console.error('REORDER IMAGES FAILED:', firstError)
+      alert('Failed to reorder images')
+    }
   } catch (err) {
-    console.error(err)
+    console.error('REORDER IMAGES ERROR:', err)
   }
 }
 
 
 async function handleDocumentsDragEnd(event: any) {
   const { active, over } = event
+  if (!over || active.id === over.id) return
 
-  /* 1️⃣ Sécurités DnD — indispensables */
-  if (!over) return
-  if (active.id === over.id) return
-
-  /* 2️⃣ Documents concernés (onedrive uniquement) */
   const currentDocs = documents
     .filter(d => d.document_type === 'onedrive')
     .sort((a, b) => a.position - b.position)
 
-  /* 3️⃣ Indices */
-  const oldIndex = currentDocs.findIndex(d => d.id === active.id)
-  const newIndex = currentDocs.findIndex(d => d.id === over.id)
+  const oldIndex = currentDocs.findIndex(doc => doc.id === active.id)
+  const newIndex = currentDocs.findIndex(doc => doc.id === over.id)
 
-  /* 4️⃣ Drop invalide (pas sur un doc) */
   if (oldIndex === -1 || newIndex === -1) return
 
-  /* 5️⃣ Réorganisation */
   const reordered = arrayMove(currentDocs, oldIndex, newIndex)
 
-  /* 6️⃣ Recalcul propre et stable des positions */
   const updatedDocs = reordered.map((doc, index) => ({
     ...doc,
     position: index + 1,
   }))
 
-  /* 7️⃣ Mise à jour UI optimiste */
-  setDocuments(prev => {
-    const otherDocs = prev.filter(d => d.document_type !== 'onedrive')
-    return [...otherDocs, ...updatedDocs]
-  })
+  // ✅ update UI immédiate (optimistic)
+  setDocuments(prev => [
+    ...prev.filter(d => d.document_type !== 'onedrive'),
+    ...updatedDocs,
+  ])
 
-  /* 8️⃣ Persistance backend */
+  // ✅ persistance backend
   try {
-    const res = await fetchWithAuth('/api/documents/reorder', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(
-        updatedDocs.map(d => ({
-          id: d.id,
-          position: d.position,
-        }))
-      ),
-    })
+    const updates = updatedDocs.map(doc =>
+      supabase
+        .from('documents')
+        .update({ position: doc.position })
+        .eq('id', doc.id)
+    )
 
-    if (!res.ok) {
-      console.error('Reorder documents failed:', await res.text())
+    const results = await Promise.all(updates)
+    const firstError = results.find(r => r.error)?.error
+
+    if (firstError) {
+      console.error('REORDER DOCUMENTS FAILED:', firstError)
+      alert('Failed to reorder documents')
     }
   } catch (err) {
-    console.error('Reorder documents error:', err)
+    console.error('REORDER DOCUMENTS ERROR:', err)
   }
 }
 
+
+   if (loading) {
+     return <p style={{ padding: 40 }}>Loading artwork…</p>
+   }
+ 
+   if (error) {
+     return <p style={{ padding: 40, color: 'red' }}>{error}</p>
+   }
+ 
+   if (!artwork) {
+     return <p style={{ padding: 40 }}>Artwork not found</p>
+   }
+
+   const isBought = artwork.status === 'bought'
 const auctionContact = artwork.auction_house ?? null
+const proposedByContact = artwork.proposedBy ?? null
+const buyerContact = artwork.buyer ?? null
+const destinationContact = artwork.destination_contact ?? null
+
+
 
  return (
     
@@ -653,49 +740,59 @@ const auctionContact = artwork.auction_house ?? null
          style={{
        padding: 40,
        minHeight: '100vh',
-       backgroundColor: '#007a5e',
+       backgroundColor: '#006039',
        color: 'white',
      }}
    >
      
  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 20 }}>
  
- <ActionButton
-   onClick={() => { toggle()
-   }}
- >
-   {isEditing ? 'Cancel' : 'Edit'}
- </ActionButton>
- 
- 
+
+
+<ActionButton
+  onClick={() => {
+    if (isEditing) {
+      // ✅ Cancel → redirection vers print
+      if (artwork?.id) {
+        router.push(`/artworks/print/${artwork.id}`)
+      }
+    } else {
+      // ✅ Edit → activation du mode édition
+      setIsEditing(true)
+    }
+  }}
+>
+  {isEditing ? 'Cancel' : 'Edit'}
+</ActionButton>
+
+
 {isEditing && !isNew && (
-    <ActionButton
-      onClick={deleteArtwork}
-      style={{
-        backgroundColor: '#cc0000',
-        borderColor: '#cc0000',
-        color: 'white',
-      }}
-    >
-      Delete
-    </ActionButton>
-  )}
- 
-   {isEditing && (
-     <ActionButton
-       onClick={saveArtwork}
-       style={{
-         padding: '6px 12px',
-         borderRadius: 4,
-         border: '1px solid #ccc',
-         cursor: 'pointer',
-       }}
-     >
-       Save
-     </ActionButton>
-   )}
+  <ActionButton
+    onClick={deleteArtwork}
+    style={{
+      backgroundColor: '#cc0000',
+      borderColor: '#cc0000',
+      color: 'white',
+    }}
+  >
+    Delete
+  </ActionButton>
+)}
 
 
+{isEditing && (
+  <ActionButton
+    onClick={saveArtwork}
+    style={{
+      padding: '6px 12px',
+      borderRadius: 4,
+      border: '1px solid #ccc',
+      cursor: 'pointer',
+    }}
+  >
+    Save
+  </ActionButton>
+)}
 
 
  </div>
@@ -704,162 +801,7 @@ const auctionContact = artwork.auction_house ?? null
  
  
  
- {!isNew && (
- <section
-   style={{
-     marginBottom: 30,
-     padding: 16,
-     backgroundColor: '#f7f7f7',
-     borderRadius: 6,
-     color: 'black',
-   }}
- >
-   <h2 style={{ marginBottom: 15 }}>Proposal</h2>
- 
-   {/* Date proposed */}
-   <InlineRow label="Date proposed">
-     {isEditing ? (
-       <input
-         type="date"
-         value={artwork.date_proposition || ''}
-         onChange={(e) =>
-           setArtwork({
-             ...artwork,
-             date_proposition: e.target.value || null,
-           })
-         }
-         style={editInputStyle}
-       />
-     ) : artwork.date_proposition ? (
-       new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
-     ) : (
-       '—'
-     )}
-   </InlineRow>
- 
-   {/* Proposed by */}
-   <InlineRow label="Proposed by">
-     {isEditing ? (
-       <select
-         value={artwork.proposed_by_id || ''}
-         onChange={(e) =>
-           setArtwork({
-             ...artwork,
-             proposed_by_id: e.target.value || null,
-           })
-         }
-         style={editInputStyle}
-       >
-         <option value="">—</option>
-         {contacts.map((c) => (
-           <option key={c.id} value={c.id}>
-             {c.company_name ||
-               [c.first_name, c.last_name].filter(Boolean).join(' ')}
-           </option>
-         ))}
-       </select>
-     ) : proposedByContact ? (
-       proposedByContact.company_name ||
-       [proposedByContact.first_name, proposedByContact.last_name]
-         .filter(Boolean)
-         .join(' ')
-     ) : (
-       '—'
-     )}
-   </InlineRow>
- 
-   {/* Proposed to */}
- 
- 
- 
- <InlineRow label="Proposed to">
-   {!artwork.artwork_proposals || artwork.artwork_proposals.length === 0 ? (
-     <span style={{ color: '#777', fontStyle: 'italic' }}>
-       Not proposed yet
-     </span>
-   ) : (
-     <div
-       style={{
-         display: 'flex',
-         flexDirection: 'column',
-         gap: 4,
-       }}
-     >
-       {artwork.artwork_proposals.map((p) => (
-         <div
-           key={p.id}
-           style={{
-             display: 'flex',
-             alignItems: 'baseline',
-             gap: 8,
-           }}
-         >
-           {/* ✅ Nom + date */}
-           <span style={{ fontWeight: 500 }}>
-             {p.contact.company_name ||
-               [p.contact.first_name, p.contact.last_name]
-                 .filter(Boolean)
-                 .join(' ')}
-           </span>
- 
-           <span style={{ fontSize: '0.85rem', color: '#666' }}>
-             ({new Date(p.proposed_at).toLocaleDateString('fr-CH')})
-           </span>
- 
-           {/* ✅ Delete — EDIT ONLY */}
-           {isEditing && (
-             <button
-               onClick={() => removeProposal(p.id)}
-               style={{
-                 marginLeft: 6,
-                 border: 'none',
-                 background: 'none',
-                 color: '#999',
-                 cursor: 'pointer',
-                 fontSize: '0.9rem',
-               }}
-               title="Remove proposal"
-             >
-               ✕
-             </button>
-           )}
-         </div>
-       ))}
-     </div>
-   )}
- </InlineRow>
- 
- 
- 
-   {/* Add proposal (EDIT ONLY) */}
-   {isEditing && (
-     <InlineRow label="">
-       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-         <select
-           value={newProposalContactId}
-           onChange={(e) => setNewProposalContactId(e.target.value)}
-         >
-           <option value="">— Select contact —</option>
-           {contacts.map((c) => (
-             <option key={c.id} value={c.id}>
-               {c.company_name ||
-                 [c.first_name, c.last_name].filter(Boolean).join(' ')}
-             </option>
-           ))}
-         </select>
- 
-         <input
-           type="date"
-           value={newProposedAt}
-           onChange={(e) => setNewProposedAt(e.target.value)}
-         />
- 
-         <button onClick={addProposal}>Add</button>
-       </div>
-     </InlineRow>
-   )}
- </section>
- )}
+
  
  {!isNew && (
  <section
@@ -915,713 +857,37 @@ const auctionContact = artwork.auction_house ?? null
          borderTop: '2px dashed #ddd',
        }}
      >
-       <ImageUploader
-         artworkId={artwork.id}
-         onUploaded={(doc) =>
-           setDocuments(prev => [...prev, doc])
-         }
-       />
+
+<ImageUploader
+  artworkId={artwork.id}
+  onUploaded={(uploadedDocument) => {
+    setArtwork(prev =>
+      prev
+        ? {
+            ...prev,
+            documents: [...(prev.documents ?? []), uploadedDocument],
+          }
+        : prev
+    )
+  }}
+/>
+
      </div>
    )}
  </section>
  )} 
-       <ArtworkSection
-         artwork={artwork}
-         isEditing={isEditing}
-         setArtwork={setArtwork}
-         artists={artists}
-         contacts={contacts}
-       />
- 
- 
- <section
-   style={{
-     marginBottom: 30,
-     padding: 20,
-     backgroundColor: '#f7f7f7',
-     borderRadius: 6,
-     color: 'black',
-   }}
- >
-   <h2 style={{ marginBottom: 15 }}>Auction</h2>
- 
-   {/* Auction Yes / No — sans label */}
- 
- 
- <div
-   style={{
-     display: 'grid',
-     gridTemplateColumns: '160px 1fr',
-     alignItems: 'center',
-     marginBottom: 12,
-   }}
- >
-   {/* Colonne gauche */}
-   <div>
-     {isEditing ? (
-       <select
-         value={artwork.auctions ? 'yes' : 'no'}
-         onChange={(e) => {
-           const isAuction = e.target.value === 'yes'
- 
-           setArtwork({
-             ...artwork,
-             auctions: isAuction,
-             auction_contact_id: isAuction
-               ? artwork.auction_contact_id
-               : null,
-             sale_date: isAuction ? artwork.sale_date : null,
-             sale_time: isAuction ? artwork.sale_time : null,
-             auction_link: isAuction ? artwork.auction_link : null,
-             estimate_low: isAuction ? artwork.estimate_low : null,
-             estimate_high: isAuction ? artwork.estimate_high : null,
-             auction_currency: isAuction ? artwork.auction_currency : null,
-             sold_hammer: isAuction ? artwork.sold_hammer : null,
-             sold_premium: isAuction ? artwork.sold_premium : null,
-             underbidder: isAuction ? artwork.guarantee : false,
-             guarantee: isAuction ? artwork.guarantee : false,
-           })
-         }}
-         style={{ ...editInputStyle, width: 90 }}
-       >
-         <option value="no">No</option>
-         <option value="yes">Yes</option>
-       </select>
-     ) : (
-       <div>{artwork.auctions ? 'Yes' : 'No'}</div>
-     )}
-   </div>
- 
-   {/* Colonne droite — alignée exactement avec “Blondeau” */}
-   <a
-     href="https://buyerspremium.blondeau.ch/auction_time.php"
-     target="_blank"
-     rel="noopener noreferrer"
-     style={{
-       color: '#555',
-       textDecoration: 'underline',
-       fontSize: '0.85rem',
-       cursor: 'pointer',
-       width: 'fit-content',
-     }}
-   >
-     Calculate auction time
-   </a>
- </div>
- 
- 
- <div
-   style={{
-     borderTop: '1px solid #e5e5e53a',
-     margin: '8px 0 12px 0',
-   }}
- />
- 
- 
-   {/* Auction details */}
-   {artwork.auctions && (
-     <>
-       {/* Auction house */}
-       <InlineRow label="Auction house">
-         {isEditing ? (
-           <select
-             value={artwork.auction_contact_id || ''}
-             onChange={(e) =>
-               setArtwork({
-                 ...artwork,
-                 auction_contact_id: e.target.value || null,
-               })
-             }
-             style={editInputStyle}
-           >
-             <option value="">—</option>
-             {contacts.map((c) => (
-               <option key={c.id} value={c.id}>
-                 {c.company_name ||
-                   [c.first_name, c.last_name].filter(Boolean).join(' ')}
-               </option>
-             ))}
-           </select>
-         ) : (
-           <div>
-             {auctionContact
-               ? auctionContact.company_name ||
-                 [auctionContact.first_name, auctionContact.last_name]
-                   .filter(Boolean)
-                   .join(' ')
-               : '—'}
-           </div>
-         )}
-       </InlineRow>
- 
-       {/* Sale date */}
-       <InlineRow label="Sale date">
-         {isEditing ? (
-           <input
-             type="date"
-             value={artwork.sale_date || ''}
-             onChange={(e) =>
-               setArtwork({
-                 ...artwork,
-                 sale_date: e.target.value || null,
-               })
-             }
-             style={editInputStyle}
-           />
-         ) : (
-           <div>
-             {artwork.sale_date
-               ? new Date(artwork.sale_date).toLocaleDateString('fr-CH')
-               : '—'}
-           </div>
-         )}
-       </InlineRow>
- 
-       {/* Sale time */}
-       <InlineRow label="Sale time">
-         {isEditing ? (
-           <input
-             type="time"
-             value={artwork.sale_time || ''}
-             onChange={(e) =>
-               setArtwork({
-                 ...artwork,
-                 sale_time: e.target.value || null,
-               })
-             }
-             style={editInputStyle}
-           />
-         ) : (
-           <div>{artwork.sale_time || '—'}</div>
-         )}
-       </InlineRow>
- 
-       {/* Auction website */}
- 
- <InlineRow label="Auction website">
-   {isEditing ? (
-     <input
-       type="url"
-       value={artwork.auction_link || ''}
-       onChange={(e) =>
-         setArtwork({
-           ...artwork,
-           auction_link: e.target.value || null,
-         })
-       }
-       style={editInputStyle}
-     />
-   ) : artwork.auction_link ? (
-     <a
-       href={artwork.auction_link}
-       target="_blank"
-       rel="noopener noreferrer"
-       style={{
-         color: '#007a5e',
-         textDecoration: 'underline',
-         wordBreak: 'break-all',
-       }}
-     >
-       
- {(() => {
-   try {
-     return artwork.auction_link
-       ? new URL(artwork.auction_link).hostname
-       : '—'
-   } catch {
-     return '—'
-   }
- })()}
- 
-     </a>
-   ) : (
-     '—'
-   )}
- </InlineRow>
-
-       {/* Estimate */}
-       <InlineRow label="Estimate">
-         {isEditing ? (
-           <div style={{ display: 'flex', gap: 8 }}>
-            <select
-               value={artwork.auction_currency || ''}
-               onChange={(e) =>
-                 setArtwork({
-                   ...artwork,
-                   auction_currency: e.target.value || null,
-                 })
-               }
-             >
-               <option value="">—</option>
-               {CURRENCY_OPTIONS.map((c) => (
-                 <option key={c} value={c}>
-                   {c}
-                 </option>
-               ))}
-             </select>
-
-             <input
-               type="number"
-               placeholder="Low"
-               value={artwork.estimate_low.toLocaleString('fr-CH') ?? ''}
-               onChange={(e) =>
-                 setArtwork({
-                   ...artwork,
-                   estimate_low: e.target.value
-                     ? Number(e.target.value)
-                     : null,
-                 })
-               }
-             />
-             <input
-               type="number"
-               placeholder="High"
-               value={artwork.estimate_high.toLocaleString('fr-CH') ?? ''}
-               onChange={(e) =>
-                 setArtwork({
-                   ...artwork,
-                   estimate_high: e.target.value
-                     ? Number(e.target.value)
-                     : null,
-                 })
-               }
-             />
-             
-           </div>
-         ) :  
-         (
-<div>
-          {artwork.auction_currency || ''} {artwork.estimate_low.toLocaleString('fr-CH')} – {artwork.estimate_high.toLocaleString('fr-CH')}
-           </div>
-
-         )}
-       </InlineRow>
-       {/* Result */}
-       <InlineRow label="Result">
-         {isEditing ? (
-           <div style={{ display: 'flex', gap: 8 }}>
-          
-               Hammer:<input
-               type="number"
-               placeholder="Hammer"
-               value={artwork.sold_hammer.toLocaleString('fr-CH') ?? ''}
-               onChange={(e) =>
-                 setArtwork({
-                   ...artwork,
-                   sold_hammer: e.target.value
-                     ? Number(e.target.value)
-                     : null,
-                 })
-               }
-             />
-
-                         Premium: <input
-               type="number"
-               placeholder="Premium"
-               value={artwork.sold_premium.toLocaleString('fr-CH') ?? ''}
-               onChange={(e) =>
-                 setArtwork({
-                   ...artwork,
-                   sold_premium: e.target.value
-                     ? Number(e.target.value)
-                     : null,
-                 })
-               }
-             />
-             
-           </div>
-         ) :  
-         (
-<div> Hammer : {artwork.auction_currency || ''} {artwork.sold_hammer.toLocaleString('fr-CH')} / Premium {artwork.auction_currency || ''} {artwork.sold_premium.toLocaleString('fr-CH')}
-           </div>
-
-         )}
-       </InlineRow>
-       {/* Underbidder */}
-       <InlineRow label="Undebidder">
-         {isEditing ? (
-           <select
-             value={artwork.underbidder ? 'yes' : 'no'}
-             onChange={(e) =>
-               setArtwork({
-                 ...artwork,
-                 underbidder: e.target.value === 'yes',
-               })
-             }
-           >
-             <option value="no">No</option>
-             <option value="yes">Yes</option>
-           </select>
-         ) : (
-           <div>{artwork.underbidder ? 'Yes' : 'No'}</div>
-         )}
-       </InlineRow>
 
 
 
-       {/* Guarantee */}
-       <InlineRow label="Guarantee">
-         {isEditing ? (
-           <select
-             value={artwork.guarantee ? 'yes' : 'no'}
-             onChange={(e) =>
-               setArtwork({
-                 ...artwork,
-                 guarantee: e.target.value === 'yes',
-               })
-             }
-           >
-             <option value="no">No</option>
-             <option value="yes">Yes</option>
-           </select>
-         ) : (
-           <div>{artwork.guarantee ? 'Yes' : 'No'}</div>
-         )}
-       </InlineRow>
-     </>
-   )}
- </section>
- 
- <section
-   style={{
-     marginBottom: 30,
-     padding: 20,
-     backgroundColor: '#f7f7f7',
-     borderRadius: 6,
-     color: 'black',
-   }}
- >
-   <h2 style={{ marginBottom: 15 }}>Market</h2>
- 
-   {/* ✅ Currency — EDIT ONLY */}
-   {isEditing && (
-     <InlineRow label="Currency">
-       <select
-         value={artwork.currency || ''}
-         onChange={(e) =>
-           setArtwork({
-             ...artwork,
-             currency: e.target.value,
-           })
-         }
-         style={editInputStyle}
-       >
-         <option value="">—</option>
-         {CURRENCY_OPTIONS.map((c) => (
-           <option key={c} value={c}>
-             {c}
-           </option>
-         ))}
-       </select>
-     </InlineRow>
-   )}
- 
- 
-   {/* Asking price */}
-   <InlineRow label="Asking price">
-     {isEditing ? (
-       <input
-         type="number"
-         value={artwork.asking_price ?? ''}
-         onChange={(e) =>
-           setArtwork({
-             ...artwork,
-             asking_price: e.target.value
-               ? Number(e.target.value)
-               : null,
-           })
-         }
-         style={{ ...editInputStyle, width: 160 }}
-       />
-     ) : (
-       <div>
-         {artwork.asking_price !== null
-           ? `${artwork.currency} ${new Intl.NumberFormat('fr-CH').format(
-               artwork.asking_price.toLocaleString('fr-CH')
-             )}`
-           : '—'}
-       </div>
-     )}
-   </InlineRow>
- 
- 
-   {/* Priority */}
-   <InlineRow label="Priority">
-     {isEditing ? (
-       <select
-         value={artwork.priority || ''}
-         onChange={(e) =>
-           setArtwork({ ...artwork, priority: e.target.value })
-         }
-         style={editInputStyle}
-       >
-         <option value="">—</option>
-         {PRIORITY_OPTIONS.map((priority) => (
-           <option key={priority} value={priority}>
-             {priority}
-           </option>
-         ))}
-       </select>
-     ) : (
-       <div>{artwork.priority || '—'}</div>
-     )}
-   </InlineRow>
- 
-   {/* Status */}
- 
- <InlineRow label="Status">
-   {isEditing ? (
-     <select
-       value={artwork.status || ''}
-       onChange={(e) => {
-         const newStatus = e.target.value
- 
-         setArtwork({
-           ...artwork,
-           status: newStatus,
-         })
-       }}
-       style={editInputStyle}
-     >
-       <option value="">—</option>
-       {STATUS_OPTIONS.map((status) => (
-         <option key={status} value={status}>
-           {status}
-         </option>
-       ))}
-     </select>
-   ) : (
-     <div>{artwork.status || '—'}</div>
-   )}
- </InlineRow>
- 
- 
- </section>
- 
- 
- 
- <section
-   style={{
-     marginBottom: 30,
-     padding: 20,
-     backgroundColor: '#f7f7f7',
-     borderRadius: 6,
-     color: 'black',
-   }}
- >
-   <h2 style={{ marginBottom: 15 }}>Acquisition</h2>
- 
-   {(() => {
-     const isBought = artwork.status === 'bought'
- 
-     return (
-       <>
-         {!isBought && (
-           <InlineRow label="Bought">
-             <div>No</div>
-           </InlineRow>
-         )}
- 
-         {isBought && (
-           <>
-             <InlineRow label="Bought">
-               <div>Yes</div>
-             </InlineRow>
- 
-             {/* Buyer */}
-             <InlineRow label="Buyer">
-               {isEditing ? (
-                 <select
-                   value={artwork.buyer_contact_id || ''}
-                   onChange={(e) =>
-                     setArtwork({
-                       ...artwork,
-                       buyer_contact_id: e.target.value || null,
-                     })
-                   }
-                   style={editInputStyle}
-                 >
-                   <option value="">—</option>
-                   {contacts.map((c) => (
-                     <option key={c.id} value={c.id}>
-                       {c.company_name ||
-                         [c.first_name, c.last_name]
-                           .filter(Boolean)
-                           .join(' ')}
-                     </option>
-                   ))}
-                 </select>
-               ) : (
-                 buyerContact
-                   ? buyerContact.company_name ||
-                     [buyerContact.first_name, buyerContact.last_name]
-                       .filter(Boolean)
-                       .join(' ')
-                   : '—'
-               )}
-             </InlineRow>
- 
-             {/* Cost */}
-             <InlineRow label="Cost">
-               {isEditing ? (
-                 <div style={{ display: 'flex', gap: 8 }}>
-                     <select
-                     value={artwork.cost_currency || ''}
-                     onChange={(e) =>
-                       setArtwork({
-                         ...artwork,
-                         cost_currency: e.target.value || null,
-                       })
-                     }
-                     style={editInputStyle}
-                   >
-                     <option value="">—</option>
-                     {CURRENCY_OPTIONS.map((c) => (
-                       <option key={c} value={c}>
-                         {c}
-                       </option>
-                     ))}
-                   </select>
- 
-<input
-  type="number"
-  placeholder="Amount"
-  value={artwork.cost_amount ?? ''}
-  onChange={(e) =>
-    setArtwork({
-      ...artwork,
-      cost_amount: e.target.value === ''
-        ? null
-        : Number(e.target.value),
-    })
-  }/>
+<ArtworkSection
+  artwork={artwork}
+  isEditing={isEditing}
+  setArtwork={setArtwork}
+  addProposal={addProposal}
+  removeProposal={removeProposal}
+/>
 
 
-                 </div>
-               ) : (
-                 artwork.cost_amount
-                   ? `${artwork.cost_currency.toLocaleString('fr-CH')} ${new Intl.NumberFormat(
-                       'fr-CH'
-                     ).format(artwork.cost_amount.toLocaleString('fr-CH'))}`
-                   : '—'
-               )}
-             </InlineRow>
- 
- 
- 
-             {/* Insurance */}
-             <InlineRow label="Insurance">
-               {isEditing ? (
-                 <div style={{ display: 'flex', gap: 8 }}>
-                   <input
-                     type="number"
-                     placeholder="Amount"
-                     value={artwork.insurance_value ?? ''}
-                     onChange={(e) =>
-                       setArtwork({
-                         ...artwork,
-                         insurance_value: e.target.value
-                           ? Number(e.target.value)
-                           : null,
-                       })
-                     }
-                     style={{ ...editInputStyle, width: 140 }}
-                   />
- 
-                   <select
-                     value={artwork.insurance_currency || ''}
-                     onChange={(e) =>
-                       setArtwork({
-                         ...artwork,
-                         insurance_currency: e.target.value || null,
-                       })
-                     }
-                     style={editInputStyle}
-                   >
-                     <option value="">—</option>
-                     {CURRENCY_OPTIONS.map((c) => (
-                       <option key={c} value={c}>
-                         {c}
-                       </option>
-                     ))}
-                   </select>
-                 </div>
-               ) : artwork.insurance_value ? (
-                 `${artwork.insurance_currency.toLocaleString('fr-CH')} ${new Intl.NumberFormat(
-                   'fr-CH'
-                 ).format(artwork.insurance_value.toLocaleString('fr-CH'))}`
-               ) : (
-                 '—'
-               )}
-             </InlineRow>
- 
- 
-             {/* Destination */}
-             <InlineRow label="Destination">
-               {isEditing ? (
-                 <select
-                   value={artwork.destination_contact_id || ''}
-                   onChange={(e) =>
-                     setArtwork({
-                       ...artwork,
-                       destination_contact_id:
-                         e.target.value || null,
-                     })
-                   }
-                   style={editInputStyle}
-                 >
-                   <option value="">—</option>
-                   {contacts.map((c) => (
-                     <option key={c.id} value={c.id}>
-                       {c.company_name ||
-                         [c.first_name, c.last_name]
-                           .filter(Boolean)
-                           .join(' ')}
-                     </option>
-                   ))}
-                 </select>
-               ) : (
-                 destinationContact
-                   ? destinationContact.company_name ||
-                     [destinationContact.first_name,
-                       destinationContact.last_name]
-                       .filter(Boolean)
-                       .join(' ')
-                   : '—'
-               )}
-             </InlineRow>
-           </>
-         )}
-       </>
-     )
-   })()}
- </section>
- 
- <section
-   style={{
-     marginBottom: 30,
-     padding: 20,
-     backgroundColor: '#f7f7f7',
-     borderRadius: 6,
-     color: 'black',
-   }}
- >
-   <h2 style={{ marginBottom: 15 }}>Notes</h2>
- 
-   {isEditing ? (
-     <textarea
-       value={artwork.notes || ''}
-       onChange={(e) =>
-         setArtwork({ ...artwork, notes: e.target.value })
-       }
-       style={{ width: '100%', minHeight: 100 }}
-     />
-   ) : (
-     <div>{artwork.notes || '—'}</div>
-   )}
- </section>
- 
- 
  
  {!isNew && (
  <section
@@ -1635,7 +901,7 @@ const auctionContact = artwork.auction_house ?? null
  >
    <h2 style={{ marginBottom: 16 }}>Documents</h2>
  
-   {documents.filter(d => d.document_type === 'onedrive').length === 0 ? (
+   {artwork.documents.filter(d => d.document_type === 'onedrive').length === 0 ? (
      <div style={{ color: '#777', fontStyle: 'italic' }}>
        No documents
      </div>
@@ -1645,14 +911,14 @@ const auctionContact = artwork.auction_house ?? null
        onDragEnd={handleDocumentsDragEnd}
      >
        <SortableContext
-         items={documents
+         items={artwork.documents
            .filter(d => d.document_type === 'onedrive')
            .sort((a, b) => a.position - b.position)
            .map(d => d.id)}
          strategy={verticalListSortingStrategy}
        >
          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-           {documents
+           {artwork.documents
              .filter(d => d.document_type === 'onedrive')
              .sort((a, b) => a.position - b.position)
              .map(doc => (
@@ -1718,6 +984,8 @@ const auctionContact = artwork.auction_house ?? null
        cursor: 'zoom-out',
      }}
    >
+
+    
      <img
        src={openImage}
        alt=""
@@ -1733,5 +1001,5 @@ const auctionContact = artwork.auction_house ?? null
  )}
    </main>
  )
- } // ✅ TOUT TON CODE EXISTANT
+ } 
 

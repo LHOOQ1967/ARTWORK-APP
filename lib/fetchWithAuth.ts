@@ -8,10 +8,11 @@ export async function fetchWithAuth(
     ...init,
   })
 
-  if (res.status === 401) {
-    window.location.href = '/login'
-    throw new Error('Session expired')
-  }
+
+if (res.status === 401) {
+  console.warn('401 ignored during OAuth bootstrap')
+}
+
 
   return res
 }

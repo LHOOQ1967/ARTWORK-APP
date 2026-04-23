@@ -8,7 +8,7 @@ export default function HomePage() {
     <main
       style={{
         minHeight: '100vh',
-        backgroundColor: '#007a5e',
+        backgroundColor: '#006039',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

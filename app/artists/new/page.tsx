@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { fetchWithAuth } from '@/lib/fetchWithAuth'
+
 
 export default function NewArtistPage() {
   const router = useRouter()
@@ -26,18 +26,28 @@ export default function NewArtistPage() {
     setLoading(true)
     setError(null)
 
-    const res = await fetchWithAuth('/api/artists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        last_name: lastName.trim(),
-        first_name: firstName.trim() || null,
-        year_of_birth: yearOfBirth ? Number(yearOfBirth) : null,
-        year_of_death: yearOfDeath ? Number(yearOfDeath) : null,
-        place_of_birth: placeOfBirth.trim() || null,
-        place_of_death: placeOfDeath.trim() || null,
-      }),
-    })
+
+const tokenResponse = await msalInstance.acquireTokenSilent({
+  scopes: ['api://YOUR_API_ID/access'],
+  account: msalInstance.getActiveAccount(),
+})
+
+const res = await fetch('/api/artists', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${tokenResponse.accessToken}`,
+  },
+  body: JSON.stringify({
+    last_name: lastName.trim(),
+    first_name: firstName.trim() || null,
+    year_of_birth: yearOfBirth ? Number(yearOfBirth) : null,
+    year_of_death: yearOfDeath ? Number(yearOfDeath) : null,
+    place_of_birth: placeOfBirth.trim() || null,
+    place_of_death: placeOfDeath.trim() || null,
+  }),
+})
+
 
     if (!res.ok) {
       setError(await res.text())
@@ -54,7 +64,7 @@ export default function NewArtistPage() {
       style={{
         padding: 40,
         minHeight: '100vh',
-        backgroundColor: '#007a5e', // ✅ fond vert cohérent
+        backgroundColor: '#006039', // ✅ fond vert cohérent
       }}
     >
       <section

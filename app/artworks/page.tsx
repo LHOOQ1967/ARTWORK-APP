@@ -3,40 +3,68 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import ArtworkList from '@/app/components/artwork/ArtworkList'
-import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function ArtworksPage() {
   /* ======================
      STATE
      ====================== */
   const [artworks, setArtworks] = useState<any[]>([])
-  const [artists, setArtists] = useState<any[]>([])
-  const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const router = useRouter()
 
   /* ======================
      EFFECTS — TOUJOURS EN HAUT
      ====================== */
 
   // ✅ Artworks
-  useEffect(() => {
-    async function loadArtworks() {
-      try {
-        const res = await fetchWithAuth('/api/artworks')
-        const data = await res.json()
 
-        if (!res.ok || !Array.isArray(data)) {
-          setError(data?.error || 'Failed to load artworks')
+  useEffect(() => {
+  const loadArtworks = async () => {
+
+
+  const checkSession = async () => {
+  const { data } = await supabase.auth.getSession()
+  console.log('PRINT session:', data.session)
+}
+
+checkSession()
+
+
+      try {
+        setLoading(true)
+        setError(null)
+
+        const { data, error } = await supabase
+          .from('artworks')
+
+  .select(`
+    *,
+    artist:artists!artworks_artist_id_fkey (
+      id,
+      first_name,
+      last_name
+    ),
+    documents:documents (
+      id,
+      document_type,
+      url
+    )
+  `)
+
+          .neq('auctions', true)
+
+        if (error) {
+          console.error(error)
+          setError('Failed to load artworks')
           return
         }
 
-        setArtworks(data)
-      } catch {
+        setArtworks(data ?? [])
+      } catch (err) {
+        console.error(err)
         setError('Network error')
       } finally {
         setLoading(false)
@@ -47,44 +75,28 @@ export default function ArtworksPage() {
   }, [])
 
   // ✅ Artists (liste complète, pas search)
-  useEffect(() => {
-    fetchWithAuth('/api/artists')
-      .then(res => res.json())
-      .then(data => {
-        setArtists(Array.isArray(data) ? data : data.data || [])
-      })
-  }, [])
+
 
   // ✅ Documents
-  useEffect(() => {
-    fetchWithAuth('/api/documents')
-      .then(res => res.json())
-      .then(data => {
-        setDocuments(Array.isArray(data) ? data : data.data || [])
-      })
-  }, [])
 
-  /* ======================
-     ENRICHED ARTWORKS
-     ====================== */
-  const enrichedArtworks = useMemo(() => {
-    return artworks.map(a => ({
-      ...a,
-      artist: artists.find(ar => ar.id === a.artist_id) || null,
-      documents: documents.filter(d => d.artwork_id === a.id),
-    }))
-  }, [artworks, artists, documents])
+ 
 
-  /* ======================
-     FILTERING
-     ====================== */
-  const activeArtworks = enrichedArtworks.filter(a =>
-    ['viewed', 'draft', 'negotiation', 'bought'].includes(a.status)
+/* ======================
+   FILTERING
+   ====================== */
+
+// ✅ 1️⃣ Base métier : uniquement Private / Secondary market
+
+// ✅ 2️⃣ Active artworks (hors auction)
+
+  const activeArtworks = artworks.filter(a =>
+    ['viewed', 'draft', 'negotiation'].includes(a.status)
   )
 
-  const archivedArtworks = enrichedArtworks.filter(
-    a => a.status === 'archived'
-  )
+  const boughtArtworks = artworks.filter(a => a.status === 'bought')
+
+  const archivedArtworks = artworks.filter(a => a.status === 'archived')
+
 
   /* ======================
      CONDITIONAL RENDER (APRÈS HOOKS)
@@ -93,12 +105,9 @@ export default function ArtworksPage() {
     return <p style={{ padding: 40 }}>Loading artworks…</p>
   }
 
+ 
   if (error) {
-    return (
-      <p style={{ padding: 40, color: 'red' }}>
-        {error}
-      </p>
-    )
+    return <p style={{ padding: 40, color: 'red' }}>{error}</p>
   }
 
   /* ======================
@@ -109,7 +118,7 @@ export default function ArtworksPage() {
       style={{
         padding: 40,
         minHeight: '100vh',
-        backgroundColor: '#007a5e',
+        backgroundColor: '#006039',
       }}
     >
       <div
@@ -152,6 +161,32 @@ export default function ArtworksPage() {
 
       <ArtworkList artworks={activeArtworks} />
 
+
+{boughtArtworks.length > 0 && (
+  <section
+    style={{
+      marginTop: 40,
+      paddingTop: 24,
+      borderTop: '2px solid #ccc',
+    }}
+  >
+    <h2
+      style={{
+        color: 'white',
+        fontSize: '1.8rem',
+        fontWeight: 700,
+        marginBottom: 20,
+      }}
+    >
+      Bought artworks ({boughtArtworks.length})
+    </h2>
+
+    <ArtworkList artworks={boughtArtworks} mode="bought"/>
+  </section>
+)}
+
+      
+
       {archivedArtworks.length > 0 && (
         <section
           style={{
@@ -174,6 +209,10 @@ export default function ArtworksPage() {
           <ArtworkList artworks={archivedArtworks} />
         </section>
       )}
+
+
+
+      
     </main>
   )
 }

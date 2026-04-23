@@ -9,6 +9,10 @@ type Props = {
   artworks: any[]
 }
 
+type ArtworkListProps = {
+    artworks: Artwork[]
+    mode?: 'market' | 'auction' | 'bought' }
+
 const th: React.CSSProperties = {
   textAlign: 'left',
   padding: '10px 12px',
@@ -24,11 +28,16 @@ const td: React.CSSProperties = {
   fontSize: '0.9rem',
 }
 
-export default function ArtworkList({ artworks }: Props) {
+
+export default function ArtworkList({
+  artworks,
+  mode = 'market',
+}: ArtworkListProps) {
+
   const router = useRouter()
   
   const [sortKey, setSortKey] = useState<
-    'artist' | 'title' | 'date' | 'asking' | 'priority' | 'status' | null
+    'artist' | 'title' | 'date' | 'asking' | 'estimate'| 'cost' | 'priority' | 'status' | null
   >(null)
 
   const [sortDirection, setSortDirection] =
@@ -63,6 +72,11 @@ function sortArtworks(artworks: any[]) {
       case 'asking':
         va = a.asking_price ?? 0
         vb = b.asking_price ?? 0
+        break
+        
+      case 'estimate':
+        va = a.estimate_low ?? 0
+        vb = b.estimate_low ?? 0
         break
 
       case 'priority':
@@ -171,14 +185,41 @@ function SortableTh({
       setSortDirection={setSortDirection}
     />
 
-    <SortableTh
-      label="Asking"
-      columnKey="asking"
-      sortKey={sortKey}
+
+{mode === 'market' && (
+  <SortableTh
+    label="Asking"
+    columnKey="asking"
+    sortKey={sortKey}
       sortDirection={sortDirection}
       setSortKey={setSortKey}
       setSortDirection={setSortDirection}
-    />
+  />
+)}
+
+{mode === 'auction' && (
+  <SortableTh
+    label="Estimate"
+    columnKey="estimate"
+    sortKey={sortKey}
+      sortDirection={sortDirection}
+      setSortKey={setSortKey}
+      setSortDirection={setSortDirection}
+  />
+)}
+
+{mode === 'bought' && (
+  <SortableTh
+    label="Cost price"
+    columnKey="cost"
+    sortKey={sortKey}
+      sortDirection={sortDirection}
+      setSortKey={setSortKey}
+      setSortDirection={setSortDirection}
+  />
+)}
+
+
 
     <SortableTh
       label="Priority"
@@ -203,7 +244,7 @@ function SortableTh({
         <tbody>
           {sortedArtworks.map((a) => (
             <tr key={a.id}
-              onClick={() => router.push(`/artworks/${a.id}`)}
+              onClick={() => router.push(`/artworks/print/${a.id}`)}
               style={{
                 cursor: 'pointer',
                 transition: 'background-color 0.15s',
@@ -270,17 +311,29 @@ function SortableTh({
                  </td>
 
               {/* Asking */}
-              <td
-                style={{
-                  ...td,
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {a.asking_price
-                  ? `${a.currency} ${a.asking_price.toLocaleString('fr-CH')}`
-                  : '—'}
-              </td>
+              {mode === 'market' && (
+                <td style={{ ...td, textAlign: 'right' }}>
+                  {a.asking_price
+                    ? `${a.currency} ${a.asking_price.toLocaleString('fr-CH')}`
+                    : '—'}
+                </td>
+              )}
+
+              {mode === 'auction' && (
+                <td style={{ ...td, textAlign: 'right' }}>
+                  {a.estimate_low && a.estimate_high
+                    ? `${a.auction_currency} ${a.estimate_low.toLocaleString('fr-CH')} – ${a.estimate_high.toLocaleString('fr-CH')}`
+                    : '—'}
+                </td>
+              )}
+
+                {mode === 'bought' && (
+                <td style={{ ...td, textAlign: 'right' }}>
+                  {a.cost_amount
+                    ? `${a.cost_currency} ${a.cost_amount.toLocaleString('fr-CH')}`
+                    : '—'}
+                </td>
+              )}
 
               {/* Priority */}
               <td style={td}>{a.priority}</td>

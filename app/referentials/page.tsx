@@ -2,7 +2,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchWithAuth } from '@/lib/fetchWithAuth'
 
 
 /* ======================
@@ -168,11 +167,21 @@ async function save() {
 
   const { id, ...payload } = artist
 
-  const res = await fetchWithAuth(`/api/artists/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+
+const tokenResponse = await msalInstance.acquireTokenSilent({
+  scopes: ['api://YOUR_API_ID/access'],
+  account: msalInstance.getActiveAccount(),
+})
+
+const res = await fetch(`/api/artists/${id}`, {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${tokenResponse.accessToken}`,
+  },
+  body: JSON.stringify(payload),
+})
+
 
   if (!res.ok) {
     console.error('PATCH artist failed:', await res.text())
@@ -192,17 +201,41 @@ async function save() {
 
 
 
-  async function remove() {
-    if (!artist) return
-    if (!confirm('Delete this artist?')) return
 
-    await fetchWithAuth(`/api/artists/${artist.id}`, { method: 'DELETE' })
+async function remove() {
+  if (!artist) return
+  if (!confirm('Delete this artist?')) return
 
+  try {
+    // ✅ 1. Récupération du token Azure
+    const tokenResponse = await msalInstance.acquireTokenSilent({
+      scopes: ['api://YOUR_API_ID/access'],
+      account: msalInstance.getActiveAccount(),
+    })
+
+    // ✅ 2. DELETE avec Bearer token
+    const res = await fetch(`/api/artists/${artist.id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${tokenResponse.accessToken}`,
+      },
+    })
+
+    if (!res.ok) {
+      throw new Error('Failed to delete artist')
+    }
+
+    // ✅ Mise à jour locale de l’état
     setArtists(list => list.filter(a => a.id !== artist.id))
     setSelectedId(null)
     setArtist(null)
     setIsEditing(false)
+  } catch (err) {
+    console.error(err)
+    alert('Delete failed')
   }
+}
+
 
   return (
     <section
@@ -506,11 +539,21 @@ async function save() {
 
   const { id, ...payload } = contact
 
-  const res = await fetchWithAuth(`/api/contacts/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+
+const tokenResponse = await msalInstance.acquireTokenSilent({
+  scopes: ['api://YOUR_API_ID/access'],
+  account: msalInstance.getActiveAccount(),
+})
+
+const res = await fetch(`/api/contacts/${id}`, {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${tokenResponse.accessToken}`,
+  },
+  body: JSON.stringify(payload),
+})
+
 
   if (!res.ok) {
     console.error('PATCH contact failed:', await res.text())
@@ -528,17 +571,41 @@ async function save() {
 
 
 
-  async function remove() {
-    if (!contact) return
-    if (!confirm('Delete this contact?')) return
 
-    await fetchWithAuth(`/api/contacts/${contact.id}`, { method: 'DELETE' })
+async function remove() {
+  if (!contact) return
+  if (!confirm('Delete this contact?')) return
 
+  try {
+    // ✅ 1. Récupération du token Azure
+    const tokenResponse = await msalInstance.acquireTokenSilent({
+      scopes: ['api://YOUR_API_ID/access'],
+      account: msalInstance.getActiveAccount(),
+    })
+
+    // ✅ 2. DELETE avec Authorization Bearer
+    const res = await fetch(`/api/contacts/${contact.id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${tokenResponse.accessToken}`,
+      },
+    })
+
+    if (!res.ok) {
+      throw new Error('Failed to delete contact')
+    }
+
+    // ✅ Mise à jour locale de l’état
     setContacts(list => list.filter(c => c.id !== contact.id))
     setSelectedId(null)
     setContact(null)
     setIsEditing(false)
+  } catch (err) {
+    console.error(err)
+    alert('Delete failed')
   }
+}
+
 
   return (
     <section
@@ -801,7 +868,7 @@ export default function ReferentialsPage() {
       style={{
         padding: 40,
         minHeight: '100vh',
-        backgroundColor: '#007a5e',
+        backgroundColor: '#006039',
         color: 'white',
       }}
     >
