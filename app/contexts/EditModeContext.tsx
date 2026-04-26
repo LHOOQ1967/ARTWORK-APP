@@ -15,10 +15,12 @@ const EditModeContext = createContext<EditModeContextType | undefined>(
 
 export function EditModeProvider({
   children,
+  defaultEditing = false,
 }: {
   children: React.ReactNode
+  defaultEditing?: boolean
 }) {
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(defaultEditing)
 
   function toggle() {
     setIsEditing(v => !v)

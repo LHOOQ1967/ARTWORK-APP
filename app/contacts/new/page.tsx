@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function NewContactPage() {
   const router = useRouter()
@@ -28,32 +28,27 @@ export default function NewContactPage() {
     setLoading(true)
     setError(null)
 
- 
+    const { error: supabaseError } = await supabase
+      .from('contacts')
+      .insert({
+        company_name: companyName.trim() || null,
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+        email: email.trim() || null,
+        telephone: telephone.trim() || null,
+        city: city.trim() || null,
+        role: role.trim() || null,
+        notes: notes.trim() || null,
+      })
 
-const res = await fetchWithAuth('/api/contacts', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    company_name: companyName.trim() || null,
-    first_name: firstName.trim() || null,
-    last_name: lastName.trim() || null,
-    email: email.trim() || null,
-    telephone: telephone.trim() || null,
-    city: city.trim() || null,
-    role: role.trim() || null,
-    notes: notes.trim() || null,
-  }),
-})
-
-
-
-    if (!res.ok) {
-      setError(await res.text())
+    if (supabaseError) {
+      console.error('Create contact failed:', supabaseError)
+      setError('Failed to create contact')
       setLoading(false)
       return
     }
 
-    // ✅ même stratégie que Artist New
+    // ✅ même logique que New Artist
     router.push('/referentials')
   }
 
@@ -62,7 +57,7 @@ const res = await fetchWithAuth('/api/contacts', {
       style={{
         padding: 40,
         minHeight: '100vh',
-        backgroundColor: '#006039', // ✅ fond vert app
+        backgroundColor: '#006039',
       }}
     >
       <section
@@ -70,7 +65,7 @@ const res = await fetchWithAuth('/api/contacts', {
           maxWidth: 640,
           margin: '0 auto',
           padding: 24,
-          backgroundColor: '#f7f7f7', // ✅ section grise
+          backgroundColor: '#f7f7f7',
           borderRadius: 6,
           color: 'black',
         }}

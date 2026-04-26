@@ -1,64 +1,75 @@
-
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import ArtworkList from '@/app/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseClient'
 
-export default function ArtworksPage() {
+
+type Artwork = {
+  id: string
+  title: string
+  priority: string
+  status: string
+  sale_date: string | null
+  estimate_low: number | null
+  estimate_high: number | null
+  auction_currency: string | null
+  artist?: {
+    id: string
+    first_name: string
+    last_name: string
+  } | null
+  documents?: {
+    id: string
+    document_type: string
+    url: string
+  }[]
+}
+
+
+export default function AuctionArtworksPage() {
+  /* ======================
+     AUTH (OBLIGATOIRE EN HAUT)
+     ====================== */
+
   /* ======================
      STATE
      ====================== */
-  const [artworks, setArtworks] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [artworks, setArtworks] = useState<Artwork[]>([])
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-
   /* ======================
-     EFFECTS — TOUJOURS EN HAUT
+     LOAD ARTWORKS (AUCTIONS)
      ====================== */
-
-  // ✅ Artworks
-
-  useEffect(() => {
-  const loadArtworks = async () => {
-
-
-  const checkSession = async () => {
-  const { data } = await supabase.auth.getSession()
-  console.log('PRINT session:', data.session)
-}
-
-checkSession()
-
-
+useEffect(() => {
+    const loadArtworks = async () => {
       try {
         setLoading(true)
         setError(null)
 
         const { data, error } = await supabase
           .from('artworks')
-
-  .select(`
-    *,
-    artist:artists!artworks_artist_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    documents:documents (
-      id,
-      document_type,
-      url
-    )
-  `)
-
-          .neq('auctions', true)
+          .select(`
+            *,
+            artist:artists (
+              id,
+              first_name,
+              last_name
+            ),
+            documents:documents (
+              id,
+              document_type,
+              label,
+              url
+            )
+          `)
+          .eq('auctions', true)
 
         if (error) {
           console.error(error)
-          setError('Failed to load artworks')
+          setError('Failed to load auction artworks')
           return
         }
 
@@ -74,41 +85,61 @@ checkSession()
     loadArtworks()
   }, [])
 
-  // ✅ Artists (liste complète, pas search)
-
-
-  // ✅ Documents
-
- 
-
-/* ======================
-   FILTERING
-   ====================== */
-
-// ✅ 1️⃣ Base métier : uniquement Private / Secondary market
-
-// ✅ 2️⃣ Active artworks (hors auction)
-
-  const activeArtworks = artworks.filter(a =>
-    ['viewed', 'draft', 'negotiation'].includes(a.status)
-  )
-
-  const boughtArtworks = artworks.filter(a => a.status === 'bought')
-
-  const archivedArtworks = artworks.filter(a => a.status === 'archived')
-
 
   /* ======================
-     CONDITIONAL RENDER (APRÈS HOOKS)
+     SPLITS
+     ====================== */
+  const activeArtworks = artworks.filter(
+    a => !['bought', 'archived'].includes(a.status)
+  )
+  const boughtArtworks = artworks.filter(a => a.status === 'bought')
+  const archivedArtworks = artworks.filter(a => a.status === 'archived')
+
+  /* ======================
+     EARLY RETURNS
      ====================== */
   if (loading) {
-    return <p style={{ padding: 40 }}>Loading artworks…</p>
+    return <p style={{ padding: 40 }}>Loading auction artworks…</p>
   }
 
- 
   if (error) {
     return <p style={{ padding: 40, color: 'red' }}>{error}</p>
   }
+
+
+
+  if (artworks.length === 0) {
+    return (
+      <main
+        style={{
+          padding: 40,
+          minHeight: '100vh',
+          backgroundColor: '#007a5e',
+          color: 'white',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginBottom: 20,
+          }}
+        >
+          <h1>Auctions</h1>
+
+          <Link href="/artworks/new">
+            + New artwork
+          </Link>
+        </div>
+
+        <p>No auction artworks yet.</p>
+      </main>
+    )
+  }
+
+
+
+console.log('AUCTIONS artworks:', artworks)
 
   /* ======================
      RENDER
@@ -137,7 +168,7 @@ checkSession()
             margin: 0,
           }}
         >
-          Primary and Secondary Market ({activeArtworks.length})
+          Auctions ({activeArtworks.length})
         </h2>
 
         <Link href="/artworks/new">
@@ -159,8 +190,7 @@ checkSession()
         </Link>
       </div>
 
-      <ArtworkList artworks={activeArtworks} />
-
+      <ArtworkList artworks={activeArtworks} mode="auction" />
 
 {boughtArtworks.length > 0 && (
   <section
@@ -185,8 +215,6 @@ checkSession()
   </section>
 )}
 
-      
-
       {archivedArtworks.length > 0 && (
         <section
           style={{
@@ -210,9 +238,7 @@ checkSession()
         </section>
       )}
 
-
-
-      
     </main>
   )
 }
+

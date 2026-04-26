@@ -1,18 +1,36 @@
 
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+
+
+type SortableArtworkDocument = {
+  id: string
+  document_type: 'image' | 'onedrive'
+  label?: string | null
+  url?: string | null
+  position?: number | null
+}
 
 export function SortableDocument({
   document,
   isEditing,
   onDelete,
 }: {
-  document: any
+  document: SortableArtworkDocument
   isEditing: boolean
   onDelete: (id: string) => void
 }) {
+  const [label, setLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // ✅ SYNCHRONISATION RÉELLE DES DONNÉES
+  useEffect(() => {
+    setLabel(document.label ?? '')
+  }, [document.label])
+
   const {
     setNodeRef,
     attributes,
@@ -31,6 +49,22 @@ export function SortableDocument({
     window.open(document.url, '_blank', 'noopener,noreferrer')
   }
 
+  async function saveLabel() {
+    if (label === (document.label ?? '')) return
+
+    setSaving(true)
+
+    await fetch(`/api/documents/${document.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label }),
+    })
+
+    setSaving(false)
+  }
+
+console.log('DOCUMENT FROM API →', document)
+
   return (
     <div
       ref={setNodeRef}
@@ -45,59 +79,52 @@ export function SortableDocument({
         backgroundColor: '#fafafa',
       }}
     >
-      {/* ✅ Zone CLIQUABLE (lecture) */}
       <div
         onClick={!isEditing ? handleOpen : undefined}
         style={{
           flex: 1,
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: 8,
           cursor: isEditing ? 'default' : 'pointer',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
         }}
       >
-        <span
-          style={{
-            fontWeight: 500,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-          title={document.label || 'Untitled'}
-        >
-          {document.label || 'Untitled'}
-        </span>
+        {isEditing ? (
+          <input
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            onBlur={saveLabel}
+            placeholder={label ? '' : 'Document title'}
+            onFocus={e => e.target.select()}
+            style={{ flex: 1 }}
+          />
+        ) : (
+          <span style={{ fontWeight: 500 }}>
+            {document.label || 'Untitled'}
+          </span>
+        )}
 
-        {!isEditing && (
-          <span style={{ fontSize: 14, color: '#0070f3' }}>
-            Open
+        {saving && (
+          <span style={{ fontSize: 12, color: '#999' }}>
+            Saving…
           </span>
         )}
       </div>
 
-      {/* ✅ Poignée DRAG (édition uniquement) */}
       {isEditing && (
         <span
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          style={{
-            cursor: 'grab',
-            color: '#999',
-            fontSize: 16,
-            userSelect: 'none',
-          }}
-          title="Reorder"
+          style={{ cursor: 'grab', color: '#999' }}
         >
           ⠿
         </span>
       )}
 
-      {/* ✅ Delete */}
       {isEditing && (
         <button
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation()
             onDelete(document.id)
           }}
@@ -105,10 +132,7 @@ export function SortableDocument({
             border: 'none',
             background: 'transparent',
             color: '#999',
-            cursor: 'pointer',
-            fontSize: 16,
           }}
-          title="Delete"
         >
           ×
         </button>

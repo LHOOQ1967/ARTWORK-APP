@@ -4,23 +4,33 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function HeaderNav() {
   const pathname = usePathname()
   const router = useRouter()
   const [loggedIn, setLoggedIn] = useState(false)
 
-  /* ✅ Check auth via backend (cookies) */
+  // ✅ Auth state from Supabase
   useEffect(() => {
-    fetch('/api/me')
-      .then(res => res.json())
-      .then(data => setLoggedIn(data.loggedIn))
-      .catch(() => setLoggedIn(false))
+    // état initial
+    supabase.auth.getUser().then(({ data }) => {
+      setLoggedIn(!!data.user)
+    })
+
+    // écoute changements session
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(!!session?.user)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
-  /* ✅ Logout */
+  // ✅ Logout Supabase
   async function handleLogout() {
-    await fetch('/api/logout', { method: 'POST' })
+    await supabase.auth.signOut()
     router.push('/login')
   }
 
@@ -28,7 +38,8 @@ export default function HeaderNav() {
     pathname === href || pathname.startsWith(href + '/')
 
   return (
-    <header className="no-print"
+    <header
+      className="no-print"
       style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -38,12 +49,8 @@ export default function HeaderNav() {
       }}
     >
       {/* LEFT NAV */}
-
-
-
       <nav style={{ display: 'flex', gap: 16 }}>
-
-        <Link href="/" style={navLink(isActive('/artworks'))}>
+        <Link href="/" style={navLink(isActive('/'))}>
           Home
         </Link>
 
@@ -92,23 +99,19 @@ export default function HeaderNav() {
 
 /* ===== styles ===== */
 
-
 function navLink(active: boolean): React.CSSProperties {
   return {
-    color: 'white', // gris foncé / gris moyen
-    fontWeight: 700,                      // ✅ strong (gras)
+    color: 'white',
+    fontWeight: 700,
     textDecoration: 'none',
-    
-textTransform: 'uppercase',
-letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
     borderBottom: active
       ? '2px solid #1f1f1f'
       : '2px solid transparent',
     paddingBottom: 2,
-    transition: 'color 120ms ease, border-color 120ms ease',
   }
 }
-
 
 const primaryButton: React.CSSProperties = {
   backgroundColor: 'white',

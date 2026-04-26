@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import type { Artwork, ArtworkForm } from '@/app/types/artwork'
 
 /* ======================
  * Types locaux (UI only)
@@ -32,7 +33,7 @@ type ArtworkWithRelations = Artwork & {
 }
 
 type Props = {
-  artwork: ArtworkWithRelations
+  artwork: ArtworkForm
   isEditing: boolean
   setArtwork: (a: ArtworkWithRelations) => void
   addProposal: (contactId: string, date?: string | null) => Promise<void>
@@ -236,6 +237,7 @@ function ArtworkEdit({
   
   const [contactOptions, setContactOptions] = useState<Contact[]>([])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     const loadContacts = async () => {
       const { data, error } = await supabase
@@ -711,7 +713,6 @@ return (
     )}
   </div>
 </EditRow>
-``
 
 
   {/* Title */}
@@ -793,20 +794,83 @@ return (
       />
     </div>
   </EditRow>
-</SectionBlock>
+
+<Divider />
 
 
-<SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Auction</h3>
-
-  {/* Auction yes / no */}
-  <EditRow label="Auction">
+<EditRow label="Location">
+  {isEditing ? (
     <select
-      value={artwork.auctions ? 'yes' : 'no'}
+      value={artwork.location_contact_id ?? ''}
       onChange={e =>
         setArtwork({
           ...artwork,
-          auctions: e.target.value === 'yes',
+          location_contact_id: e.target.value || null,
+          location:
+            contactOptions.find(c => c.id === e.target.value) ||
+            null,
+        })
+      }
+      style={editInputStyle}
+    >
+      <option value="">—</option>
+      {contactOptions.map(c => (
+        <option key={c.id} value={c.id}>
+          {contactLabel(c)}
+        </option>
+      ))}
+    </select>
+  ) : (
+    contactLabel(artwork.location)
+  )}
+</EditRow>
+
+
+<EditRow label="View date">
+  {isEditing ? (
+    <input
+      type="date"
+      value={artwork.view_date ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          view_date: e.target.value || null,
+        })
+      }
+      style={{ ...editInputStyle, width: 160 }}
+    />
+  ) : artwork.view_date ? (
+    new Date(artwork.view_date).toLocaleDateString('fr-CH')
+  ) : (
+    '—'
+  )}
+</EditRow>
+
+<EditRow label="Condition">
+  {isEditing ? (
+    <input
+      value={artwork.condition ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          condition: e.target.value || null,
+        })
+      }
+      style={editInputStyle}
+    />
+  ) : (
+    artwork.condition || '—'
+  )}
+</EditRow>
+
+<EditRow label="Certificate">
+  {isEditing ? (
+    <select
+      value={artwork.certificate ? 'yes' : 'no'}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          certificate: e.target.value === 'yes',
         })
       }
       style={{ ...editInputStyle, width: 90 }}
@@ -814,7 +878,176 @@ return (
       <option value="no">No</option>
       <option value="yes">Yes</option>
     </select>
+  ) : artwork.certificate ? (
+    'Yes'
+  ) : (
+    'No'
+  )}
+</EditRow>
+
+
+{artwork.certificate && (
+  <EditRow label="Certificate location">
+    {isEditing ? (
+      <select
+        value={artwork.certificate_location_contact_id ?? ''}
+        onChange={e =>
+          setArtwork({
+            ...artwork,
+            certificate_location_contact_id:
+              e.target.value || null,
+            certificateLocation:
+              contactOptions.find(
+                c => c.id === e.target.value
+              ) || null,
+          })
+        }
+        style={editInputStyle}
+      >
+        <option value="">—</option>
+        {contactOptions.map(c => (
+          <option key={c.id} value={c.id}>
+            {contactLabel(c)}
+          </option>
+        ))}
+      </select>
+    ) : (
+      contactLabel(artwork.certificateLocation)
+    )}
   </EditRow>
+)}
+
+
+
+<EditRow label="Priority">
+  {isEditing ? (
+    <select
+      value={artwork.priority ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          priority: e.target.value || null,
+        })
+      }
+      style={{ ...editInputStyle, width: 120 }}
+    >
+      <option value="">—</option>
+      <option value="information">Information</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+    </select>
+  ) : (
+    artwork.priority || '—'
+  )}
+</EditRow>
+
+
+<EditRow label="Status">
+  {isEditing ? (
+    <select
+      value={artwork.status ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          status: e.target.value || null,
+        })
+      }
+      style={{ ...editInputStyle, width: 160 }}
+    >
+      <option value="">—</option>
+      <option value="draft">Draft</option>
+      <option value="viewed">Viewed</option>
+      <option value="negotiation">Negotiation</option>
+      <option value="sold">Sold</option>
+      <option value="archived">Archived</option>
+    </select>
+  ) : (
+    artwork.status || '—'
+  )}
+</EditRow>
+
+
+
+
+</SectionBlock>
+
+
+<SectionBlock>
+  <h3 style={{ marginBottom: 16 }}>Auction</h3>
+
+ 
+{/* Auction yes / no + link */}
+<EditRow label="Auction">
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+    }}
+  >
+    <select
+      value={artwork.auctions ? 'yes' : 'no'}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          auctions: e.target.value === 'yes',
+          // optionnel : vider le lien si on repasse à "no"
+          auction_link:
+            e.target.value === 'yes'
+              ? artwork.auction_link
+              : null,
+        })
+      }
+      style={{ ...editInputStyle, width: 90 }}
+    >
+      <option value="no">No</option>
+      <option value="yes">Yes</option>
+    </select>
+
+    {/* ✅ Auction link */}
+    {artwork.auctions && (
+      isEditing ? (
+        <input
+          type="url"
+          placeholder="Auction link"
+          value={artwork.auction_link ?? ''}
+          onChange={e =>
+            setArtwork({
+              ...artwork,
+              auction_link: e.target.value || null,
+            })
+          }
+          style={{
+            ...editInputStyle,
+            flex: 1,
+          }}
+        />
+      ) : artwork.auction_link ? (
+        <a
+          href={artwork.auction_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#007a5e',
+            textDecoration: 'underline',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: 400,
+          }}
+          title={artwork.auction_link}
+        >
+          {new URL(artwork.auction_link).hostname}
+        </a>
+      ) : (
+        <span style={{ color: '#999', fontStyle: 'italic' }}>
+          No link
+        </span>
+      )
+    )}
+  </div>
+</EditRow>
+
 
   {artwork.auctions && (
     <div>
@@ -871,6 +1104,32 @@ return (
           style={editInputStyle}
         />
       </EditRow>
+
+
+<EditRow label="Auction currency">
+  {isEditing ? (
+    <select
+      value={artwork.auction_currency ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          auction_currency: e.target.value || null,
+        })
+      }
+      style={{ ...editInputStyle, width: 110 }}
+    >
+      <option value="">—</option>
+      <option value="CHF">CHF</option>
+      <option value="EUR">EUR</option>
+      <option value="USD">USD</option>
+      <option value="GBP">GBP</option>
+      <option value="HKD">HKD</option>
+    </select>
+  ) : (
+    artwork.auction_currency || '—'
+  )}
+</EditRow>
+
 
       {/* Estimate */}
       <EditRow label="Estimate">
@@ -932,8 +1191,24 @@ return (
               })
             }
             style={{ ...editInputStyle, width: 120 }}
-          />
+          /> 
+<a
+  href="https://buyerspremium.blondeau.ch/calculate.php"
+  target="_blank"
+  rel="noopener noreferrer"
+  style={{
+    color: '#006039',
+    textDecoration: 'underline',
+    fontSize: '0.9rem',
+  }}
+>
+  Buyer’s premium calculator
+</a>
+
         </div>
+        
+
+
       </EditRow>
 
       {/* Guarantee */}
@@ -999,47 +1274,7 @@ return (
     />
   </EditRow>
 
-  {/* Priority */}
-  <EditRow label="Priority">
-    <select
-      value={artwork.priority || ''}
-      onChange={e =>
-        setArtwork({
-          ...artwork,
-          priority: e.target.value || null,
-        })
-      }
-      style={{ ...editInputStyle, width: 140 }}
-    >
-      <option value="">—</option>
-      {PRIORITY_OPTIONS.map(p => (
-        <option key={p} value={p}>
-          {p}
-        </option>
-      ))}
-    </select>
-  </EditRow>
 
-  {/* Status */}
-  <EditRow label="Status">
-    <select
-      value={artwork.status || ''}
-      onChange={e =>
-        setArtwork({
-          ...artwork,
-          status: e.target.value || null,
-        })
-      }
-      style={{ ...editInputStyle, width: 160 }}
-    >
-      <option value="">—</option>
-      {STATUS_OPTIONS.map(s => (
-        <option key={s} value={s}>
-          {s}
-        </option>
-      ))}
-    </select>
-  </EditRow>
 </SectionBlock>
 
 

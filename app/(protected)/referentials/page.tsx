@@ -2,6 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
 
 
 /* ======================
@@ -21,6 +22,8 @@ type Contact = {
   last_name?: string | null
   email?: string | null
 }
+
+type ActionButtonVariant = 'default' | 'danger'
 
 /* ======================
    InlineRow (identique à Artwork)
@@ -134,18 +137,24 @@ const filteredArtists = artists.filter(a => {
 })
 
 
+
+
 useEffect(() => {
-  fetch('/api/artists')
-    .then(r => r.json())
-    .then(data => {
-      if (Array.isArray(data)) {
-        setArtists(data)
+  supabase
+    .from('artists')
+    .select('*')
+    .order('last_name', { ascending: true })
+    .then(({ data, error }) => {
+      if (error) {
+        console.error(error)
+        setArtists([])
       } else {
-        console.error('Invalid artists response:', data)
-        setArtists([]) // ✅ fallback sûr
+        setArtists(data ?? [])
       }
     })
 }, [])
+
+
 
 
   useEffect(() => {
@@ -156,85 +165,49 @@ useEffect(() => {
     }
   }, [selectedId, artists, isEditing])
 
-
-
-
 async function save() {
-  if (!artist || !artist.id) {
-    console.error('Invalid save attempt', artist)
-    return
-  }
+  if (!artist || !artist.id) return
 
   const { id, ...payload } = artist
 
+  const { error } = await supabase
+    .from('artists')
+    .update(payload)
+    .eq('id', id)
 
-const tokenResponse = await msalInstance.acquireTokenSilent({
-  scopes: ['api://YOUR_API_ID/access'],
-  account: msalInstance.getActiveAccount(),
-})
-
-const res = await fetch(`/api/artists/${id}`, {
-  method: 'PATCH',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${tokenResponse.accessToken}`,
-  },
-  body: JSON.stringify(payload),
-})
-
-
-  if (!res.ok) {
-    console.error('PATCH artist failed:', await res.text())
+  if (error) {
+    console.error('Update artist failed:', error)
+    alert('Save failed')
     return
   }
 
-  const updated = await res.json()
-
   setArtists(list =>
-    list.map(a => (a.id === updated.id ? updated : a))
+    list.map(a => (a.id === id ? artist : a))
   )
-
   setIsEditing(false)
 }
 
 
-
-
-
-
 async function remove() {
-  if (!artist) return
-  if (!confirm('Delete this artist?')) return
+  if (!artist || !confirm('Delete this artist?')) return
 
-  try {
-    // ✅ 1. Récupération du token Azure
-    const tokenResponse = await msalInstance.acquireTokenSilent({
-      scopes: ['api://YOUR_API_ID/access'],
-      account: msalInstance.getActiveAccount(),
-    })
+  const { error } = await supabase
+    .from('artists')
+    .delete()
+    .eq('id', artist.id)
 
-    // ✅ 2. DELETE avec Bearer token
-    const res = await fetch(`/api/artists/${artist.id}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${tokenResponse.accessToken}`,
-      },
-    })
-
-    if (!res.ok) {
-      throw new Error('Failed to delete artist')
-    }
-
-    // ✅ Mise à jour locale de l’état
-    setArtists(list => list.filter(a => a.id !== artist.id))
-    setSelectedId(null)
-    setArtist(null)
-    setIsEditing(false)
-  } catch (err) {
-    console.error(err)
+  if (error) {
+    console.error('Delete artist failed:', error)
     alert('Delete failed')
+    return
   }
+
+  setArtists(list => list.filter(a => a.id !== artist.id))
+  setSelectedId(null)
+  setArtist(null)
+  setIsEditing(false)
 }
+
 
 
   return (
@@ -250,18 +223,6 @@ async function remove() {
       {/* Header */}
 
 
-
-
-
-
-<div
-  style={{
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginBottom: 16,
-  }}
->
 
 <div
   style={{
@@ -311,11 +272,7 @@ async function remove() {
   )}
 </div>
 
-</div>
-
-
-
-      
+    
 
 <h2
   style={{
@@ -505,18 +462,66 @@ const filteredContacts = contacts.filter(c => {
 })
 
 
+
+
 useEffect(() => {
-  fetch('/api/contacts')
-    .then(r => r.json())
-    .then(data => {
-      if (Array.isArray(data)) {
-        setContacts(data)
+  supabase
+    .from('contacts')
+    .select('*')
+    .order('company_name', { ascending: true })
+    .then(({ data, error }) => {
+      if (error) {
+        console.error(error)
+        setContacts([])
       } else {
-        console.error('Invalid contacts response:', data)
-        setContacts([]) // ✅ fallback sûr
+        setContacts(data ?? [])
       }
     })
 }, [])
+
+
+async function save() {
+  if (!contact || !contact.id) return
+
+  const { id, ...payload } = contact
+
+  const { error } = await supabase
+    .from('contacts')
+    .update(payload)
+    .eq('id', id)
+
+  if (error) {
+    console.error('Update contact failed:', error)
+    alert('Save failed')
+    return
+  }
+
+  setContacts(list =>
+    list.map(c => (c.id === id ? contact : c))
+  )
+  setIsEditing(false)
+}
+
+
+async function remove() {
+  if (!contact || !confirm('Delete this contact?')) return
+
+  const { error } = await supabase
+    .from('contacts')
+    .delete()
+    .eq('id', contact.id)
+
+  if (error) {
+    console.error('Delete contact failed:', error)
+    alert('Delete failed')
+    return
+  }
+
+  setContacts(list => list.filter(c => c.id !== contact.id))
+  setSelectedId(null)
+  setContact(null)
+  setIsEditing(false)
+}
 
 
   useEffect(() => {
@@ -527,84 +532,7 @@ useEffect(() => {
     }
   }, [selectedId, contacts, isEditing])
 
- 
-async function save() {
-  // ✅ LOG CRUCIAL (mais correct)
-  console.log('SAVE CALLED — contact value:', contact)
 
-  if (!contact || !contact.id) {
-    console.error('SAVE BLOCKED — invalid contact:', contact)
-    return
-  }
-
-  const { id, ...payload } = contact
-
-
-const tokenResponse = await msalInstance.acquireTokenSilent({
-  scopes: ['api://YOUR_API_ID/access'],
-  account: msalInstance.getActiveAccount(),
-})
-
-const res = await fetch(`/api/contacts/${id}`, {
-  method: 'PATCH',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${tokenResponse.accessToken}`,
-  },
-  body: JSON.stringify(payload),
-})
-
-
-  if (!res.ok) {
-    console.error('PATCH contact failed:', await res.text())
-    return
-  }
-
-  const updated = await res.json()
-
-  setContacts(list =>
-    list.map(c => (c.id === updated.id ? updated : c))
-  )
-
-  setIsEditing(false)
-}
-
-
-
-
-async function remove() {
-  if (!contact) return
-  if (!confirm('Delete this contact?')) return
-
-  try {
-    // ✅ 1. Récupération du token Azure
-    const tokenResponse = await msalInstance.acquireTokenSilent({
-      scopes: ['api://YOUR_API_ID/access'],
-      account: msalInstance.getActiveAccount(),
-    })
-
-    // ✅ 2. DELETE avec Authorization Bearer
-    const res = await fetch(`/api/contacts/${contact.id}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${tokenResponse.accessToken}`,
-      },
-    })
-
-    if (!res.ok) {
-      throw new Error('Failed to delete contact')
-    }
-
-    // ✅ Mise à jour locale de l’état
-    setContacts(list => list.filter(c => c.id !== contact.id))
-    setSelectedId(null)
-    setContact(null)
-    setIsEditing(false)
-  } catch (err) {
-    console.error(err)
-    alert('Delete failed')
-  }
-}
 
 
   return (
@@ -617,15 +545,6 @@ async function remove() {
       }}
     >
       
-<div
-  style={{
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginBottom: 16,
-  }}
->
-
 
 <div
   style={{
@@ -677,7 +596,7 @@ async function remove() {
 
 
 
-</div>
+
 
 
       

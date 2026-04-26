@@ -8,21 +8,16 @@ type PageProps = {
   }
 }
 
-
-
-
-export default async function ArtworkDetailPage({ params }: PageProps) {
-  const { id } = await params; // ✅ INDISPENSABLE
-
-  console.log('Server page resolved id =', id);
+export default function ArtworkEditPage({ params }: PageProps) {
+  const { id } = params
 
   if (!id) {
-    throw new Error("ID de l'œuvre manquant");
+    throw new Error("ID de l'œuvre manquant")
   }
 
   return (
-    <EditModeProvider>
+    <EditModeProvider defaultEditing={true}>
       <ArtworkDetailContent artworkId={id} />
     </EditModeProvider>
-  );
+  )
 }

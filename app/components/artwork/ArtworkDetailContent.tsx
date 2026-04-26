@@ -16,9 +16,17 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 
 
+
+function isUUID(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  )
+}
+
+
 // ✅ types
 type Props = {
-  artwork: Artwork
+  artwork: ArtworkForm
 }
 
 type Document = {
@@ -197,7 +205,6 @@ const router = useRouter()
   const editParam = searchParams.get('edit')
   
 
- 
 
  
   /* ======================
@@ -224,111 +231,92 @@ const router = useRouter()
   /* ======================
      ✅ MODE ÉDITION – LOAD ARTWORK
      ====================== */
-  useEffect(() => {
-    if (!id) return
 
-    let isMounted = true
+     
 
-    const loadArtwork = async () => {
-      try {
-        if (!isMounted) return
 
-        setLoading(true)
-        setError(null)
+useEffect(() => {
+  if (!id) return
 
-        const { data, error } = await supabase
-          .from('artworks')
-          .select(`
-            *,
-            artist:artists!artworks_artist_id_fkey (
-              id,
-              first_name,
-              last_name
-            ),
-            documents:documents (
-              id,
-              document_type,
-              label,
-              url,
-              position
-            ),
-            auctionContact:contacts!artworks_auction_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            proposedBy:contacts!artworks_proposed_by_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            location:contacts!artworks_location_contact_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            certificateLocation:contacts!artworks_certificate_location_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            buyer:contacts!artworks_buyer_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            destination:contacts!artworks_destination_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            artwork_proposals (
-              id,
-              proposed_at,
-              contact:contacts (
-                id,
-                company_name,
-                first_name,
-                last_name
-              )
-            )
-          `)
-          .eq('id', id)
-          .single()
+  // ✅ Cas route non UUID (ex: "auctions", "new", etc.)
+  if (!isUUID(id)) {
+    setLoading(false)
+    setArtwork(null)
+    setError(null)
+    return
+  }
 
-        if (!isMounted) return
+  let isMounted = true
 
-        if (error) {
-          console.error(error)
-          setError('Failed to load artwork')
-          setArtwork(null)
-        } else {
-          setArtwork(data)
-        }
-      } catch (err) {
-        if (!isMounted) return
-        console.error('Unexpected error loading artwork:', err)
-        setError('Unexpected error')
-        setArtwork(null)
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
+
+const loadArtwork = async () => {
+  try {
+    setLoading(true)
+    setError(null)
+
+
+const { data, error } = await supabase
+  .from('artworks')
+  .select(`
+    *,
+    proposedBy:contacts!artworks_proposed_by_id_fkey (
+      id,
+      company_name,
+      first_name,
+      last_name
+    ),
+    documents (
+      id,
+      artwork_id,
+      document_type,
+      url,
+      label,
+      position
+    )
+  `)
+  .eq('id', id)
+  .single()
+
+
+    if (!isMounted) return
+
+    if (error) {
+      console.error('Supabase error:', error)
+      setError('Failed to load artwork')
+      setArtwork(null)
+      return
     }
 
-    loadArtwork()
-
-    return () => {
-      isMounted = false
+    if (!data) {
+      setError('Artwork not found')
+      setArtwork(null)
+      return
     }
-  }, [id])
+
+    // ✅ normalisation éventuelle (si tu l’utilises ailleurs)
+    setArtwork(data)
+  } catch (err) {
+    if (!isMounted) return
+    console.error('Unexpected error loading artwork:', err)
+    setError('Unexpected error')
+    setArtwork(null)
+  } finally {
+    if (isMounted) {
+      setLoading(false)
+    }
+  }
+}
+
+
+  loadArtwork()
+
+  return () => {
+    isMounted = false
+  }
+}, [id])
+
+
+
 
 
 
@@ -509,8 +497,12 @@ async function removeProposal(proposalId: string) {
 async function addDocument() {
   if (!artwork?.id || !newDocUrl) return
 
-  const position =
-    documents.filter(d => d.document_type === newDocType).length
+
+const position =
+  (artwork.documents ?? [])
+    .filter(d => d.document_type === newDocType)
+    .length
+
 
   const { data, error: supabaseError } = await supabase
     .from('documents')
@@ -531,10 +523,24 @@ async function addDocument() {
   }
 
  
-   const created = await res.json()
-   setDocuments([...documents, created])
-   setNewDocLabel('')
-   setNewDocUrl('')
+  
+// ✅ la donnée créée vient déjà de Supabase
+const created = data
+
+// ✅ mise à jour locale via artwork (source de vérité)
+setArtwork(prev =>
+  prev
+    ? {
+        ...prev,
+        documents: [...(prev.documents ?? []), created],
+      }
+    : prev
+)
+
+// ✅ reset des champs
+setNewDocLabel('')
+setNewDocUrl('')
+
  }
  
  
@@ -622,9 +628,7 @@ async function handleImagesDragEnd(event: any) {
   const { active, over } = event
   if (!over || active.id === over.id) return
 
-  const currentImages = documents
-    .filter(d => d.document_type === 'image')
-    .sort((a, b) => a.position - b.position)
+
 
   const oldIndex = currentImages.findIndex(img => img.id === active.id)
   const newIndex = currentImages.findIndex(img => img.id === over.id)
@@ -714,17 +718,22 @@ async function handleDocumentsDragEnd(event: any) {
 }
 
 
-   if (loading) {
-     return <p style={{ padding: 40 }}>Loading artwork…</p>
-   }
- 
-   if (error) {
-     return <p style={{ padding: 40, color: 'red' }}>{error}</p>
-   }
- 
-   if (!artwork) {
-     return <p style={{ padding: 40 }}>Artwork not found</p>
-   }
+// 1️⃣ Pendant le chargement
+if (loading) {
+  return <p>Loading artwork…</p>
+}
+
+// 2️⃣ Erreur explicite
+if (error) {
+  return <p>Artwork not found</p>
+}
+
+// 3️⃣ Garde technique : artwork DOIT exister à partir d’ici
+if (!artwork) {
+  return null
+}
+
+
 
    const isBought = artwork.status === 'bought'
 const auctionContact = artwork.auction_house ?? null

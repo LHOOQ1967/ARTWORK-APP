@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-
+import { supabase } from '@/lib/supabaseClient'
 
 export default function NewArtistPage() {
   const router = useRouter()
@@ -26,37 +26,26 @@ export default function NewArtistPage() {
     setLoading(true)
     setError(null)
 
+    const { error: supabaseError } = await supabase
+      .from('artists')
+      .insert({
+        last_name: lastName.trim(),
+        first_name: firstName.trim() || null,
+        year_of_birth: yearOfBirth ? Number(yearOfBirth) : null,
+        year_of_death: yearOfDeath ? Number(yearOfDeath) : null,
+        place_of_birth: placeOfBirth.trim() || null,
+        place_of_death: placeOfDeath.trim() || null,
+      })
 
-const tokenResponse = await msalInstance.acquireTokenSilent({
-  scopes: ['api://YOUR_API_ID/access'],
-  account: msalInstance.getActiveAccount(),
-})
-
-const res = await fetch('/api/artists', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${tokenResponse.accessToken}`,
-  },
-  body: JSON.stringify({
-    last_name: lastName.trim(),
-    first_name: firstName.trim() || null,
-    year_of_birth: yearOfBirth ? Number(yearOfBirth) : null,
-    year_of_death: yearOfDeath ? Number(yearOfDeath) : null,
-    place_of_birth: placeOfBirth.trim() || null,
-    place_of_death: placeOfDeath.trim() || null,
-  }),
-})
-
-
-    if (!res.ok) {
-      setError(await res.text())
+    if (supabaseError) {
+      console.error('Create artist failed:', supabaseError)
+      setError('Failed to create artist')
       setLoading(false)
       return
     }
 
-    const artist = await res.json()
-    router.push(`/`)
+    // ✅ même logique que New Contact
+    router.push('/referentials')
   }
 
   return (
@@ -64,7 +53,7 @@ const res = await fetch('/api/artists', {
       style={{
         padding: 40,
         minHeight: '100vh',
-        backgroundColor: '#006039', // ✅ fond vert cohérent
+        backgroundColor: '#006039',
       }}
     >
       <section
@@ -72,7 +61,7 @@ const res = await fetch('/api/artists', {
           maxWidth: 640,
           margin: '0 auto',
           padding: 24,
-          backgroundColor: '#f7f7f7', // ✅ section grise
+          backgroundColor: '#f7f7f7',
           borderRadius: 6,
           color: 'black',
         }}

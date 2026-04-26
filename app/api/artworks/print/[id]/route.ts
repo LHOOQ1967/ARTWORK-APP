@@ -29,6 +29,7 @@ export async function GET(
       documents:documents (
         id,
         document_type,
+        label,
         url,
         artwork_id
       ),

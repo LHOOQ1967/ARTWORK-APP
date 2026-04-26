@@ -3,19 +3,95 @@
 import React from 'react'
 import Link from 'next/link'
 
-type Props = {
-  artwork: any
+
+
+type ArtworkDocument = {
+  id: string
+  document_type: 'image' | 'onedrive'
+  label?: string | null
+  url?: string | null
+  position?: number | null
+}
+
+type Contact = {
+  id: string
+  company_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+}
+
+type Artist = {
+  first_name?: string | null
+  last_name?: string | null
 }
 
 
-type ArtworkSheetProps = {
-  artworkId: string
+type ArtworkPrint = {
+  id: string
+
+  title?: string | null
+  medium?: string | null
+  signature?: string | null
+  year_execution?: number | null
+  dimensions?: string | null
+
+  status?: string | null
+  priority?: string | null
+
+  asking_price?: number | null
+  currency?: string | null
+
+  auction_link?: string | null
+  sale_date?: string | null
+  sale_time?: string | null
+  estimate_low?: number | null
+  estimate_high?: number | null
+  auction_currency?: string | null
+
+  sold_hammer?: number | null
+  sold_premium?: number | null
+  underbidder?: boolean | null
+  guarantee?: boolean | null
+
+  notes?: string | null
+  condition?: string | null
+
+  artist?: Artist | null
+  proposedBy?: Contact | null
+  buyer?: Contact | null
+  destination?: Contact | null
+  location?: Contact | null
+
+  documents?: ArtworkDocument[]
+
+  /* ✅ AJOUTER CE QUI SUIT */
+  date_proposition?: string | null
+
+  height_cm?: number | null
+  width_cm?: number | null
+  depth_cm?: number | null
+
+  auctions?: boolean | null
+  view_date?: string | null
+
+  certificate?: boolean | null
+  certificateLocation?: Contact | null
+
+  cost_amount?: number | null
+  cost_currency?: string | null
+
+  insurance_value?: number | null
+  insurance_currency?: string | null
+}
+
+
+
+type Props = {
+  artwork: ArtworkPrint
 }
 
 
 /* ---------- helpers ---------- */
-
-
 
 function InfoRow({
   label,
@@ -89,21 +165,26 @@ function hasValidNumber(value: unknown) {
 export default function ArtworkSheet({ artwork }: Props) {
   const artworkId = artwork.id
 
-  const images =
-    artwork.documents
-      ?.filter((d: any) => d.document_type === 'image')
-      .sort((a: any, b: any) => a.position - b.position) || []
 
-  const mainImage = images[0]
+const images: ArtworkDocument[] =
+  artwork.documents
+    ?.filter((d: ArtworkDocument) => d.document_type === 'image')
+    .sort(
+      (a: ArtworkDocument, b: ArtworkDocument) =>
+        (a.position ?? 0) - (b.position ?? 0)
+    ) ?? []
+
+
 
   const onedriveDocuments =
     artwork.documents?.filter(
-      (d: any) => d.document_type === 'onedrive'
+      (d: ArtworkDocument) => d.document_type === 'onedrive'
     ) || []
 
 
 
   return (
+    
     <section
       style={{
         pageBreakAfter: 'always',
@@ -113,7 +194,7 @@ export default function ArtworkSheet({ artwork }: Props) {
     >
 
 <div className="print-controls no-print">
-  <Link href={`/artworks/${artworkId}?edit=1`}>
+  <Link href={`/artworks/${artworkId}/?edit=1`}>
     <button
       style={{
         padding: '6px 12px',
@@ -158,13 +239,12 @@ export default function ArtworkSheet({ artwork }: Props) {
       {/* ✅ Medium */}
       <h1 style={{ marginBottom: 0 }}>{artwork.medium}</h1> 
 
-        
+             {/* ✅ Medium */}
+
         
        {artwork.signature && (
-        <InfoRow
-        label="Signature"
-        value={artwork.signature}
-      />
+          <h1 style={{ marginBottom: 0 }}>{artwork.signature}</h1>  
+        
       )}
 
       {/* ✅ Dimensions */}
@@ -175,20 +255,51 @@ export default function ArtworkSheet({ artwork }: Props) {
         </div>
       )}
 
-      {/* ✅ Main image */}
-      {mainImage?.url && (
-        <div style={{ margin: '24px 0' }}>
+
+
+{/* ✅ Images (max 3, côte à côte) */}
+{images.length > 0 && (
+  <div style={{ margin: '24px 0' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 12,
+      }}
+    >
+      {images.slice(0, 3).map((img) => (
+        <div key={img.id}>
           <img
-            src={mainImage.url}
+            src={img.url ?? ''}
             alt=""
             style={{
-              maxWidth: '100%',
-              maxHeight: '8cm',
+              width: '100%',
+              height: '10cm',
               objectFit: 'contain',
+              display: 'block',
             }}
           />
         </div>
-      )}
+      ))}
+    </div>
+
+    {/* ✅ Message si plus de 3 images */}
+    {images.length > 3 && (
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: '0.9rem',
+          color: '#666',
+          fontStyle: 'italic',
+        }}
+      >
+        + {images.length - 3} additional image
+        {images.length - 3 > 1 ? 's' : ''} available
+      </div>
+    )}
+  </div>
+)}
+
 
       {/* ✅ Metadata */}
 
@@ -321,7 +432,12 @@ export default function ArtworkSheet({ artwork }: Props) {
               : null
           }
         />
-        <InfoRow label="Viewed on" value={formatDate(artwork.view_date)} />
+        
+<InfoRow
+  label="Viewed on"
+  value={formatDate(artwork.view_date ?? null)}
+/>
+
         <InfoRow label="Condition" value={artwork.condition} />
         <InfoRow label="Status" value={artwork.status} />
         <InfoRow label="Priority" value={artwork.priority} />
@@ -404,10 +520,10 @@ export default function ArtworkSheet({ artwork }: Props) {
     label="Links (OneDrive)"
     value={
       <>
-        {onedriveDocuments.map((doc: any, index: number) => (
+        {onedriveDocuments.map((doc: ArtworkDocument, index: number) => (
           <span key={doc.id}>
             <a
-              href={doc.url}
+              href={doc.url ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
               style={{

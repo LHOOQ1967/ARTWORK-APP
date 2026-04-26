@@ -9,22 +9,13 @@ export async function middleware(req: NextRequest) {
     req,
     res,
     cookieOptions: {
-      secure: false, // ✅ indispensable en HTTP localhost
+      secure: false,
     },
   })
-
-  // ✅ CET APPEL DOIT S’EXÉCUTER SUR LE CALLBACK OAUTH
-  await supabase.auth.getSession()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  const { pathname } = req.nextUrl
-
-  if (pathname.startsWith('/login')) {
-    return res
-  }
 
   if (!user) {
     const loginUrl = req.nextUrl.clone()
@@ -37,11 +28,4 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/api/:path*',
-    '/auth/:path*',      // ✅ CRUCIAL
-    '/login',
-    '/',
-    '/artworks/:path*',
-    '/referentials/:path*',
-  ],
-}
+    '/artworks

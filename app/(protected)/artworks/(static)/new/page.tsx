@@ -1,13 +1,13 @@
 
 'use client'
 
-import ArtworkDetailContent from '@/app/components/artwork/ArtworkDetailContent'
+import ArtworkCreateContent from '@/app/components/artwork/ArtworkCreateContent'
 import { EditModeProvider } from '@/app/contexts/EditModeContext'
 
 export default function ArtworkNewPage() {
   return (
     <EditModeProvider>
-      <ArtworkDetailContent artworkId="" />
+      <ArtworkCreateContent />
     </EditModeProvider>
   )
 }

@@ -6,9 +6,33 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
 
+
+type Artwork = {
+  id: string
+  documents: {
+    id: string
+    document_type: 'image' | 'onedrive'
+    label?: string | null
+    url?: string | null
+    position?: number
+  }[]
+  proposedBy?: {
+    company_name?: string
+    first_name?: string
+    last_name?: string
+  } | null
+  artist?: {
+    first_name?: string
+    last_name?: string
+  } | null
+}
+
+
 export default function ArtworkPrintPage() {
   const { id } = useParams<{ id: string }>()
-  const [artwork, setArtwork] = useState<any | null>(null)
+ 
+  
+  const [artwork, setArtwork] = useState<Artwork | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,9 +56,16 @@ export default function ArtworkPrintPage() {
             documents:documents (
               id,
               document_type,
+              label,
               url,
               position
             ),
+           proposedBy:contacts!artworks_proposed_by_id_fkey (
+            id,
+            company_name,
+            first_name,
+            last_name
+          ),
             auctionContact:contacts!artworks_auction_contact_id_fkey (
               id,
               company_name,
