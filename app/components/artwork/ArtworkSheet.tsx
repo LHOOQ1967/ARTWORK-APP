@@ -274,7 +274,7 @@ const images: ArtworkDocument[] =
             alt=""
             style={{
               width: '100%',
-              height: '10cm',
+              height: '100%',
               objectFit: 'contain',
               display: 'block',
             }}
