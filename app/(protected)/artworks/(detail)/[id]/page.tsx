@@ -1,28 +1,26 @@
 
 import ArtworkDetailContent from '@/app/components/artwork/ArtworkDetailContent'
-import { EditModeProvider } from '@/app/contexts/EditModeContext'
+
+export const dynamic = 'force-dynamic'
 
 type PageProps = {
-  params: {
-    id: string
-  }
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ mode?: string }>
 }
 
+export default async function ArtworkDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const { id } = await params
+  const { mode } = await searchParams
 
-
-
-export default async function ArtworkDetailPage({ params }: PageProps) {
-  const { id } = await params; // ✅ INDISPENSABLE
-
-  console.log('Server page resolved id =', id);
-
-  if (!id) {
-    throw new Error("ID de l'œuvre manquant");
-  }
+  const isEditMode = mode === 'edit'
 
   return (
-    <EditModeProvider defaultEditing={true}>
-      <ArtworkDetailContent artworkId={id} />
-    </EditModeProvider>
-  );
+    <ArtworkDetailContent
+      artworkId={id}
+      isEditMode={isEditMode}
+    />
+  )
 }

@@ -2,93 +2,17 @@
 'use client'
 import React from 'react'
 import Link from 'next/link'
+import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/types/artwork'
 
 
-
-type ArtworkDocument = {
-  id: string
-  document_type: 'image' | 'onedrive'
-  label?: string | null
-  url?: string | null
-  position?: number | null
-}
-
-type Contact = {
-  id: string
-  company_name?: string | null
-  first_name?: string | null
-  last_name?: string | null
-}
-
-type Artist = {
-  first_name?: string | null
-  last_name?: string | null
-}
-
-
-type ArtworkPrint = {
-  id: string
-
-  title?: string | null
-  medium?: string | null
-  signature?: string | null
-  year_execution?: number | null
-  dimensions?: string | null
-
-  status?: string | null
-  priority?: string | null
-
-  asking_price?: number | null
-  currency?: string | null
-
-  auction_link?: string | null
-  sale_date?: string | null
-  sale_time?: string | null
-  estimate_low?: number | null
-  estimate_high?: number | null
-  auction_currency?: string | null
-
-  sold_hammer?: number | null
-  sold_premium?: number | null
-  underbidder?: boolean | null
-  guarantee?: boolean | null
-
-  notes?: string | null
-  condition?: string | null
-
-  artist?: Artist | null
-  proposedBy?: Contact | null
-  buyer?: Contact | null
-  destination?: Contact | null
-  location?: Contact | null
-
-  documents?: ArtworkDocument[]
-
-  /* ✅ AJOUTER CE QUI SUIT */
-  date_proposition?: string | null
-
-  height_cm?: number | null
-  width_cm?: number | null
-  depth_cm?: number | null
-
-  auctions?: boolean | null
-  view_date?: string | null
-
-  certificate?: boolean | null
-  certificateLocation?: Contact | null
-
-  cost_amount?: number | null
-  cost_currency?: string | null
-
-  insurance_value?: number | null
-  insurance_currency?: string | null
-}
 
 
 
 type Props = {
   artwork: ArtworkPrint
+  isEditMode?: boolean
 }
+
 
 
 /* ---------- helpers ---------- */
@@ -157,13 +81,39 @@ function hasValidNumber(value: unknown) {
   )
 }
 
-
-
-
 /* ---------- component ---------- */
 
-export default function ArtworkSheet({ artwork }: Props) {
-  const artworkId = artwork.id
+export default function ArtworkSheet({ artwork, isEditMode }: Props) {
+const artworkId = artwork.id
+
+  
+
+const proposedBy =
+  artwork.proposedBy &&
+  (
+    artwork.proposedBy.company_name ||
+    [artwork.proposedBy.first_name, artwork.proposedBy.last_name]
+      .filter(Boolean)
+      .join(' ')
+  )
+
+
+
+function formatPersonOrCompany(person?: {
+  company_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+}) {
+  if (!person) return '—'
+
+  return (
+    person.company_name?.trim() ||
+    [person.first_name, person.last_name]
+      .filter(Boolean)
+      .join(' ') ||
+    '—'
+  )
+}
 
 
 const images: ArtworkDocument[] =
@@ -174,13 +124,19 @@ const images: ArtworkDocument[] =
         (a.position ?? 0) - (b.position ?? 0)
     ) ?? []
 
-
-
+  
   const onedriveDocuments =
     artwork.documents?.filter(
       (d: ArtworkDocument) => d.document_type === 'onedrive'
     ) || []
 
+
+console.log(
+  'certificate value →',
+  artwork.certificate,
+  'type →',
+  typeof artwork.certificate
+)
 
 
   return (
@@ -192,9 +148,9 @@ const images: ArtworkDocument[] =
         boxSizing: 'border-box',
       }}
     >
-
+{!isEditMode && (
 <div className="print-controls no-print">
-  <Link href={`/artworks/${artworkId}/?edit=1`}>
+  <Link href={`/artworks/${artworkId}/edit`}>
     <button
       style={{
         padding: '6px 12px',
@@ -208,17 +164,17 @@ const images: ArtworkDocument[] =
       Edit
     </button>
   </Link>
-</div>
+</div>)}
 
 
-    <h2 style={{ marginBottom: 8 }}>
-    { artwork.date_proposition? new Date(artwork.date_proposition).toLocaleDateString('fr-CH') : null } by { artwork.proposedBy ? artwork.proposedBy.company_name || 
-            [artwork.proposedBy.first_name, artwork.proposedBy.last_name]
-            .filter(Boolean)
-            .join(' ')
-        : null
-    }
-    </h2>
+<h2 style={{ fontSize: '1.3rem', marginBottom: 8, textAlign: 'center' }}>
+  {artwork.date_proposition
+    ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
+    : '—'}
+
+  {proposedBy && <> by {proposedBy}</>}
+</h2>
+
 
       {/* ✅ Artist */}
       {artwork.artist && (
@@ -230,26 +186,26 @@ const images: ArtworkDocument[] =
       )}
 
       {/* ✅ Title */}
-      <h1 style={{ fontSize: '1.4rem', marginBottom: 8 }}>
+      <h1 style={{ fontSize: '1.4rem', marginBottom: 3 }}>
         {artwork.title || 'Untitled'}
         {artwork.year_execution ? `, ${artwork.year_execution}` : ''}
       </h1>
 
 
       {/* ✅ Medium */}
-      <h1 style={{ marginBottom: 0 }}>{artwork.medium}</h1> 
+      <h1 style={{ fontSize: '1.2rem', marginBottom: 0 }}>{artwork.medium}</h1> 
 
              {/* ✅ Medium */}
 
         
        {artwork.signature && (
-          <h1 style={{ marginBottom: 0 }}>{artwork.signature}</h1>  
+          <h1 style={{fontSize: '1.2rem',  marginBottom: 0 }}>{artwork.signature}</h1>  
         
       )}
 
       {/* ✅ Dimensions */}
       {artwork.height_cm && artwork.width_cm && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: '1.2rem', marginBottom: 10 }}>
           {artwork.height_cm} × {artwork.width_cm}
           {artwork.depth_cm ? ` × ${artwork.depth_cm}` : ''} cm
         </div>
@@ -328,6 +284,12 @@ const images: ArtworkDocument[] =
       />
       )}
 
+      {artwork.lot && (
+        <InfoRow
+        label="Lot#"
+        value={(artwork.lot)}
+      />
+      )}
       
       {artwork.auction_link && (
       <InfoRow
@@ -389,6 +351,7 @@ const images: ArtworkDocument[] =
 
 
 
+
 {hasValidNumber(artwork.sold_hammer) && (
   <InfoRow
     label="Sold"
@@ -420,7 +383,7 @@ const images: ArtworkDocument[] =
     value="Yes"
   />
 )}
-
+{artwork.location === true && (
       <InfoRow
         label="Location"
           value={
@@ -432,37 +395,43 @@ const images: ArtworkDocument[] =
               : null
           }
         />
-        
+        )}
+{artwork.view_date && (        
 <InfoRow
   label="Viewed on"
   value={formatDate(artwork.view_date ?? null)}
 />
-
+ )}
+{artwork.condition && (
         <InfoRow label="Condition" value={artwork.condition} />
+ )}
+
         <InfoRow label="Status" value={artwork.status} />
         <InfoRow label="Priority" value={artwork.priority} />
-        
-      {artwork.certificate === true && (
-      <InfoRow
-        label="Certificate"
-        value="Yes"
-        />
-      )}
+  
 
-      <InfoRow
-        label="Certificate"
-        value={
-          artwork.certificate && artwork.certificateLocation
-            ? artwork.certificateLocation.company_name ||
-              [artwork.certificateLocation.first_name,
-              artwork.certificateLocation.last_name]
-                .filter(Boolean)
-                .join(' ')
-            : null
-        }
-      />
+{artwork.certificate === true && (
+  <InfoRow
+    label="Certificate"
+    value={
+      artwork.certificateLocation
+        ? artwork.certificateLocation.company_name ||
+          [artwork.certificateLocation.first_name,
+           artwork.certificateLocation.last_name]
+            .filter(Boolean)
+            .join(' ')
+        : 'Yes'
+    }
+  />
+)}
 
 
+{artwork.date_acquisition && (        
+<InfoRow
+  label="Date acquisition"
+  value={formatDate(artwork.date_acquisition ?? null)}
+/>
+ )}
 
 {artwork.buyer && (
   <InfoRow

@@ -5,34 +5,27 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
+import type { ArtworkPrint } from '@/app/types/artwork'
 
 
-type Artwork = {
-  id: string
-  documents: {
-    id: string
-    document_type: 'image' | 'onedrive'
-    label?: string | null
-    url?: string | null
-    position?: number
-  }[]
-  proposedBy?: {
-    company_name?: string
-    first_name?: string
-    last_name?: string
-  } | null
-  artist?: {
-    first_name?: string
-    last_name?: string
-  } | null
+
+function logSupabaseError(context: string, error: any) {
+  if (!error) return
+  console.error(context, {
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code,
+  })
 }
 
 
 export default function ArtworkPrintPage() {
   const { id } = useParams<{ id: string }>()
  
+  console.log('PRINT PARAM ID:', id, typeof id)
   
-  const [artwork, setArtwork] = useState<Artwork | null>(null)
+  const [artwork, setArtwork] = useState<ArtworkPrint | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -44,59 +37,38 @@ export default function ArtworkPrintPage() {
       try {
         setLoading(true)
 
-        const { data, error } = await supabase
-          .from('artworks')
-          .select(`
-            *,
-            artist:artists!artworks_artist_id_fkey (
-              id,
-              first_name,
-              last_name
-            ),
-            documents:documents (
-              id,
-              document_type,
-              label,
-              url,
-              position
-            ),
-           proposedBy:contacts!artworks_proposed_by_id_fkey (
-            id,
-            company_name,
-            first_name,
-            last_name
-          ),
-            auctionContact:contacts!artworks_auction_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            buyer:contacts!artworks_buyer_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            ),
-            destination:contacts!artworks_destination_contact_id_fkey (
-              id,
-              company_name,
-              first_name,
-              last_name
-            )
-          `)
-          .eq('id', id)
-          .single()
+
+
+const { data, error } = await supabase
+  .from('artwork_print_view')
+  .select('*')
+  .eq('id', id)
+  .maybeSingle()
+
+
+
 
         if (!isMounted) return
 
-        if (error) {
-          console.error(error)
-          setArtwork(null)
-          return
-        }
 
-        setArtwork(data)
+
+
+if (error) {
+  console.error('PRINT LOAD ARTWORK FAILED')
+  setArtwork(null)
+  return
+}
+
+
+if (!data) {
+  // artwork absent → comportement normal
+  setArtwork(null)
+  return
+}
+
+
+
+        setArtwork(data as ArtworkPrint)
       } catch (err) {
         if (!isMounted) return
         console.error(err)
@@ -123,5 +95,5 @@ export default function ArtworkPrintPage() {
     return <p style={{ padding: 40 }}>Artwork not found</p>
   }
 
-  return <ArtworkSheet artwork={artwork} />
+  return artwork ? <ArtworkSheet artwork={artwork} /> : null
 }

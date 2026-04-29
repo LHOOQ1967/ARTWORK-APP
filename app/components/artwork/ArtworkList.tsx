@@ -4,13 +4,11 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import type { ArtworkListItem } from '@/app/types/artwork'
 
-type Props = {
-  artworks: any[]
-}
 
 type ArtworkListProps = {
-    artworks: Artwork[]
+    artworks: ArtworkListItem[]
     mode?: 'market' | 'auction' | 'bought' }
 
 const th: React.CSSProperties = {
@@ -34,6 +32,8 @@ export default function ArtworkList({
   mode = 'market',
 }: ArtworkListProps) {
 
+
+
   const router = useRouter()
   
   const [sortKey, setSortKey] = useState<
@@ -46,7 +46,7 @@ export default function ArtworkList({
 
  const sortedArtworks = sortArtworks(artworks) 
   
-function sortArtworks(artworks: any[]) {
+function sortArtworks(artworks: Artwork[]) {
   if (!sortKey) return artworks
 
   const sorted = [...artworks].sort((a, b) => {
@@ -64,10 +64,23 @@ function sortArtworks(artworks: any[]) {
         vb = b.title || ''
         break
 
-      case 'date':
-        va = a.date_proposition ? new Date(a.date_proposition).getTime() : 0
-        vb = b.date_proposition ? new Date(b.date_proposition).getTime() : 0
-        break
+
+
+case 'date':
+  if (mode === 'auction' || mode === 'bought') {
+    va = a.sale_date ? new Date(a.sale_date).getTime() : 0
+    vb = b.sale_date ? new Date(b.sale_date).getTime() : 0
+  } else {
+    va = a.date_proposition
+      ? new Date(a.date_proposition).getTime()
+      : 0
+    vb = b.date_proposition
+      ? new Date(b.date_proposition).getTime()
+      : 0
+  }
+  break
+
+
 
       case 'asking':
         va = a.asking_price ?? 0
@@ -104,12 +117,33 @@ function sortArtworks(artworks: any[]) {
 }
 
 
+function getDisplayDate(
+  artwork: Artwork,
+  mode?: 'market' | 'auction' | 'bought'
+) {
+  if (mode === 'auction') {
+    return artwork.sale_date
+  }
+
+  return artwork.date_proposition
+}
+
+
 function SortableTh({
   label,
   columnKey,
 }: {
   label: string
-  columnKey: any
+
+columnKey:
+  | 'artist'
+  | 'title'
+  | 'date'
+  | 'asking'
+  | 'estimate'
+  | 'cost'
+  | 'priority'
+  | 'status'
 }) {
   const active = sortKey === columnKey
 
@@ -137,7 +171,6 @@ function SortableTh({
 }
 
 
-
   return (
     <div
       style={{
@@ -158,9 +191,17 @@ function SortableTh({
   <tr>
     <th style={{ ...th, width: 80 }}>Image</th>
 
-    <SortableTh
-      label="Date proposed"
-      columnKey="date"
+
+<SortableTh
+
+label={
+  mode === 'auction' || mode === 'bought'
+    ? 'Acquisition date'
+    : 'Date proposed'
+}
+
+
+  columnKey="date"
       sortKey={sortKey}
       sortDirection={sortDirection}
       setSortKey={setSortKey}
@@ -292,11 +333,22 @@ function SortableTh({
 
 
               {/* Date proposed */}
-              <td style={td}>
-                {a.date_proposition
-                  ? new Date(a.date_proposition).toLocaleDateString('fr-CH')
-                  : '—'}
-              </td>
+
+
+<td style={td}>
+
+
+{mode === 'auction' || mode === 'bought'
+  ? a.sale_date
+    ? new Date(a.sale_date).toLocaleDateString('fr-CH')
+    : '—'
+  : a.date_proposition
+    ? new Date(a.date_proposition).toLocaleDateString('fr-CH')
+    : '—'}
+
+
+</td>
+
 
               {/* Artist */}
               <td style={td}>
@@ -326,6 +378,8 @@ function SortableTh({
                     : '—'}
                 </td>
               )}
+
+
 
                 {mode === 'bought' && (
                 <td style={{ ...td, textAlign: 'right' }}>

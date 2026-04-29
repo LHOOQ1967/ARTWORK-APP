@@ -46,13 +46,12 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  console.log('🚨 POST /documents route HIT')
 
   const { id } = await context.params
-  console.log('ARTWORK ID:', id)
+ 
 
   const body = await req.json()
-  console.log('BODY RECEIVED:', body)
+  
 
   const cookieStore = await cookies()
 
@@ -98,6 +97,6 @@ const nextPosition = (existingImages?.length ?? 0) + 1
     )
   }
 
-  console.log('✅ DOCUMENT INSERTED:', data)
+ 
   return NextResponse.json(data, { status: 201 })
 }

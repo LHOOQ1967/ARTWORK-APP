@@ -63,7 +63,6 @@ export function SortableDocument({
     setSaving(false)
   }
 
-console.log('DOCUMENT FROM API →', document)
 
   return (
     <div

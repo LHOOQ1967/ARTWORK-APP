@@ -71,6 +71,13 @@ export default function HeaderNav() {
         >
           Referentials
         </Link>
+
+        <Link
+          href="/artworks/print"
+          style={navLink(isActive('/artworks/print'))}
+        >
+          Factsheets
+        </Link>
       </nav>
 
       {/* RIGHT ACTIONS */}

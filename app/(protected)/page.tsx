@@ -52,7 +52,6 @@ export default function HomePage() {
           title="Fiche descriptive"
           subtitle="pour impression"
         />
-
       </div>
     </main>
   )
@@ -92,7 +91,9 @@ function EntryCard({
       <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>
         {title}
       </div>
-      <div style={{ marginTop: 6, color: '#666' }}>{subtitle}</div>
+      <div style={{ marginTop: 6, color: '#666' }}>
+        {subtitle}
+      </div>
     </Link>
   )
 }

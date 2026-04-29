@@ -1,37 +1,20 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import ArtworkList from '@/app/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseClient'
+import type { ArtworkListItem } from '@/app/types/artwork'
+
 
 export default function ArtworksPage() {
   /* ======================
      STATE
      ====================== */
 
-    type ArtworkDocument = {
-      id: string
-      document_type: 'image' | 'onedrive'
-      label?: string | null
-      url?: string | null
-    }
 
-
-    type Artwork = {
-      id: string
-      documents: ArtworkDocument[]
-      status: 'viewed' | 'draft' | 'negotiation' | 'bought' | 'archived'
-      proposed_by_id?: string | null
-        proposedBy?: {
-        company_name?: string
-        first_name?: string
-        last_name?: string
-      } | null
-    }
-
-const [artworks, setArtworks] = useState<Artwork[]>([])
+const [artworks, setArtworks] = useState<ArtworkListItem[]>([])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +32,6 @@ const [artworks, setArtworks] = useState<Artwork[]>([])
 
   const checkSession = async () => {
   const { data } = await supabase.auth.getSession()
-  console.log('PRINT session:', data.session)
 }
 
 checkSession()
@@ -86,7 +68,7 @@ checkSession()
         }
 
         
-      setArtworks( Array.isArray(data) ? (data as Artwork[]) : [])
+      setArtworks( Array.isArray(data) ? (data as ArtworkListItem[]) : [])
       } catch (err) {
         console.error(err)
         setError('Network error')
@@ -105,6 +87,23 @@ checkSession()
 
  
 
+const sortedArtworks = useMemo(() => {
+  return [...artworks].sort((a, b) => {
+    const da = a.date_proposition
+      ? new Date(a.date_proposition).getTime()
+      : 0
+
+    const db = b.date_proposition
+      ? new Date(b.date_proposition).getTime()
+      : 0
+
+    // ✅ DESCENDING = plus récentes en premier
+    return db - da
+  })
+}, [artworks])
+
+
+
 /* ======================
    FILTERING
    ====================== */
@@ -115,11 +114,20 @@ checkSession()
 
   const safeArtworks = Array.isArray(artworks) ? artworks : []
 
-  const activeArtworks = safeArtworks.filter(a =>
-    ['viewed', 'draft', 'negotiation'].includes(a.status)
-  )
-  const boughtArtworks = safeArtworks.filter(a => a.status === 'bought')
-  const archivedArtworks = safeArtworks.filter(a => a.status === 'archived')
+
+
+const activeArtworks = sortedArtworks.filter(
+  a => !['bought', 'archived'].includes(a.status ?? '')
+)
+
+const boughtArtworks = sortedArtworks.filter(
+  a => a.status === 'bought'
+)
+
+
+const archivedArtworks = sortedArtworks.filter(
+  a => a.status === 'archived'
+)
 
 
 

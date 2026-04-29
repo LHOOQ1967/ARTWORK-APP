@@ -4,12 +4,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
 import { supabase } from '@/lib/supabaseClient'
+import type { ArtworkPrint } from '@/app/types/artwork'
 
 
-type SortKey = 'artist' | 'date' | 'asking' | 'priority' | 'status'
-type SortDirection = 'asc' | 'desc'
-type StatusFilter = 'active' | 'bought' | 'archived' | 'all'
 
+type SortKey =
+  | 'date'
+  | 'sale_date'
+  | 'artist'
+  | 'asking'
+  | 'priority'
+  | 'status';
+
+type SortDirection = 'desc' | 'asc';
+
+type StatusFilter = 'active' | 'bought' | 'archived' | 'all';
 
 /* ======================
    Sort orders (métier)
@@ -39,10 +48,25 @@ function getSortValue(artwork: any, sortKey: SortKey) {
     case 'artist':
       return artwork.artist?.last_name?.toLowerCase() ?? ''
 
-    case 'date':
-      return artwork.date_proposition
-        ? new Date(artwork.date_proposition).getTime()
+
+    case 'sale_date':
+      return artwork.sale_date
+        ? new Date(artwork.sale_date).getTime()
         : 0
+
+
+case 'date': {
+  // ✅ Auctions → date de vente
+  if (artwork.auctions === true && artwork.sale_date) {
+    return new Date(artwork.sale_date).getTime()
+  }
+
+  // ✅ Sinon → date de proposition
+  return artwork.date_proposition
+    ? new Date(artwork.date_proposition).getTime()
+    : 0
+}
+
 
     case 'asking':
       return artwork.asking_price ?? 0
@@ -80,17 +104,15 @@ export default function ArtworksPrintPage() {
   /* ======================
      State
      ====================== */
-  const [artworks, setArtworks] = useState<Artwork[]>([])
-  const [artists, setArtists] = useState<any[]>([])
-  const [contacts, setContacts] = useState<any[]>([])
-  const [documents, setDocuments] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  
+const [artworks, setArtworks] = useState<ArtworkPrint[]>([])
+const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
   /* ===== UI state ===== */
 
-const [sortKey, setSortKey] = useState<SortKey>('artist')
-const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+const [sortKey, setSortKey] = useState<SortKey>('date')
+const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
 const [statusFilter, setStatusFilter] =
   useState<StatusFilter>('active')
@@ -116,61 +138,22 @@ useEffect(() => {
     try {
 
 
+
 const { data, error } = await supabase
-  .from('artworks')
-  .select(`
-    *,
-    artist:artists!artworks_artist_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    documents:documents (
-      id,
-      document_type,
-      url
-    ),
-    auctionContact:contacts!artworks_auction_contact_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    proposedBy:contacts!artworks_proposed_by_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    location:contacts!artworks_location_contact_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    certificateLocation:contacts!artworks_certificate_location_contact_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    buyer:contacts!artworks_buyer_contact_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    destination:contacts!artworks_destination_contact_id_fkey (
-      id,
-      first_name,
-      last_name
-    )
-  `)
+  .from('artwork_print_view')
+  .select(`*`)
 
 
 
-      if (error) {
-        console.error(error)
-        setArtworks([])
-        return
-      }
 
-      setArtworks(data ?? [])
+if (error) {
+  console.error(error)
+  setArtworks([])
+  return
+}
+
+
+      setArtworks(data as ArtworkPrint[])
     } catch (err) {
       console.error(err)
       setArtworks([])
@@ -183,24 +166,22 @@ const { data, error } = await supabase
 }, [])
 
 
+function getStatusGroupOrder(artwork: any): number {
+  if (artwork.status === 'archived') return 3
+  if (artwork.status === 'bought') return 2
+  return 1 // active = tout le reste
+}
+
+
+
 const filteredAndSorted = useMemo(() => {
   const filtered = artworks
-
-.filter(a => {
-  if (statusFilter === 'all') return true
-
-  if (statusFilter === 'archived') {
-    return a.status === 'archived'
-  }
-
-  if (statusFilter === 'bought') {
-    return a.status === 'bought'
-  }
-
-  // statusFilter === 'active'
-  return a.status !== 'archived' && a.status !== 'bought'
-})
-
+    .filter(a => {
+      if (statusFilter === 'all') return true
+      if (statusFilter === 'archived') return a.status === 'archived'
+      if (statusFilter === 'bought') return a.status === 'bought'
+      return a.status !== 'archived' && a.status !== 'bought'
+    })
     .filter(a => {
       if (priorityFilter === 'all') return true
       return a.priority === priorityFilter
@@ -210,7 +191,34 @@ const filteredAndSorted = useMemo(() => {
       if (auctionFilter === 'auction') return a.auctions === true
       return a.auctions !== true
     })
+    // ✅ RÈGLE MÉTIER : tri par sale_date → uniquement œuvres avec sale_date
+    .filter(a => {
+      if (sortKey === 'sale_date') {
+        return !!a.sale_date
+      }
+      return true
+    })
 
+  // ✅ CAS SPÉCIAL : Status = All
+  if (statusFilter === 'all') {
+    return [...filtered].sort((a, b) => {
+      // 1️⃣ tri par groupe de statut
+      const ga = getStatusGroupOrder(a)
+      const gb = getStatusGroupOrder(b)
+
+      if (ga !== gb) return ga - gb
+
+      // 2️⃣ tri secondaire normal
+      const va = getSortValue(a, sortKey)
+      const vb = getSortValue(b, sortKey)
+
+      if (va < vb) return sortDirection === 'asc' ? -1 : 1
+      if (va > vb) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  // ✅ comportement normal
   return sortArtworks(filtered, sortKey, sortDirection)
 }, [
   artworks,
@@ -220,6 +228,9 @@ const filteredAndSorted = useMemo(() => {
   sortKey,
   sortDirection,
 ])
+
+
+
 
 
 
@@ -255,57 +266,108 @@ const filteredAndSorted = useMemo(() => {
 </button>
 
 
-      <div className="print-controls no-print" style={{ fontWeight: 700, justifyContent: 'center', display: 'flex', gap: 12, marginBottom: 0, backgroundColor: '#e9eceb' }}> Filtre et tri </div>
-      <div className="print-controls no-print" style={{ display: 'flex', gap: 12, marginBottom: 24, backgroundColor: '#e9eceb' }}>
-        <select value={sortKey} onChange={e => setSortKey(e.target.value as any)}>
-          <option value="artist">Artist</option>
-          <option value="date">Date proposed</option>
-          <option value="asking">Asking price</option>
-          <option value="priority">Priority</option>
-          <option value="status">Status</option>
-        </select>
-
-        <select
-          value={sortDirection}
-          onChange={e => setSortDirection(e.target.value as any)}
-        >
-          <option value="asc">Ascending</option>
-          <option value="desc">Descending</option>
-        </select>
-
-
-<select
-  value={auctionFilter}
-  onChange={e =>
-    setAuctionFilter(
-      e.target.value as 'all' | 'auction' | 'non-auction'
-    )
-  }
+<button
+  onClick={() => {
+    setSortKey('date')
+    setSortDirection('desc')
+    setStatusFilter('active')
+    setPriorityFilter('all')
+    setAuctionFilter('all')
+  }}
 >
-  <option value="all">All market</option>
-  <option value="auction">Auction only</option>
-  <option value="non-auction">Private Market</option>
-</select>
+  Reset
+</button>
 
 
-
-<select
-  value={statusFilter}
-  onChange={e =>
-    setStatusFilter(e.target.value as StatusFilter)
-  }
+<div
+  className="print-controls no-print"
+  style={{
+    display: 'grid',
+    gridTemplateColumns: '1fr auto',
+    rowGap: 12,
+    columnGap: 24,
+    padding: '12px 16px',
+    backgroundColor: '#e9eceb',
+    marginBottom: 24,
+    alignItems: 'center',
+  }}
 >
-  <option value="active">Active</option>
-  <option value="bought">Bought</option>
-  <option value="archived">Archived</option>
-  <option value="all">All</option>
-</select>
+  {/* ===== Row 1 : Sorting ===== */}
+  <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+    <strong>Sort by</strong>
+
+    <select value={sortKey} onChange={e => setSortKey(e.target.value as any)}>
+      <option value="date">Date proposed</option>
+      <option value="sale_date">Sale Date</option>
+      <option value="artist">Artist</option>
+      <option value="asking">Asking price</option>
+      <option value="priority">Priority</option>
+      <option value="status">Status</option>
+    </select>
+
+    <select
+      value={sortDirection}
+      onChange={e => setSortDirection(e.target.value as any)}
+    >
+      <option value="desc">Descending</option>
+      <option value="asc">Ascending</option>
+    </select>
+  </div>
+
+  {/* Counter */}
+  <div style={{ color: '#555' }}>
+    {filteredAndSorted.length} artworks
+  </div>
+
+  {/* ===== Row 2 : Filters ===== */}
+  <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+    <strong>Filter</strong>
+
+    <select
+      value={auctionFilter}
+      onChange={e =>
+        setAuctionFilter(e.target.value as any)
+      }
+    >
+      <option value="all">All market</option>
+      <option value="auction">Auction</option>
+      <option value="non-auction">Private market</option>
+    </select>
+
+    <select
+      value={statusFilter}
+      onChange={e =>
+        setStatusFilter(e.target.value as any)
+      }
+    >
+      <option value="active">Active</option>
+      <option value="bought">Bought</option>
+      <option value="archived">Archived</option>
+      <option value="all">All</option>
+    </select>
+
+    <select
+      value={priorityFilter}
+      onChange={e =>
+        setPriorityFilter(e.target.value as any)
+      }
+    >
+      <option value="all">All priorities</option>
+      <option value="high">High</option>
+      <option value="medium">Medium</option>
+      <option value="low">Low</option>
+    </select>
+  </div>
+
+  {/* Action */}
+  <div>
+    <button onClick={() => window.print()}>Print</button>
+  </div>
+</div>
 
 
-        <button onClick={() => window.print()}>Print</button>
-      </div>
 
-      {/* ===== Printable sheets ===== */}
+
 
 
 {filteredAndSorted.map(artwork => (

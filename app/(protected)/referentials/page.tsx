@@ -3,25 +3,14 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import type { Artist, Contact } from '@/app/types/artwork'
 
 
 /* ======================
    Types
    ====================== */
 
-type Artist = {
-  id: string
-  first_name: string
-  last_name: string
-}
 
-type Contact = {
-  id: string
-  company_name?: string | null
-  first_name?: string | null
-  last_name?: string | null
-  email?: string | null
-}
 
 type ActionButtonVariant = 'default' | 'danger'
 
@@ -331,7 +320,7 @@ async function remove() {
           <InlineRow label="Last name">
             {isEditing ? (
               <input
-                value={artist.last_name}
+                value={artist.last_name ?? ''}
                 onChange={e =>
                   setArtist({ ...artist, last_name: e.target.value })
                 }

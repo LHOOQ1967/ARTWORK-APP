@@ -1,23 +1,14 @@
 
+'use client'
+
+import { use } from 'react'
 import ArtworkDetailContent from '@/app/components/artwork/ArtworkDetailContent'
-import { EditModeProvider } from '@/app/contexts/EditModeContext'
 
-type PageProps = {
-  params: {
-    id: string
-  }
-}
-
-export default function ArtworkEditPage({ params }: PageProps) {
-  const { id } = params
-
-  if (!id) {
-    throw new Error("ID de l'œuvre manquant")
-  }
-
-  return (
-    <EditModeProvider defaultEditing={true}>
-      <ArtworkDetailContent artworkId={id} />
-    </EditModeProvider>
-  )
+export default function ArtworkEditPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
+  return <ArtworkDetailContent artworkId={id} />
 }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import type { Artwork, ArtworkForm } from '@/app/types/artwork'
+import type { Artwork, ArtworkWithRelations } from '@/app/types/artwork'
 
 /* ======================
  * Types locaux (UI only)
@@ -23,22 +23,16 @@ type Artist = {
 }
 
 
-type ArtworkWithRelations = Artwork & {
-  artist?: Artist | null
-  location?: Contact | null
-  destination?: Contact | null
-  certificateLocation?: Contact | null
-  buyer?: Contact | null
-  auctionContact?: Contact | null
-}
 
 type Props = {
-  artwork: ArtworkForm
+  artwork: ArtworkWithRelations
   isEditing: boolean
   setArtwork: (a: ArtworkWithRelations) => void
   addProposal: (contactId: string, date?: string | null) => Promise<void>
   removeProposal: (proposalId: string) => Promise<void>
 }
+
+
 
 
 function contactLabel(c?: Contact | Artist | null): string {
@@ -54,19 +48,22 @@ function contactLabel(c?: Contact | Artist | null): string {
 
 
 
-function SectionBlock({ children }: { children: React.ReactNode }) {
+
+function SectionBlock({ children }) {
   return (
     <section
       style={{
         backgroundColor: '#ffffff',
         borderRadius: 8,
         padding: 24,
+        border: '1px solid #e0e0e0',
       }}
     >
       {children}
     </section>
   )
 }
+
 
 
 
@@ -958,7 +955,7 @@ return (
       <option value="draft">Draft</option>
       <option value="viewed">Viewed</option>
       <option value="negotiation">Negotiation</option>
-      <option value="sold">Sold</option>
+      <option value="bought">Bought</option>
       <option value="archived">Archived</option>
     </select>
   ) : (
@@ -1105,6 +1102,33 @@ return (
         />
       </EditRow>
 
+            <EditRow label="Sale time">
+        <input
+          type="time"
+          value={artwork.sale_time ?? ''}
+          onChange={e =>
+            setArtwork({
+              ...artwork,
+              sale_time: e.target.value || null,
+            })
+          }
+          style={editInputStyle}
+        />
+      </EditRow>
+
+            <EditRow label="Lot#">
+        <input
+          type="test"
+          value={artwork.lot ?? ''}
+          onChange={e =>
+            setArtwork({
+              ...artwork,
+              lot: e.target.value || null,
+            })
+          }
+          style={editInputStyle}
+        />
+      </EditRow>
 
 <EditRow label="Auction currency">
   {isEditing ? (
@@ -1350,6 +1374,21 @@ return (
       </EditRow>
 
       {/* Cost */}
+            <EditRow label="Date acquisition">
+        <input
+          type="date"
+          value={artwork.date_acquisition ?? ''}
+          onChange={e =>
+            setArtwork({
+              ...artwork,
+              date_acquisition: e.target.value || null,
+            })
+          }
+          style={editInputStyle}
+        />
+      </EditRow>
+
+
       <EditRow label="Cost">
         <div style={{ display: 'flex', gap: 8 }}>
           <input

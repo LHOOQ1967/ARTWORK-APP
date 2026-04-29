@@ -1,8 +1,6 @@
 
 'use client'
 
-
-
 import { ArtworkSection } from './ArtworkSection'
 import { useEffect, useState } from 'react'
 import { useEditMode } from '@/app/contexts/EditModeContext'
@@ -14,7 +12,7 @@ import { SortableDocument } from '@/app/components/SortableDocument'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
-
+import type { ArtworkWithRelations, ArtworkProposal, ArtworkDocument } from '@/app/types/artwork'
 
 
 function isUUID(value: string) {
@@ -23,20 +21,6 @@ function isUUID(value: string) {
   )
 }
 
-
-// ✅ types
-type Props = {
-  artwork: ArtworkForm
-}
-
-type Document = {
-  id: string
-  artwork_id: string
-  document_type: 'onedrive' | 'image'
-  label: string | null
-  url: string
-  position: number
-}
 
 // ✅ constante hors composant
 
@@ -49,27 +33,23 @@ const STATUS_OPTIONS = [
   'bought',
   'archived',
 ]
-const EMPTY_ARTWORK = {
-  title: '',
-  medium: null,
-  year_execution: null,
-  dimensions: null,
-  signature: null,
-  status: 'draft',
-  priority: 'medium',
-  auctions: false,
-  asking_price: null,
-  currency: 'CHF',
-  artist_id: null,
-  date_proposition: null,
-  sold_hammer: null,
-  sold_premium: null,
-  auction_currency: null,
-  documents: [],
-  artwork_proposals: []
+
+
+function SectionBlock({ children }: { children: React.ReactNode }) {
+  return (
+    <section
+      style={{
+        backgroundColor: '#ffffff',
+        color: '#000000',
+        borderRadius: 8,
+        padding: 24,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      }}
+    >
+      {children}
+    </section>
+  )
 }
-
-
 
 
 function ActionButton({
@@ -179,60 +159,78 @@ function normalizeArtwork(a: any) {
 }
 
 
-export default function ArtworkDetailContent({ artworkId }: { artworkId: string }) {
+
+export default function ArtworkDetailContent(
+  {
+    artworkId,
+    isEditMode,
+  }: {
+    artworkId: string
+    isEditMode: boolean
+  }
+) {
+
+  if (!artworkId) {
+    return <p>Missing artwork id</p>
+  }
+
+
   /* ======================
      ID & MODE
      ====================== */
   const id = decodeURIComponent(artworkId)
-  const isNew = !id
-const router = useRouter()
+ const router = useRouter()
   /* ======================
      EDIT MODE
      ====================== */
   const { isEditing, setIsEditing } = useEditMode()
+  
+useEffect(() => {
+  setIsEditing(isEditMode)
+}, [isEditMode, setIsEditing])
+
 
   /* ======================
      STATE
      ====================== */
-  const [artwork, setArtwork] = useState<any | null>(null)
+  const [artwork, setArtwork] = useState<ArtworkWithRelations | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openImage, setOpenImage] = useState<string | null>(null)
   const [newDocLabel, setNewDocLabel] = useState('')
   const [newDocUrl, setNewDocUrl] = useState('')
   const [newDocType, setNewDocType] = useState<'image' | 'onedrive'>('onedrive')
-  const searchParams = useSearchParams()
-  const editParam = searchParams.get('edit')
+  const [isAddingProposal, setIsAddingProposal] = useState(false)
+
+
   
-
-
  
   /* ======================
      FORCE EDIT MODE
      ====================== */
-  useEffect(() => {
-    if (isNew) {
-      setIsEditing(true)
-    }
-  }, [isNew, setIsEditing])
+
 
 
   /* ======================
      MODE CRÉATION
      ====================== */
-  useEffect(() => {
-    if (isNew) {
-      setArtwork(EMPTY_ARTWORK)
-      setIsEditing(true)
-      setLoading(false)
-    }
-  }, [isNew, setIsEditing])
+
 
   /* ======================
      ✅ MODE ÉDITION – LOAD ARTWORK
      ====================== */
 
-     
+ 
+function logSupabaseError(context: string, error: any) {
+  if (!error) return
+  console.error(context, {
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code,
+  })
+}
+    
 
 
 useEffect(() => {
@@ -255,6 +253,7 @@ const loadArtwork = async () => {
     setError(null)
 
 
+
 const { data, error } = await supabase
   .from('artworks')
   .select(`
@@ -272,20 +271,34 @@ const { data, error } = await supabase
       url,
       label,
       position
+    ),
+    artwork_proposals (
+      id,
+      proposed_at,
+      contact:contacts (
+        id,
+        company_name,
+        first_name,
+        last_name
+      )
     )
   `)
   .eq('id', id)
   .single()
 
 
+
     if (!isMounted) return
 
-    if (error) {
-      console.error('Supabase error:', error)
-      setError('Failed to load artwork')
-      setArtwork(null)
-      return
-    }
+
+
+if (error) {if (error)  logSupabaseError('LOAD ARTWORK FAILED', error)
+  setError('Failed to load artwork')
+  setArtwork(null)
+  return
+}
+
+
 
     if (!data) {
       setError('Artwork not found')
@@ -344,11 +357,13 @@ async function saveArtwork() {
     estimate_low: artwork.estimate_low,
     estimate_high: artwork.estimate_high,
     auction_currency: artwork.auction_currency,
+    lot: artwork.lot,
     sold_hammer: artwork.sold_hammer,
     sold_premium: artwork.sold_premium,
     underbidder: artwork.underbidder,
     guarantee: artwork.guarantee,
     buyer_contact_id: artwork.buyer_contact_id,
+    date_acquisition: artwork.date_acquisition,
     cost_amount: artwork.cost_amount,
     cost_currency: artwork.cost_currency,
     destination_contact_id: artwork.destination_contact_id,
@@ -369,42 +384,32 @@ async function saveArtwork() {
     depth_cm: artwork.depth_cm || null,
   }
 
-  try {
-    if (isNew) {
-      // ✅ CREATE
-      const { data, error } = await supabase
-        .from('artworks')
-        .insert(payload)
-        .select()
-        .single()
 
-      if (error || !data?.id) {
-        console.error('CREATE artwork failed:', error)
-        setError('Failed to create artwork')
-        return
-      }
-
-      // ✅ Toujours vers PRINT
-      router.push(`/artworks/print/${data.id}`)
-    } else {
-      // ✅ UPDATE
-      const { error } = await supabase
-        .from('artworks')
-        .update(payload)
-        .eq('id', artwork.id)
-
-      if (error) {
-        console.error('UPDATE artwork failed:', error)
-        setError('Failed to update artwork')
-        return
-      }
-
-      setIsEditing(false)
-      router.push(`/artworks/print/${artwork.id}`)
-    }
-  } finally {
-    setLoading(false)
+try {
+  if (!artwork?.id) {
+    setError('Artwork id is missing')
+    return
   }
+
+  // ✅ UPDATE uniquement (ArtworkDetailContent)
+  const { error } = await supabase
+    .from('artworks')
+    .update(payload)
+    .eq('id', artwork.id)
+
+  if (error) {
+    console.error('UPDATE artwork failed:', error)
+    setError('Failed to update artwork')
+    return
+  }
+
+  // ✅ Sortie du mode édition et redirection vers le print
+  setIsEditing(false)
+  router.push(`/artworks/print/${artwork.id}`)
+} finally {
+  setLoading(false)
+}
+
 }
 
 
@@ -414,51 +419,83 @@ async function addProposal(
   contactId: string,
   proposedAt?: string | null
 ) {
-  if (!artwork?.id || !contactId) {
+  if (!artwork?.id) return
+  if (!contactId || contactId.trim() === '') {
     alert('Please select a contact')
     return
   }
 
-  const { error: supabaseError } = await supabase
-    .from('artwork_proposals')
-    .insert({
+  if (isAddingProposal) return
+  setIsAddingProposal(true)
+
+  try {
+    const payload: {
+      artwork_id: string
+      contact_id: string
+      proposed_at?: string
+    } = {
       artwork_id: artwork.id,
       contact_id: contactId,
-      proposed_at: proposedAt || null,
-    })
+    }
 
-  if (supabaseError) {
-    console.error('Add proposal failed:', supabaseError)
-    alert('Failed to add proposal')
-    return
-  }
+    // laisser PostgreSQL appliquer DEFAULT CURRENT_DATE
+    if (proposedAt) {
+      payload.proposed_at = proposedAt
+    }
 
-  // ✅ Recharger les proposals (simple et sûr)
-  const { data, error: reloadError } = await supabase
-    .from('artwork_proposals')
-    .select(`
-      id,
-      proposed_at,
-      contact:contacts (
+    // ⚠️ INSERT
+    const { error } = await supabase
+      .from('artwork_proposals')
+      .insert(payload)
+
+    /**
+     * IMPORTANT :
+     * - error peut être {} en cas de 409 (UNIQUE)
+     * - ce n'est PAS une erreur métier
+     * - on ignore volontairement ce cas
+     */
+
+    if (error) {
+      // ✅ on ignore silencieusement
+      console.info('Proposal already exists or insert ignored')
+    }
+
+    // ✅ recharger la source de vérité
+    const { data: proposals } = await supabase
+      .from('artwork_proposals')
+      .select(`
         id,
-        company_name,
-        first_name,
-        last_name
-      )
-    `)
-    .eq('artwork_id', artwork.id)
+        proposed_at,
+        contact:contacts (
+          id,
+          company_name,
+          first_name,
+          last_name
+        )
+      `)
+      .eq('artwork_id', artwork.id)
 
-  if (!reloadError && data) {
-    setArtwork(prev =>
-      prev
-        ? { ...prev, artwork_proposals: data }
-        : prev
-    )
+
+const normalizedProposals =
+  (proposals ?? []).map(p => ({
+    id: p.id,
+    proposed_at: p.proposed_at,
+    // ✅ force un Contact unique
+    contact: Array.isArray(p.contact) ? p.contact[0] : p.contact,
+  }))
+
+setArtwork(prev =>
+  prev
+    ? { ...prev, artwork_proposals: normalizedProposals }
+    : prev
+)
+
+  } finally {
+    setIsAddingProposal(false)
   }
 }
 
- 
- 
+
 
  
 
@@ -478,16 +515,22 @@ async function removeProposal(proposalId: string) {
   }
 
   // ✅ Mise à jour locale de l’état
-  setArtwork(prev =>
-    prev
-      ? {
-          ...prev,
-          artwork_proposals: prev.artwork_proposals?.filter(
-            p => p.id !== proposalId
-          ),
-        }
-      : prev
-  )
+
+
+setArtwork(prev => {
+  if (!prev || !prev.artwork_proposals) return prev
+
+  const proposals: ArtworkProposal[] = prev.artwork_proposals
+
+  return {
+    ...prev,
+    artwork_proposals: proposals.filter(
+      p => p.id !== proposalId
+    ),
+  }
+})
+
+
 }
 
  
@@ -590,29 +633,41 @@ async function deleteDocument(id: string) {
   }
 
   // ✅ mise à jour locale via artwork (source de vérité)
-  setArtwork(prev =>
-    prev
-      ? {
-          ...prev,
-          documents: prev.documents?.filter(d => d.id !== id) ?? [],
-        }
-      : prev
-  )
+
+
+setArtwork(prev => {
+  if (!prev) return prev
+
+  const documents: ArtworkDocument[] = prev.documents
+    .filter(d => d.id !== id) // ou autre logique
+    .map((d, index) => ({
+      ...d,
+      artwork_id: prev.id,
+      position: d.position ?? index + 1, // ✅ GARANTI number
+    }))
+
+  return {
+    ...prev,
+    documents,
+  }
+})
+
+
 }
 
 
- 
- 
+
 
 const images =
   artwork?.documents
     ?.filter(d => d.document_type === 'image')
-    .sort((a, b) => a.position - b.position) ?? []
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) ?? []
+
 
  
  const onedriveDocuments = artwork?.documents
    .filter(d => d.document_type === 'onedrive')
-   .sort((a, b) => a.position - b.position)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) ?? []
  
    
  const editInputStyle: React.CSSProperties = {
@@ -624,59 +679,108 @@ const images =
  };
  
  
+
 async function handleImagesDragEnd(event: any) {
   const { active, over } = event
   if (!over || active.id === over.id) return
 
+  if (!artwork) return
 
+  // ✅ 1️⃣ Images courantes (source de vérité)
+  const currentImages = artwork.documents
+    .filter(d => d.document_type === 'image')
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) ?? []
 
   const oldIndex = currentImages.findIndex(img => img.id === active.id)
   const newIndex = currentImages.findIndex(img => img.id === over.id)
 
   if (oldIndex === -1 || newIndex === -1) return
 
+  // ✅ 2️⃣ Réordonner
   const reordered = arrayMove(currentImages, oldIndex, newIndex)
 
-  const updatedImages = reordered.map((img, index) => ({
-    ...img,
-    position: index + 1,
+
+
+const updatedImages: ArtworkDocument[] = reordered.map((img, index) => ({
+  ...img,
+  artwork_id: artwork.id,   // ✅ OBLIGATOIRE
+  position: index + 1,
+}))
+
+
+setArtwork(prev => {
+  if (!prev) return prev
+
+  const documents: ArtworkDocument[] = prev.documents
+    // adapte la logique si nécessaire
+    .map((d, index) => ({
+      ...d,
+      artwork_id: prev.id,            // ✅ OBLIGATOIRE
+      position: d.position ?? index + 1, // ✅ GARANTI number
+    }))
+
+  return {
+    ...prev,
+    documents,
+  }
+})
+
+
+
+
+  // ✅ 3️⃣ Merge avec les autres documents
+  const otherDocs = artwork.documents.filter(
+    d => d.document_type !== 'image'
+  )
+
+  const updatedDocuments = [...otherDocs, ...updatedImages]
+
+  // ✅ 4️⃣ Mise à jour UI (source de vérité UNIQUE)
+
+setArtwork(prev => {
+  if (!prev) return prev
+
+  const documents: ArtworkDocument[] = updatedDocuments.map((d, index) => ({
+    ...d,
+    artwork_id: prev.id,              // ✅ OBLIGATOIRE
+    position: d.position ?? index + 1 // ✅ GARANTI number
   }))
 
-  // ✅ Mise à jour UI immédiate (optimistic update)
-  setDocuments(prev => [
-    ...prev.filter(d => d.document_type !== 'image'),
-    ...updatedImages,
-  ])
+  return {
+    ...prev,
+    documents
+  }
+})
 
-  // ✅ Persistance backend via Supabase
+
+  // ✅ 5️⃣ Persistance backend
   try {
-    const updates = updatedImages.map(img =>
-      supabase
-        .from('documents')
-        .update({ position: img.position })
-        .eq('id', img.id)
+    await Promise.all(
+      updatedImages.map(img =>
+        supabase
+          .from('documents')
+          .update({ position: img.position })
+          .eq('id', img.id)
+      )
     )
-
-    const results = await Promise.all(updates)
-
-    const firstError = results.find(r => r.error)?.error
-    if (firstError) {
-      console.error('REORDER IMAGES FAILED:', firstError)
-      alert('Failed to reorder images')
-    }
   } catch (err) {
     console.error('REORDER IMAGES ERROR:', err)
   }
 }
 
 
+
+
 async function handleDocumentsDragEnd(event: any) {
   const { active, over } = event
   if (!over || active.id === over.id) return
 
-  const currentDocs = documents
+  if (!artwork) return
+
+  // ✅ 1️⃣ Documents OneDrive
+  const currentDocs = artwork.documents
     .filter(d => d.document_type === 'onedrive')
-    .sort((a, b) => a.position - b.position)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
   const oldIndex = currentDocs.findIndex(doc => doc.id === active.id)
   const newIndex = currentDocs.findIndex(doc => doc.id === over.id)
@@ -690,32 +794,47 @@ async function handleDocumentsDragEnd(event: any) {
     position: index + 1,
   }))
 
-  // ✅ update UI immédiate (optimistic)
-  setDocuments(prev => [
-    ...prev.filter(d => d.document_type !== 'onedrive'),
-    ...updatedDocs,
-  ])
+  const otherDocs = artwork.documents.filter(
+    d => d.document_type !== 'onedrive'
+  )
 
-  // ✅ persistance backend
+  const updatedDocuments = [...otherDocs, ...updatedDocs]
+
+  // ✅ 2️⃣ Mise à jour UI
+
+setArtwork(prev => {
+  if (!prev) return prev
+
+  const documents: ArtworkDocument[] = updatedDocuments.map(
+    (d, index) => ({
+      ...d,
+      artwork_id: prev.id,              // ✅ obligatoire
+      position: d.position ?? index + 1 // ✅ garanti number
+    })
+  )
+
+  return {
+    ...prev,
+    documents
+  }
+})
+
+
+  // ✅ 3️⃣ Persistance backend
   try {
-    const updates = updatedDocs.map(doc =>
-      supabase
-        .from('documents')
-        .update({ position: doc.position })
-        .eq('id', doc.id)
+    await Promise.all(
+      updatedDocs.map(doc =>
+        supabase
+          .from('documents')
+          .update({ position: doc.position })
+          .eq('id', doc.id)
+      )
     )
-
-    const results = await Promise.all(updates)
-    const firstError = results.find(r => r.error)?.error
-
-    if (firstError) {
-      console.error('REORDER DOCUMENTS FAILED:', firstError)
-      alert('Failed to reorder documents')
-    }
   } catch (err) {
     console.error('REORDER DOCUMENTS ERROR:', err)
   }
 }
+
 
 
 // 1️⃣ Pendant le chargement
@@ -758,16 +877,17 @@ const destinationContact = artwork.destination_contact ?? null
  
 
 
+
 <ActionButton
   onClick={() => {
+    if (!artwork?.id) return
+
     if (isEditing) {
-      // ✅ Cancel → redirection vers print
-      if (artwork?.id) {
-        router.push(`/artworks/print/${artwork.id}`)
-      }
+      // ✅ Cancel → retour à l'affichage
+      router.push(`/artworks/print/${artwork.id}`)
     } else {
-      // ✅ Edit → activation du mode édition
-      setIsEditing(true)
+      // ✅ Edit → navigation vers la route dédiée
+      router.push(`/artworks/${artwork.id}/edit`)
     }
   }}
 >
@@ -775,7 +895,8 @@ const destinationContact = artwork.destination_contact ?? null
 </ActionButton>
 
 
-{isEditing && !isNew && (
+
+{isEditing && (
   <ActionButton
     onClick={deleteArtwork}
     style={{
@@ -806,85 +927,67 @@ const destinationContact = artwork.destination_contact ?? null
 
  </div>
  
- 
- 
- 
- 
+  
 
- 
- {!isNew && (
- <section
-   style={{
-     marginBottom: 30,
-     padding: '20px 24px',
-     backgroundColor: 'white',
-     borderRadius: 8,
-     color: 'black',
-   }}
- >
-   
-   {images.length === 0 ? (
-     <div style={{ color: '#777', fontStyle: 'italic' }}>
-       No images
-     </div>
-   ) : (
-     <DndContext
-       collisionDetection={closestCenter}
-       onDragEnd={handleImagesDragEnd}
-     >
-       <SortableContext
-         items={images.map(img => img.id)}
-         strategy={rectSortingStrategy}
-       >
-         <div
-           style={{
-             display: 'grid',
-             gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-             gap: 12,
-             marginBottom: 20,
-           }}
-         >
-           {images.map(img => (
-             <SortableImage
-               key={img.id}
-               image={img}
-               isEditing={isEditing}
-               onDelete={deleteDocument}
-               onOpen={setOpenImage}
-             />
-           ))}
-         </div>
-       </SortableContext>
-     </DndContext>
-   )}
- 
-   {isEditing && artwork && (
-     <div
-       style={{
-         marginTop: 10,
-         paddingTop: 16,
-         borderTop: '2px dashed #ddd',
-       }}
-     >
 
-<ImageUploader
-  artworkId={artwork.id}
-  onUploaded={(uploadedDocument) => {
-    setArtwork(prev =>
-      prev
-        ? {
-            ...prev,
-            documents: [...(prev.documents ?? []), uploadedDocument],
-          }
-        : prev
-    )
-  }}
-/>
+{(images.length > 0 || isEditing) && (
+  <section
+    style={{
+      marginTop: 40,
+      backgroundColor: '#ffffff',
+      color: '#000',
+      borderRadius: 8,
+      padding: 24,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    }}
+  >
+    <h3 style={{ marginBottom: 16 }}>Images</h3>
 
-     </div>
-   )}
- </section>
- )} 
+    {isEditing && artwork.id && (
+      <ImageUploader
+        artworkId={artwork.id}
+        onUploaded={(doc) =>
+          setArtwork((prev) =>
+            prev
+              ? { ...prev, documents: [...(prev.documents ?? []), doc] }
+              : prev
+          )
+        }
+      />
+    )}
+
+    {images.length > 0 && (
+      <DndContext
+        collisionDetection={closestCenter}
+        onDragEnd={handleImagesDragEnd}
+      >
+        <SortableContext
+          items={images.map((img) => img.id)}
+          strategy={rectSortingStrategy}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              flexWrap: 'wrap',
+              marginTop: 16,
+            }}
+          >
+            {images.map((img) => (
+              <SortableImage
+                key={img.id}
+                image={img}
+                isEditing={isEditing}
+                onClick={() => setOpenImage(img.url)}
+                onDelete={() => deleteDocument(img.id)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    )}
+  </section>
+)}
 
 
 
@@ -897,87 +1000,75 @@ const destinationContact = artwork.destination_contact ?? null
 />
 
 
- 
- {!isNew && (
- <section
-   style={{
-     marginBottom: 30,
-     padding: '20px 24px',
-     backgroundColor: '#f7f7f7',
-     borderRadius: 8,
-     color: 'black',
-   }}
- >
-   <h2 style={{ marginBottom: 16 }}>Documents</h2>
- 
-   {artwork.documents.filter(d => d.document_type === 'onedrive').length === 0 ? (
-     <div style={{ color: '#777', fontStyle: 'italic' }}>
-       No documents
-     </div>
-   ) : (
-     <DndContext
-       collisionDetection={closestCenter}
-       onDragEnd={handleDocumentsDragEnd}
-     >
-       <SortableContext
-         items={artwork.documents
-           .filter(d => d.document_type === 'onedrive')
-           .sort((a, b) => a.position - b.position)
-           .map(d => d.id)}
-         strategy={verticalListSortingStrategy}
-       >
-         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-           {artwork.documents
-             .filter(d => d.document_type === 'onedrive')
-             .sort((a, b) => a.position - b.position)
-             .map(doc => (
-               <SortableDocument
-                 key={doc.id}
-                 document={doc}
-                 isEditing={isEditing}
-                 onDelete={deleteDocument}
-               />
-             ))}
-         </div>
-       </SortableContext>
-     </DndContext>
-   )}
- 
-   {isEditing && (
-     <div
-       style={{
-         marginTop: 20,
-         paddingTop: 16,
-         borderTop: '1px dashed #ddd',
-       }}
-     >
-       <h3 style={{ marginBottom: 8 }}>Add document</h3>
- 
-       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-         <input
-           type="text"
-           placeholder="Label (optional)"
-           value={newDocLabel}
-           onChange={e => setNewDocLabel(e.target.value)}
-           style={{ flex: 1 }}
-         />
- 
-         <input
-           type="url"
-           placeholder="OneDrive URL"
-           value={newDocUrl}
-           onChange={e => setNewDocUrl(e.target.value)}
-           style={{ flex: 2 }}
-         />
- 
-         <ActionButton onClick={addDocument}>
-           Add
-         </ActionButton>
-       </div>
-     </div>
-   )}
- </section>
- )}
+
+{(onedriveDocuments.length > 0 || isEditing) && (
+  <section
+    style={{
+      marginTop: 40,
+      backgroundColor: '#ffffff',
+      color: '#000',
+      borderRadius: 8,
+      padding: 24,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    }}
+  >
+    <h3 style={{ marginBottom: 16 }}>Documents</h3>
+
+    {isEditing && artwork.id && (
+      <div style={{ marginBottom: 16 }}>
+        <InlineRow label="Add document">
+          <input
+            type="text"
+            placeholder="Label"
+            value={newDocLabel}
+            onChange={(e) => setNewDocLabel(e.target.value)}
+            style={editInputStyle}
+          />
+
+          <input
+            type="url"
+            placeholder="URL"
+            value={newDocUrl}
+            onChange={(e) => setNewDocUrl(e.target.value)}
+            style={editInputStyle}
+          />
+
+          <ActionButton
+            onClick={addDocument}
+            style={{ marginTop: 8 }}
+          >
+            Add
+          </ActionButton>
+        </InlineRow>
+      </div>
+    )}
+
+    {onedriveDocuments.length > 0 && (
+      <DndContext
+        collisionDetection={closestCenter}
+        onDragEnd={handleDocumentsDragEnd}
+      >
+        <SortableContext
+          items={onedriveDocuments.map((d) => d.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {onedriveDocuments.map((doc) => (
+              <SortableDocument
+                key={doc.id}
+                document={doc}
+                isEditing={isEditing}
+                onDelete={() => deleteDocument(doc.id)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    )}
+  </section>
+)}
+
+
  
  {openImage && (
    <div

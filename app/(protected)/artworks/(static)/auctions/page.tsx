@@ -4,28 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import ArtworkList from '@/app/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseClient'
-
-
-type Artwork = {
-  id: string
-  title: string
-  priority: string
-  status: string
-  sale_date: string | null
-  estimate_low: number | null
-  estimate_high: number | null
-  auction_currency: string | null
-  artist?: {
-    id: string
-    first_name: string
-    last_name: string
-  } | null
-  documents?: {
-    id: string
-    document_type: string
-    url: string
-  }[]
-}
+import type { ArtworkListItem } from '@/app/types/artwork'
 
 
 export default function AuctionArtworksPage() {
@@ -36,7 +15,7 @@ export default function AuctionArtworksPage() {
   /* ======================
      STATE
      ====================== */
-  const [artworks, setArtworks] = useState<Artwork[]>([])
+  const [artworks, setArtworks] = useState<ArtworkListItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -85,15 +64,50 @@ useEffect(() => {
     loadArtworks()
   }, [])
 
+  
+
+
+
+const sortedAuctions = useMemo(() => {
+  const list = Array.isArray(artworks) ? artworks : []
+
+  return [...list].sort((a, b) => {
+    const da =
+      a.sale_date
+        ? new Date(a.sale_date).getTime()
+        : 0
+
+    const db =
+      b.sale_date
+        ? new Date(b.sale_date).getTime()
+        : 0
+
+    // ✅ DESCENDING
+    return db - da
+  })
+}, [artworks])
+
+
+
+
 
   /* ======================
      SPLITS
      ====================== */
-  const activeArtworks = artworks.filter(
-    a => !['bought', 'archived'].includes(a.status)
-  )
-  const boughtArtworks = artworks.filter(a => a.status === 'bought')
-  const archivedArtworks = artworks.filter(a => a.status === 'archived')
+
+
+const activeArtworks = sortedAuctions.filter(
+  a => !['bought', 'archived'].includes(a.status ?? '')
+)
+
+
+const boughtArtworks = sortedAuctions.filter(
+  a => a.status === 'bought'
+)
+
+const archivedArtworks = sortedAuctions.filter(
+  a => a.status === 'archived'
+)
 
   /* ======================
      EARLY RETURNS
@@ -139,7 +153,6 @@ useEffect(() => {
 
 
 
-console.log('AUCTIONS artworks:', artworks)
 
   /* ======================
      RENDER
@@ -211,7 +224,11 @@ console.log('AUCTIONS artworks:', artworks)
       Bought artworks ({boughtArtworks.length})
     </h2>
 
-    <ArtworkList artworks={boughtArtworks} mode="bought"/>
+   
+{boughtArtworks.length > 0 && (
+  <ArtworkList artworks={boughtArtworks} mode="auction" />
+)}
+
   </section>
 )}
 
@@ -234,7 +251,11 @@ console.log('AUCTIONS artworks:', artworks)
             Archived artworks ({archivedArtworks.length})
           </h2>
 
-          <ArtworkList artworks={archivedArtworks} />
+         
+{archivedArtworks.length > 0 && (
+  <ArtworkList artworks={archivedArtworks} mode="auction" />
+)}
+
         </section>
       )}
 
