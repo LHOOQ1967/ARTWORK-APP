@@ -12,12 +12,10 @@ export default function ArtworksPage() {
   /* ======================
      STATE
      ====================== */
-
-
 const [artworks, setArtworks] = useState<ArtworkListItem[]>([])
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+const [loading, setLoading] = useState(true)
+const [error, setError] = useState<string | null>(null)
 
 
   /* ======================
@@ -41,11 +39,21 @@ checkSession()
         setLoading(true)
         setError(null)
 
-        const { data, error } = await supabase
-          .from('artworks')
 
+const { data, error } = await supabase
+  .from('artworks')
   .select(`
-    *,
+    id,
+    title,
+    status,
+    priority,
+    currency,
+    asking_price,
+
+    date_proposition,
+    sale_date,
+    date_acquisition,
+
     artist:artists!artworks_artist_id_fkey (
       id,
       first_name,
@@ -58,8 +66,8 @@ checkSession()
       url
     )
   `)
+  .neq('auctions', true)
 
-          .neq('auctions', true)
 
         if (error) {
           console.error(error)

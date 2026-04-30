@@ -1,4 +1,9 @@
+
 @import "tailwindcss";
+
+/* =========================================================
+   Variables
+   ========================================================= */
 
 :root {
   --background: #ffffff;
@@ -19,95 +24,23 @@
   }
 }
 
+/* =========================================================
+   Base
+   ========================================================= */
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-
-@media print { button, select { display: none !important; }
-  body { background: white; }
-  table { font-size: 12px; }
-  th, td { padding: 6px 8px; }
-  main { padding: 0 !important; }
-}
-
-
-
-@media print {
-  /* 🔴 Cacher TOUT le header et la navigation */
-  .no-print,
-  header,
-  nav {
-    display: none !important;
-  }
-
-  /* Nettoyage layout écran */
-  body {
-    margin: 0;
-    padding: 0;
-    background: white;
-  }
-
-  main {
-    padding: 0 !important;
-  }
-}
-
-
-
-
-.page-break-indicator {
-  position: relative;
-  height: 0;
-  margin: 0;
-}
-
-/* Ligne visuelle à l’écran uniquement */
-.page-break-indicator::before {
-  content: '';
-  display: block;
-  border-top: 1px dashed ;
-  margin: 12px 0;
-}
-
-/* ✅ SUPPRIME LA MARGE DE LA SECTION SUIVANTE À L’ÉCRAN */
-.page-break-indicator + * {
-  margin-top: 0 !important;
-}
-
-/* Impression */
-@media print {
-  .page-break-indicator {
-    break-after: page;
-    page-break-after: always;
-  }
-
-  .page-break-indicator::before {
-    display: none;
-  }
-
-  /* sécurité print */
-  .page-break-indicator + * {
-    margin-top: 0 !important;
-  }
-}
-
-
-/* Boutons écran uniquement (print page) */
-@media screen {
-  .print-controls {
-    display: flex;
-    justify-content: flex-end; /* ✅ aligne à droite */
-    margin-bottom: 16px;
-  }
-}
-
+/* =========================================================
+   Infos row
+   ========================================================= */
 
 .info-row {
   display: grid;
-  grid-template-columns: 160px 1fr; /* largeur fixe du label */
+  grid-template-columns: 160px 1fr;
   column-gap: 12px;
   align-items: baseline;
   margin-bottom: 8px;
@@ -120,8 +53,183 @@ body {
 }
 
 .info-value {
-  min-width: 0;              /* important pour les liens longs */
-  word-break: break-word;    /* évite le débordement */
+  min-width: 0;
+  word-break: break-word;
 }
 
 
+/* =========================================================
+   SCREEN
+   ========================================================= */
+
+@media screen {
+
+  .print-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+
+  /* ✅ IMAGES – ÉCRAN */
+  .artwork-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+
+    width: 100%;
+    max-width: 100%;
+
+    margin-left: 0;
+    margin-right: auto;
+    justify-content: start;
+  }
+
+  .artwork-image-wrapper {
+    max-height: 10cm;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+}
+
+/* =========================================================
+   IMAGE (commun)
+   ========================================================= */
+
+.artwork-image-wrapper img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* =========================================================
+   PRINT
+   ========================================================= */
+
+
+@media print {
+
+  /* --- socle print : nettoyage UI --- */
+
+  body,
+  main {
+    margin: 0;
+    padding: 0;
+  }
+
+  button,
+  select,
+  header,
+  nav,
+  .no-print {
+    display: none !important;
+  }
+
+  table {
+    font-size: 12px;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 6px 8px;
+  }
+
+}
+
+
+
+
+
+/* =========================================================
+   PDF Puppeteer — OPTION B (PX, PRIORITAIRE)
+   ========================================================= */
+
+@media print {
+
+  /* ==============================
+     PAGE GEOMETRY (PUPPETEER)
+     ============================== */
+
+  body,
+  main {
+    width: 1240px;
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+
+  /* ==============================
+     TYPO / ESPACEMENTS
+     ============================== */
+
+  h1, h2 {
+    margin-top: 12px;
+    margin-bottom: 6px;
+  }
+
+  .info-row {
+    margin-bottom: 4mm;
+  }
+
+  p {
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
+
+  /* ==============================
+     1 ARTWORK = 1 PAGE (DÉCISIF)
+     ============================== */
+
+  .artwork-block {
+    break-after: page;
+    page-break-after: always;
+
+    /* respiration visuelle */
+    padding-top: 24px;
+  }
+
+  .artwork-block:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* ==============================
+     IMAGES — GRAND FORMAT
+     ============================== */
+
+  .artwork-images {
+    display: grid;
+
+    /* ✅ 3 images très grandes */
+    grid-template-columns: repeat(2, 640px);
+    gap: 32px;
+
+    justify-content: start;
+    margin-top: 24px;
+    margin-bottom: 24px;
+  }
+
+  .artwork-image-wrapper {
+    width: 640px;
+    max-height: 600px;
+    height: auto;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+  }
+
+  .artwork-image-wrapper img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+}

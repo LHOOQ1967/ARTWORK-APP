@@ -3,7 +3,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { ArtworkListItem } from '@/app/types/artwork'
 
 
@@ -44,8 +44,27 @@ export default function ArtworkList({
     useState<'asc' | 'desc'>('asc')
 
 
+
+
+useEffect(() => {
+  console.log(
+    `ArtworkList [mode=${mode}]`,
+    artworks.map(a => ({
+      id: a.id,
+      status: a.status,
+      date_acquisition: a.date_acquisition,
+    }))
+  )
+}, [artworks, mode])
+
+
  const sortedArtworks = sortArtworks(artworks) 
-  
+
+ 
+
+
+
+ 
 function sortArtworks(artworks: Artwork[]) {
   if (!sortKey) return artworks
 
@@ -65,22 +84,19 @@ function sortArtworks(artworks: Artwork[]) {
         break
 
 
-
+        
 case 'date':
-  if (mode === 'auction' || mode === 'bought') {
+  if (mode === 'bought') {
+    va = a.date_acquisition ? new Date(a.date_acquisition).getTime() : 0
+    vb = b.date_acquisition ? new Date(b.date_acquisition).getTime() : 0
+  } else if (mode === 'auction') {
     va = a.sale_date ? new Date(a.sale_date).getTime() : 0
     vb = b.sale_date ? new Date(b.sale_date).getTime() : 0
   } else {
-    va = a.date_proposition
-      ? new Date(a.date_proposition).getTime()
-      : 0
-    vb = b.date_proposition
-      ? new Date(b.date_proposition).getTime()
-      : 0
+    va = a.date_proposition ? new Date(a.date_proposition).getTime() : 0
+    vb = b.date_proposition ? new Date(b.date_proposition).getTime() : 0
   }
   break
-
-
 
       case 'asking':
         va = a.asking_price ?? 0
@@ -112,6 +128,8 @@ case 'date':
     if (va > vb) return sortDirection === 'asc' ? 1 : -1
     return 0
   })
+
+
 
   return sorted
 }
@@ -146,6 +164,10 @@ columnKey:
   | 'status'
 }) {
   const active = sortKey === columnKey
+
+
+  
+
 
   return (
     <th
@@ -194,11 +216,15 @@ columnKey:
 
 <SortableTh
 
+
 label={
-  mode === 'auction' || mode === 'bought'
+  mode === 'bought'
     ? 'Acquisition date'
-    : 'Date proposed'
+    : mode === 'auction'
+      ? 'Sale date'
+      : 'Date proposed'
 }
+
 
 
   columnKey="date"
@@ -335,19 +361,21 @@ label={
               {/* Date proposed */}
 
 
+
 <td style={td}>
-
-
-{mode === 'auction' || mode === 'bought'
-  ? a.sale_date
-    ? new Date(a.sale_date).toLocaleDateString('fr-CH')
-    : '—'
-  : a.date_proposition
-    ? new Date(a.date_proposition).toLocaleDateString('fr-CH')
-    : '—'}
-
-
+  {mode === 'bought'
+    ? a.date_acquisition
+      ? new Date(a.date_acquisition).toLocaleDateString('fr-CH')
+      : '—'
+    : mode === 'auction'
+      ? a.sale_date
+        ? new Date(a.sale_date).toLocaleDateString('fr-CH')
+        : '—'
+      : a.date_proposition
+        ? new Date(a.date_proposition).toLocaleDateString('fr-CH')
+        : '—'}
 </td>
+
 
 
               {/* Artist */}

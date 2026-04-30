@@ -246,27 +246,36 @@ const filteredAndSorted = useMemo(() => {
       {/* ===== Controls (screen only) ===== */}
 
 
+
+
 <button
   className="print-controls no-print"
   onClick={async () => {
+    document.documentElement.classList.add('pdf-puppeteer')
+
     const res = await fetch('/api/pdf/adobe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         html: document.documentElement.outerHTML,
+        mode: 'puppeteer',
       }),
     })
+
+    document.documentElement.classList.remove('pdf-puppeteer')
 
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     window.open(url)
   }}
 >
-  Export PDF (Adobe)
+  Export PDF (liens actifs)
 </button>
 
 
+
 <button
+className="print-controls no-print"
   onClick={() => {
     setSortKey('date')
     setSortDirection('desc')
@@ -378,14 +387,16 @@ const filteredAndSorted = useMemo(() => {
 ))}
 
 
+
 <button
-  className="no-print"
+  className="print-controls no-print"
   onClick={async () => {
     const res = await fetch('/api/pdf/adobe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         html: document.documentElement.outerHTML,
+        mode: 'puppeteer',
       }),
     })
 
@@ -394,7 +405,7 @@ const filteredAndSorted = useMemo(() => {
     window.open(url)
   }}
 >
-  Export PDF (Adobe)
+  Export PDF (liens actifs)
 </button>
 
       

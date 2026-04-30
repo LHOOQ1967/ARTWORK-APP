@@ -131,19 +131,13 @@ const images: ArtworkDocument[] =
     ) || []
 
 
-console.log(
-  'certificate value →',
-  artwork.certificate,
-  'type →',
-  typeof artwork.certificate
-)
+
 
 
   return (
     
     <section
       style={{
-        pageBreakAfter: 'always',
         padding: 40,
         boxSizing: 'border-box',
       }}
@@ -166,7 +160,7 @@ console.log(
   </Link>
 </div>)}
 
-
+<div key={artwork.id} className="artwork-block">
 <h2 style={{ fontSize: '1.3rem', marginBottom: 8, textAlign: 'center' }}>
   {artwork.date_proposition
     ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
@@ -175,6 +169,8 @@ console.log(
   {proposedBy && <> by {proposedBy}</>}
 </h2>
 
+<h2 style={{ fontSize: '1.3rem', marginBottom: 8, textAlign: 'right' }}> Status: {artwork.status}
+</h2>
 
       {/* ✅ Artist */}
       {artwork.artist && (
@@ -213,48 +209,21 @@ console.log(
 
 
 
-{/* ✅ Images (max 3, côte à côte) */}
-{images.length > 0 && (
-  <div style={{ margin: '24px 0' }}>
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 12,
-      }}
-    >
-      {images.slice(0, 3).map((img) => (
-        <div key={img.id}>
-          <img
-            src={img.url ?? ''}
-            alt=""
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              display: 'block',
-            }}
-          />
-        </div>
-      ))}
-    </div>
 
-    {/* ✅ Message si plus de 3 images */}
-    {images.length > 3 && (
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: '0.9rem',
-          color: '#666',
-          fontStyle: 'italic',
-        }}
-      >
-        + {images.length - 3} additional image
-        {images.length - 3 > 1 ? 's' : ''} available
-      </div>
-    )}
-  </div>
+
+
+{images[0] && (
+
+<div className="artwork-images">
+  {images.length > 0 && (
+    <div className="artwork-image-wrapper">
+      <img src={images[0].url ?? ''} alt="" />
+    </div>
+  )}
+</div>
+
 )}
+
 
 
       {/* ✅ Metadata */}
@@ -406,7 +375,7 @@ console.log(
         <InfoRow label="Condition" value={artwork.condition} />
  )}
 
-        <InfoRow label="Status" value={artwork.status} />
+        
         <InfoRow label="Priority" value={artwork.priority} />
   
 
@@ -512,9 +481,6 @@ console.log(
     }
   />
 )}
-
-
-
       </div>
 
       {/* ✅ Notes */}
@@ -524,7 +490,8 @@ console.log(
           <p>{artwork.notes}</p>
         </div>
       )}
-<div className="page-break-indicator" />
+</div>
+<div className="artwork-separator" />
     </section>
   )
 }

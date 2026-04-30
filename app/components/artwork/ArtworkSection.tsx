@@ -551,6 +551,18 @@ return (
           marginBottom: 8,
         }}
       >
+                <input
+          type="date"
+          value={newProposedAt}
+          onChange={e => setNewProposedAt(e.target.value)}
+          style={{
+            padding: '6px 8px',
+            fontSize: '0.9rem',
+            border: '1px solid #ccc',
+            borderRadius: 4,
+          }}
+        />
+
         <input
           type="text"
           placeholder="Search"
@@ -565,17 +577,7 @@ return (
           }}
         />
 
-        <input
-          type="date"
-          value={newProposedAt}
-          onChange={e => setNewProposedAt(e.target.value)}
-          style={{
-            padding: '6px 8px',
-            fontSize: '0.9rem',
-            border: '1px solid #ccc',
-            borderRadius: 4,
-          }}
-        />
+
 
         <select
           onChange={e => {

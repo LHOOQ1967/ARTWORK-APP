@@ -14,39 +14,126 @@ export async function POST(req: NextRequest) {
     })
 
     const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
 
+    // ✅ Viewport stable A4 (≈96 DPI)
+    await page.setViewport({
+      width: 1240,
+      height: 1754,
+      deviceScaleFactor: 1,
+    })
+
+    await page.setContent(html, { waitUntil: 'load' })
     await page.emulateMediaType('print')
+
+    // ✅ Supprimer toute UI écran
     await page.evaluate(() => {
       document.querySelectorAll('.no-print').forEach(el => el.remove())
     })
 
-    const pdf = await page.pdf({
+    // ✅ CSS FINAL — HERO IMAGE
+    await page.addStyleTag({
+      content: `
+@media print {
+
+  /* ==============================
+     PAGE
+     ============================== */
+
+  body, main {
+    width: 800px;
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+
+  /* ==============================
+     TYPO
+     ============================== */
+
+  h1, h2 {
+    margin-top: 12px;
+    margin-bottom: 6px;
+  }
+
+  p {
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
+
+  /* ==============================
+     1 ARTWORK = 1 PAGE
+     ============================== */
+
+  .artwork-block {
+    break-after: page;
+    page-break-after: always;
+    padding-top: 24px;
+  }
+
+  .artwork-block:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* ==============================
+     HERO IMAGE (UNE SEULE)
+     ============================== */
+
+  .artwork-images {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: left;
+
+    margin-top: 32px;
+    margin-bottom: 32px;
+  }
+
+  .artwork-image-wrapper {
+    width: 800px;        /* ✅ très large */
+    max-height: 600px;   /* ✅ hero size */
+    height: auto;
+
+    display: flex;
+    align-items: left;
+    justify-content: left;
+    overflow: hidden;
+  }
+
+  .artwork-image-wrapper img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+}
+      `,
+    })
+
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
+      scale: 1,
       margin: {
-        top: '20mm',
-        bottom: '20mm',
-        left: '15mm',
-        right: '15mm',
+        top: '10mm',
+        bottom: '12mm',
+        left: '12mm',
+        right: '12mm',
       },
     })
 
     await browser.close()
 
-    // ✅ ✅ ✅ SOLUTION DÉFINITIVE
-    const arrayBuffer: ArrayBuffer = new Uint8Array(pdf).buffer
-
-    return new Response(arrayBuffer, {
+    return new Response(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename="artwork.pdf"',
+        'Content-Disposition': 'inline; filename="artworks.pdf"',
       },
     })
-  } catch (err) {
-    console.error('PDF generation error:', err)
+  } catch (err: any) {
+    console.error('PDF GENERATION ERROR', err)
     return NextResponse.json(
-      { error: 'PDF generation failed' },
+      { error: 'PDF generation failed', message: err?.message },
       { status: 500 }
     )
   }
