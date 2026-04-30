@@ -138,12 +138,14 @@ await page.evaluate(() => {
 
     await browser.close()
 
-    return new Response(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'inline; filename="artworks.pdf"',
-      },
-    })
+
+return new Response(Buffer.from(pdfBuffer), {
+  headers: {
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': 'inline; filename="artworks.pdf"',
+  },
+})
+
   } catch (err: any) {
     console.error('PDF GENERATION ERROR', err)
     return NextResponse.json(

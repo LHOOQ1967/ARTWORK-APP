@@ -3,18 +3,12 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import type { Artwork, ArtworkWithRelations } from '@/app/types/artwork'
+import type { ArtworkForm, ArtworkWithRelations, ArtworkProposal, Contact } from '@/app/types/artwork'
 
 /* ======================
  * Types locaux (UI only)
  * ====================== */
 
-type Contact = {
-  id: string
-  first_name: string | null
-  last_name: string | null
-  company_name: string | null
-}
 
 type Artist = {
   id: string
@@ -23,33 +17,40 @@ type Artist = {
 }
 
 
+type ArtworkBase = ArtworkForm | ArtworkWithRelations
 
-type Props = {
-  artwork: ArtworkWithRelations
+
+type Props<T extends ArtworkBase> = {
+  artwork: T
   isEditing: boolean
-  setArtwork: (a: ArtworkWithRelations) => void
-  addProposal: (contactId: string, date?: string | null) => Promise<void>
-  removeProposal: (proposalId: string) => Promise<void>
+  setArtwork: React.Dispatch<React.SetStateAction<T>>
+  addProposal?: (contactId: string, date?: string | null) => Promise<void>
+  removeProposal?: (proposalId: string) => Promise<void>
 }
 
+
+function hasPersistentId(
+  artwork: ArtworkBase
+): artwork is ArtworkWithRelations {
+  return typeof (artwork as any).id === 'string'
+}
 
 
 
 function contactLabel(c?: Contact | Artist | null): string {
   if (!c) return '—'
-  return (
-    c.company_name ||
-    [c.first_name, c.last_name].filter(Boolean).join(' ')
-  )
+
+  // ✅ Si c'est un Contact (company_name existe)
+  if ('company_name' in c && c.company_name) {
+    return c.company_name
+  }
+
+  // ✅ Contact ou Artist → fallback nom/prénom
+  return [c.first_name, c.last_name].filter(Boolean).join(' ')
 }
 
 
-
-
-
-
-
-function SectionBlock({ children }) {
+function SectionBlock({ children }: { children: React.ReactNode }) {
   return (
     <section
       style={{
@@ -63,11 +64,6 @@ function SectionBlock({ children }) {
     </section>
   )
 }
-
-
-
-
-
 
 
 const editInputStyle: React.CSSProperties = {
@@ -96,40 +92,52 @@ const STATUS_OPTIONS = [
  * ====================== */
 
 
-export function ArtworkSection({
+
+export function ArtworkSection<T extends ArtworkBase>({
   artwork,
   isEditing,
   setArtwork,
   addProposal,
   removeProposal,
-}: Props) {
+}: Props<T>) {
 
+  // ✅ ICI : wrapper du setter
+  const setArtworkWithRelations: React.Dispatch<
+    React.SetStateAction<ArtworkWithRelations>
+  > | null = hasPersistentId(artwork)
+    ? updater => {
+        setArtwork(updater as React.SetStateAction<T>)
+      }
+    : null
 
-  return (
-    <section
-      style={{
-        marginBottom: 30,
-        padding: 0,       
-        borderRadius: 6,
-        color: 'black',
-      }}
-    >
+  // ✅ ENSUITE seulement le return
 
-{isEditing ? (
-  <ArtworkEdit
-    artwork={artwork}
-    setArtwork={setArtwork}
-    isEditing={isEditing}
-    addProposal={addProposal}
-    removeProposal={removeProposal}
-  />
-) : (
-  <ArtworkView artwork={artwork} />
-)}
+return (
+  <section
+    style={{
+      marginBottom: 30,
+      padding: 0,
+      borderRadius: 6,
+      color: 'black',
+    }}
+  >
+    {isEditing && hasPersistentId(artwork) && setArtworkWithRelations ? (
+      <ArtworkEdit
+        artwork={artwork}
+        setArtwork={setArtworkWithRelations}
+        isEditing={isEditing}
+        addProposal={addProposal}
+        removeProposal={removeProposal}
+      />
+    ) : hasPersistentId(artwork) ? (
+      <ArtworkView artwork={artwork} />
+    ) : null}
+  </section>
+)
 
-    </section>
-  )
 }
+
+
 
 /* =========================================================
  * ======================= VIEW =============================
@@ -216,6 +224,7 @@ function ArtworkView({ artwork }: { artwork: ArtworkWithRelations }) {
  * ========================================================= */
 
 
+
 function ArtworkEdit({
   artwork,
   setArtwork,
@@ -224,11 +233,12 @@ function ArtworkEdit({
   removeProposal,
 }: {
   artwork: ArtworkWithRelations
-  setArtwork: (a: ArtworkWithRelations) => void
+  setArtwork: React.Dispatch<React.SetStateAction<ArtworkWithRelations>>
   isEditing: boolean
-  addProposal: (contactId: string, date?: string | null) => Promise<void>
-  removeProposal: (proposalId: string) => Promise<void>
+  addProposal?: (contactId: string, date?: string | null) => Promise<void>
+  removeProposal?: (proposalId: string) => Promise<void>
 }) {
+
 
 
   
@@ -582,7 +592,7 @@ return (
         <select
           onChange={e => {
             if (!e.target.value) return
-            addProposal(e.target.value, newProposedAt || null)
+            addProposal?.(e.target.value, newProposedAt || null)
             setProposalQuery('')
             setNewProposedAt('')
             e.target.value = ''
@@ -601,7 +611,7 @@ return (
 
     {/* 📋 Liste existante */}
     {artwork.artwork_proposals?.length ? (
-      artwork.artwork_proposals.map(p => (
+      (artwork.artwork_proposals as ArtworkProposal[]).map(p => (
         <div
           key={p.id}
           style={{
@@ -621,7 +631,7 @@ return (
 
           {isEditing && (
             <button
-              onClick={() => removeProposal(p.id)}
+              onClick={() => removeProposal?.(p.id)}
               style={{
                 border: 'none',
                 background: 'none',
@@ -682,10 +692,21 @@ return (
           setArtwork({
             ...artwork,
             artist_id: e.target.value || null,
-            artist:
-              artistResults.find(a => a.id === e.target.value) ||
-              artistOptions.find(a => a.id === e.target.value) ||
-              null,
+
+artist: (() => {
+  const a =
+    artistResults.find(a => a.id === e.target.value) ||
+    artistOptions.find(a => a.id === e.target.value)
+
+  return a
+    ? {
+        id: a.id,
+        first_name: a.first_name ?? '',
+        last_name: a.last_name ?? '',
+      }
+    : null
+})(),
+
           })
         }
         style={{
@@ -922,12 +943,19 @@ return (
   {isEditing ? (
     <select
       value={artwork.priority ?? ''}
-      onChange={e =>
-        setArtwork({
-          ...artwork,
-          priority: e.target.value || null,
-        })
-      }
+
+onChange={e =>
+  setArtwork({
+    ...artwork,
+
+priority: e.target.value as
+  | 'information'
+  | 'medium'
+  | 'high',
+
+  })
+}
+
       style={{ ...editInputStyle, width: 120 }}
     >
       <option value="">—</option>
@@ -945,12 +973,19 @@ return (
   {isEditing ? (
     <select
       value={artwork.status ?? ''}
-      onChange={e =>
-        setArtwork({
-          ...artwork,
-          status: e.target.value || null,
-        })
-      }
+
+onChange={e =>
+  setArtwork({
+    ...artwork,
+    status: e.target.value as
+      | 'draft'
+      | 'viewed'
+      | 'negotiation'
+      | 'bought'
+      | 'archived',
+  })
+}
+
       style={{ ...editInputStyle, width: 160 }}
     >
       <option value="">—</option>
@@ -1311,13 +1346,18 @@ return (
   {/* Acquisition Yes / No */}
   <EditRow label="Acquired">
     <select
-      value={artwork.acquired ? 'yes' : 'no'}
-      onChange={e =>
-        setArtwork({
-          ...artwork,
-          acquired: e.target.value === 'yes',
-        })
-      }
+      value={artwork.date_acquisition ? 'yes' : 'no'}
+
+onChange={e =>
+  setArtwork({
+    ...artwork,
+    date_acquisition:
+      e.target.value === 'yes'
+        ? artwork.date_acquisition ?? new Date().toISOString().slice(0, 10)
+        : null,
+  })
+}
+
       style={{ ...editInputStyle, width: 90 }}
     >
       <option value="no">No</option>
@@ -1326,7 +1366,7 @@ return (
   </EditRow>
 
   {/* Champs visibles uniquement si acquis */}
-  {artwork.acquired && (
+  {artwork.date_acquisition && (
     <div>
       {/* Buyer */}
       <EditRow label="Buyer">
@@ -1627,13 +1667,7 @@ function ReadonlyContact({
   contact?: Contact | Artist | null
   hint?: string
 }) {
-  const value =
-    contact
-      ? contact.company_name ||
-        [contact.first_name, contact.last_name]
-          .filter(Boolean)
-          .join(' ')
-      : '—'
+const value = contactLabel(contact)
 
   return (
     <EditRow label={label}>

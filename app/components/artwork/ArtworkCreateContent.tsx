@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import type { ArtworkForm } from '@/app/types/artwork'
+import type { ArtworkForm, ArtworkWithRelations } from '@/app/types/artwork'
 import ArtworkFormFields from './ArtworkFormFields'
 import { ArtworkSection } from './ArtworkSection'
 
@@ -68,9 +68,9 @@ const EMPTY_ARTWORK: ArtworkForm = {
 
 export default function ArtworkCreateContent() {
   const router = useRouter()
-  
+ 
+const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
 
-  const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,10 +79,12 @@ export default function ArtworkCreateContent() {
 
 
 async function saveArtwork() {
-  if (!artwork.title.trim()) {
-    setError('Title is required')
-    return
-  }
+
+if (!artwork || !artwork.title || !artwork.title.trim()) {
+  setError('Title is required')
+  return
+}
+
 
   try {
     setLoading(true)
@@ -180,6 +182,12 @@ if (!data?.id) {
     return <p style={{ padding: 40, color: 'red' }}>{error}</p>
   }
 
+
+if (!artwork) {
+  return null // ou un loader, ou un message
+}
+
+  
   return (
     <main
       style={{
@@ -209,13 +217,13 @@ if (!data?.id) {
       </div>
 
 
+
 <ArtworkSection
   artwork={artwork}
   isEditing={true}
   setArtwork={setArtwork}
-  addProposal={undefined}
-  removeProposal={undefined}
 />
+
 
     </main>
   )

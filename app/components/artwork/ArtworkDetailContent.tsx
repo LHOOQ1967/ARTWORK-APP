@@ -194,6 +194,20 @@ useEffect(() => {
      STATE
      ====================== */
   const [artwork, setArtwork] = useState<ArtworkWithRelations | null>(null)
+
+  // ✅ Wrapper NON-NULL pour ArtworkSection
+  const setArtworkNonNull = (
+    updater: React.SetStateAction<ArtworkWithRelations>
+  ) => {
+    setArtwork(prev => {
+      if (!prev) return prev
+      return typeof updater === 'function'
+        ? updater(prev)
+        : updater
+    })
+  }
+
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [openImage, setOpenImage] = useState<string | null>(null)
@@ -848,9 +862,7 @@ if (error) {
 }
 
 // 3️⃣ Garde technique : artwork DOIT exister à partir d’ici
-if (!artwork) {
-  return null
-}
+if (!artwork) return null
 
 
 
@@ -974,13 +986,15 @@ const destinationContact = artwork.destination_contact ?? null
             }}
           >
             {images.map((img) => (
-              <SortableImage
-                key={img.id}
-                image={img}
-                isEditing={isEditing}
-                onClick={() => setOpenImage(img.url)}
-                onDelete={() => deleteDocument(img.id)}
-              />
+
+<SortableImage
+  key={img.id}
+  image={img}
+  isEditing={isEditing}
+  onOpen={(url) => setOpenImage(url)}
+  onDelete={(id) => deleteDocument(id)}
+/>
+
             ))}
           </div>
         </SortableContext>
@@ -994,7 +1008,7 @@ const destinationContact = artwork.destination_contact ?? null
 <ArtworkSection
   artwork={artwork}
   isEditing={isEditing}
-  setArtwork={setArtwork}
+  setArtwork={setArtworkNonNull} 
   addProposal={addProposal}
   removeProposal={removeProposal}
 />

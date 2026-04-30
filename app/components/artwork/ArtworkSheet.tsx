@@ -352,7 +352,7 @@ const images: ArtworkDocument[] =
     value="Yes"
   />
 )}
-{artwork.location === true && (
+{artwork.location && (
       <InfoRow
         label="Location"
           value={

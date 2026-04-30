@@ -65,7 +65,7 @@ useEffect(() => {
 
 
  
-function sortArtworks(artworks: Artwork[]) {
+function sortArtworks(artworks: ArtworkListItem[]) {
   if (!sortKey) return artworks
 
   const sorted = [...artworks].sort((a, b) => {
@@ -110,9 +110,16 @@ case 'date':
 
       case 'priority':
         // ordre métier explicite
-        const priorityOrder = { high: 3, medium: 2, low: 1 }
-        va = priorityOrder[a.priority] || 0
-        vb = priorityOrder[b.priority] || 0
+
+const priorityOrder: Record<'high' | 'medium' | 'low', number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+}
+
+va = a.priority ? priorityOrder[a.priority] : 0
+vb = b.priority ? priorityOrder[b.priority] : 0
+
         break
 
       case 'status':
@@ -136,7 +143,7 @@ case 'date':
 
 
 function getDisplayDate(
-  artwork: Artwork,
+  artwork: ArtworkListItem,
   mode?: 'market' | 'auction' | 'bought'
 ) {
   if (mode === 'auction') {
@@ -224,32 +231,19 @@ label={
       ? 'Sale date'
       : 'Date proposed'
 }
-
-
-
   columnKey="date"
-      sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
     />
 
-    <SortableTh
-      label="Artist"
-      columnKey="artist"
-      sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
-    />
+
+<SortableTh
+  label="Artist"
+  columnKey="artist"
+/>
+
 
     <SortableTh
       label="Title"
       columnKey="title"
-      sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
     />
 
 
@@ -257,10 +251,6 @@ label={
   <SortableTh
     label="Asking"
     columnKey="asking"
-    sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
   />
 )}
 
@@ -268,10 +258,6 @@ label={
   <SortableTh
     label="Estimate"
     columnKey="estimate"
-    sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
   />
 )}
 
@@ -279,10 +265,6 @@ label={
   <SortableTh
     label="Cost price"
     columnKey="cost"
-    sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
   />
 )}
 
@@ -291,19 +273,11 @@ label={
     <SortableTh
       label="Priority"
       columnKey="priority"
-      sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
     />
 
     <SortableTh
       label="Status"
       columnKey="status"
-      sortKey={sortKey}
-      sortDirection={sortDirection}
-      setSortKey={setSortKey}
-      setSortDirection={setSortDirection}
     />
   </tr>
 </thead>
@@ -333,17 +307,19 @@ label={
       ) || []
 
     return images.length > 0 ? (
-      <img
-        src={images[0].url}
-        alt=""
-        style={{
-          width: 60,
-          height: 60,
-          objectFit: 'cover',
-          borderRadius: 4,
-        }}
-        loading="lazy"
-      />
+
+<img
+  src={images[0].url ?? undefined}
+  alt=""
+  style={{
+    width: 60,
+    height: 60,
+    objectFit: 'cover',
+    borderRadius: 4,
+  }}
+  loading="lazy"
+/>
+
     ) : (
       <div
         style={{

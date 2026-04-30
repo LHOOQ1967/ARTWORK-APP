@@ -45,9 +45,12 @@ export function SortableDocument({
     transition,
   }
 
-  function handleOpen() {
-    window.open(document.url, '_blank', 'noopener,noreferrer')
-  }
+
+function handleOpen() {
+  if (!document.url) return
+  window.open(document.url, '_blank', 'noopener,noreferrer')
+}
+
 
   async function saveLabel() {
     if (label === (document.label ?? '')) return

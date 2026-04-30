@@ -129,63 +129,6 @@ export type Artwork = {
 // app/types/artwork.ts
 
 
-export type ArtworkPrint = {
-  id: string
-  title?: string | null
-  medium?: string | null
-  signature?: string | null
-  year_execution?: number | null
-  paintings?: string | null
-
-  status?: string | null
-  priority?: string | null
-
-  asking_price?: number | null
-  currency?: string | null
-
-  auction_link?: string | null
-  sale_date?: string | null
-  sale_time?: string | null
-  estimate_low?: number | null
-  estimate_high?: number | null
-  auction_currency?: string | null
-  lot?: string | null
-
-  sold_hammer?: number | null
-  sold_premium?: number | null
-  underbidder?: boolean | null
-  guarantee?: boolean | null
-
-  notes?: string | null
-  condition?: string | null
-
-  artist?: Artist | null
-  proposedBy?: Contact | null
-  buyer?: Contact | null
-  destination?: Contact | null
-  location?: Contact | null
-
-  documents?: ArtworkDocument[]
-
-  date_proposition?: string | null
-
-  height_cm?: number | null
-  width_cm?: number | null
-  depth_cm?: number | null
-
-  auctions?: boolean | null
-  view_date?: string | null
-
-  certificate?: boolean | null
-  certificateLocation?: Contact | null
-
-  date_acquisition: string | null
-  cost_amount?: number | null
-  cost_currency?: string | null
-
-  insurance_value?: number | null
-  insurance_currency?: string | null
-}
 
 export type ArtworkListItem = {
   id: string
@@ -288,8 +231,8 @@ id: string
   documents: ArtworkDocument[]
   artwork_proposals?: ArtworkProposal[]
 
-  status?: ArtworkStatus
-  priority?: ArtworkPriority
+  status?: 'draft' | 'viewed' | 'negotiation' | 'bought' | 'archived'
+  priority?: 'information' | 'medium' | 'high'
 
   asking_price?: number | null
   currency?: string | null
@@ -336,7 +279,6 @@ id: string
   location?: Contact | null
   destination?: Contact | null
   destination_contact?: Contact | null
-  documents: ArtworkDocument[]
   certificateLocation?: Contact | null
   buyer?: Contact | null
   auctionContact?: Contact | null

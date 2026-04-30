@@ -10,5 +10,5 @@ export default function ArtworkEditPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
-  return <ArtworkDetailContent artworkId={id} />
+  return <ArtworkDetailContent artworkId={id} isEditMode={true} />
 }

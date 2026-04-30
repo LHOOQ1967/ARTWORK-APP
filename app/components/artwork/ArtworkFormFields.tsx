@@ -30,8 +30,9 @@ export default function ArtworkFormFields({
       <div style={{ marginBottom: 12 }}>
         <label>Title</label>
         
+
 <input
-  value={artwork.title}
+  value={artwork.title ?? ''}
   onChange={e =>
     setArtwork(prev => ({
       ...prev,
@@ -47,6 +48,7 @@ export default function ArtworkFormFields({
     borderRadius: 4,
   }}
 />
+
 
       </div>
 
