@@ -141,95 +141,30 @@ body {
 }
 
 
-
-
-
 /* =========================================================
-   PDF Puppeteer — OPTION B (PX, PRIORITAIRE)
+   SÉPARATION VISUELLE ÉCRAN UNIQUEMENT
    ========================================================= */
 
-@media print {
-
-  /* ==============================
-     PAGE GEOMETRY (PUPPETEER)
-     ============================== */
-
-  body,
-  main {
-    width: 1240px;
-    margin: 0;
-    padding: 0;
-    background: white;
-  }
-
-  /* ==============================
-     TYPO / ESPACEMENTS
-     ============================== */
-
-  h1, h2 {
-    margin-top: 12px;
-    margin-bottom: 6px;
-  }
-
-  .info-row {
-    margin-bottom: 4mm;
-  }
-
-  p {
-    margin-top: 6px;
-    margin-bottom: 6px;
-  }
-
-  /* ==============================
-     1 ARTWORK = 1 PAGE (DÉCISIF)
-     ============================== */
-
+@media screen {
   .artwork-block {
-    break-after: page;
-    page-break-after: always;
-
-    /* respiration visuelle */
-    padding-top: 24px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 3px solid #e0e0e0;
   }
 
+  /* ✅ pas de ligne après le dernier */
   .artwork-block:last-child {
-    break-after: auto;
-    page-break-after: auto;
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
   }
+}
 
-  /* ==============================
-     IMAGES — GRAND FORMAT
-     ============================== */
 
-  .artwork-images {
-    display: grid;
 
-    /* ✅ 3 images très grandes */
-    grid-template-columns: repeat(2, 640px);
-    gap: 32px;
-
-    justify-content: start;
-    margin-top: 24px;
-    margin-bottom: 24px;
+@media print {
+  section {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
   }
-
-  .artwork-image-wrapper {
-    width: 640px;
-    max-height: 600px;
-    height: auto;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    overflow: hidden;
-  }
-
-  .artwork-image-wrapper img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    display: block;
-  }
-
 }

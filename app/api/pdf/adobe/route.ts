@@ -25,6 +25,13 @@ export async function POST(req: NextRequest) {
     await page.setContent(html, { waitUntil: 'load' })
     await page.emulateMediaType('print')
 
+
+await page.evaluate(() => {
+  // 🔴 Supprimer les portails Next.js (DEV)
+  document.querySelectorAll('nextjs-portal').forEach(el => el.remove())
+})
+
+
     // ✅ Supprimer toute UI écran
     await page.evaluate(() => {
       document.querySelectorAll('.no-print').forEach(el => el.remove())
@@ -45,6 +52,13 @@ export async function POST(req: NextRequest) {
     padding: 0;
     background: white;
   }
+
+  
+  section {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
 
   /* ==============================
      TYPO
@@ -67,7 +81,7 @@ export async function POST(req: NextRequest) {
   .artwork-block {
     break-after: page;
     page-break-after: always;
-    padding-top: 24px;
+    padding-top: 5px;
   }
 
   .artwork-block:last-child {
@@ -115,10 +129,10 @@ export async function POST(req: NextRequest) {
       printBackground: true,
       scale: 1,
       margin: {
-        top: '10mm',
-        bottom: '12mm',
-        left: '12mm',
-        right: '12mm',
+        top: '3mm',
+        bottom: '4mm',
+        left: '6mm',
+        right: '6mm',
       },
     })
 

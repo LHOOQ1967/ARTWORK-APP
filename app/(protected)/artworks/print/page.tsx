@@ -386,29 +386,7 @@ className="print-controls no-print"
   />
 ))}
 
-
-
-<button
-  className="print-controls no-print"
-  onClick={async () => {
-    const res = await fetch('/api/pdf/adobe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        html: document.documentElement.outerHTML,
-        mode: 'puppeteer',
-      }),
-    })
-
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    window.open(url)
-  }}
->
-  Export PDF (liens actifs)
-</button>
-
-      
+     
     </main>
   )
 }
