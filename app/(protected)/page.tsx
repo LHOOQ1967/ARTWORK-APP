@@ -2,6 +2,7 @@
 'use client'
 
 import Link from 'next/link'
+import { AuditProposedAtShortcut } from '@/app/components/AuditProposedAtShortcut'
 
 export default function HomePage() {
   return (
@@ -52,6 +53,9 @@ export default function HomePage() {
           title="Fiche descriptive"
           subtitle="pour impression"
         />
+
+  <AuditProposedAtShortcut />
+
       </div>
     </main>
   )

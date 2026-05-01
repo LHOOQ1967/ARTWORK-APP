@@ -624,9 +624,18 @@ return (
           <span>{contactLabel(p.contact)}</span>
 
           {p.proposed_at && (
-            <span style={{ fontSize: 12, color: '#777' }}>
-              ({new Date(p.proposed_at).toLocaleDateString('fr-CH')})
-            </span>
+
+
+<span style={{ fontSize: 12, color: '#777' }}>
+  (
+  {(
+    p.proposed_at
+      ? new Date(p.proposed_at)
+      : new Date()
+  ).toLocaleDateString('fr-CH')}
+  )
+</span>
+
           )}
 
           {isEditing && (

@@ -215,6 +215,8 @@ useEffect(() => {
   const [newDocUrl, setNewDocUrl] = useState('')
   const [newDocType, setNewDocType] = useState<'image' | 'onedrive'>('onedrive')
   const [isAddingProposal, setIsAddingProposal] = useState(false)
+  const [proposedToFilter, setProposedToFilter] = useState<string | 'all'>('all')
+
 
 
   

@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import type { ArtworkForm, ArtworkWithRelations } from '@/app/types/artwork'
-import ArtworkFormFields from './ArtworkFormFields'
-import { ArtworkSection } from './ArtworkSection'
+import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
+
 
 const EMPTY_ARTWORK: ArtworkForm = {
   title: '',
@@ -49,6 +49,7 @@ const EMPTY_ARTWORK: ArtworkForm = {
   guarantee: false,
 
   date_proposition: null,
+  date_proposition: new Date().toISOString().slice(0, 10),
   view_date: null,
   condition: null,
   notes: null,
@@ -66,6 +67,7 @@ const EMPTY_ARTWORK: ArtworkForm = {
   artwork_proposals: [],
 }
 
+
 export default function ArtworkCreateContent() {
   const router = useRouter()
  
@@ -73,6 +75,127 @@ const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const today = new Date().toISOString().slice(0, 10)
+ 
+// ✅ Contacts (locations, certificates, buyers, etc.)
+const [contactOptions, setContactOptions] = useState<any[]>([])
+
+useEffect(() => {
+  const loadContacts = async () => {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id, company_name, first_name, last_name')
+      .order('company_name', { ascending: true })
+
+    if (!error && data) {
+      setContactOptions(data)
+    }
+  }
+
+  loadContacts()
+}, [])
+ 
+
+
+
+const [artistQuery, setArtistQuery] = useState('')
+const [artistResults, setArtistResults] = useState<Artist[]>([])
+const [artistOptions, setArtistOptions] = useState<Artist[]>([])
+
+
+useEffect(() => {
+  if (!artistQuery.trim()) {
+    setArtistResults([])
+    return
+  }
+
+  const timeout = setTimeout(async () => {
+    const { data, error } = await supabase
+      .from('artists')
+      .select('id, first_name, last_name')
+      .or([
+        `first_name.ilike.%${artistQuery}%`,
+        `last_name.ilike.%${artistQuery}%`,
+      ].join(','))
+      .order('last_name')
+      .limit(10)
+
+    if (!error) {
+      setArtistResults(data ?? [])
+    }
+  }, 300)
+
+  return () => clearTimeout(timeout)
+}, [artistQuery])
+
+
+// 🔍 Proposed by (contacts)
+const [contactQuery, setContactQuery] = useState('')
+const [contactResults, setContactResults] = useState<Contact[]>([])
+
+
+useEffect(() => {
+  if (!contactQuery.trim()) {
+    setContactResults([])
+    return
+  }
+
+  const timeout = setTimeout(async () => {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id, company_name, first_name, last_name')
+      .or([
+        `company_name.ilike.%${contactQuery}%`,
+        `first_name.ilike.%${contactQuery}%`,
+        `last_name.ilike.%${contactQuery}%`,
+      ].join(','))
+      .limit(10)
+
+    if (!error) {
+      setContactResults(data ?? [])
+    }
+  }, 300)
+
+  return () => clearTimeout(timeout)
+}, [contactQuery])
+
+// 👤 Buyer
+const [buyerResults, setBuyerResults] = useState<Contact[]>([])
+
+
+// 📍 Destination
+const [destinationResults, setDestinationResults] = useState<Contact[]>([])
+
+
+// 🔨 Auction house
+const [auctionQuery, setAuctionQuery] = useState('')
+const [auctionResults, setAuctionResults] = useState<Contact[]>([])
+
+useEffect(() => {
+  if (!auctionQuery.trim()) {
+    setAuctionResults([])
+    return
+  }
+
+  const timeout = setTimeout(async () => {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id, company_name, first_name, last_name')
+
+.or([
+  `company_name.ilike.%${contactQuery}%`,
+  `first_name.ilike.%${contactQuery}%`,
+  `last_name.ilike.%${contactQuery}%`,
+].join(','))
+
+      .limit(10)
+
+    setAuctionResults(data ?? [])
+  }, 300)
+
+  return () => clearTimeout(timeout)
+}, [auctionQuery])
 
 
 
@@ -187,44 +310,87 @@ if (!artwork) {
   return null // ou un loader, ou un message
 }
 
-  
-  return (
-    <main
-      style={{
-        padding: 40,
-        minHeight: '100vh',
-        backgroundColor: '#006039',
-        color: 'white',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: 8,
-          marginBottom: 20,
-        }}
-      >
-        <button onClick={() => router.push('/artworks')}>
-          Cancel
-        </button>
+ 
+
+return (
+  <main style={{ padding: 40, backgroundColor: '#006039', color: 'white' }}>
+    <h1>Create artwork</h1>
 
 
-<button onClick={saveArtwork} disabled={loading}>
-  Save
-</button>
+<div
+  style={{
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 32,
+  }}
+>
+  {/* Cancel */}
+  <button
+    type="button"
+    onClick={() => router.back()}
+    style={{
+      padding: '10px 16px',
+      background: 'transparent',
+      color: 'white',
+      border: '1px solid white',
+      borderRadius: 4,
+      cursor: 'pointer',
+    }}
+  >
+    Cancel
+  </button>
 
-      </div>
+  {/* Save */}
+  <button
+    type="button"
+    onClick={saveArtwork}
+    disabled={loading}
+    style={{
+      padding: '10px 16px',
+      background: '#ffffff',
+      color: '#006039',
+      border: 'none',
+      borderRadius: 4,
+      cursor: 'pointer',
+      fontWeight: 600,
+    }}
+  >
+    {loading ? 'Saving…' : 'Save'}
+  </button>
+</div>
 
 
 
-<ArtworkSection
+
+<ArtworkFieldsLayout
   artwork={artwork}
-  isEditing={true}
   setArtwork={setArtwork}
+  isEditing={true}
+
+  artistQuery={artistQuery}
+  setArtistQuery={setArtistQuery}
+  artistResults={artistResults}
+  artistOptions={artistOptions}
+
+  contactQuery={contactQuery}
+  setContactQuery={setContactQuery}
+  contactResults={contactResults}
+  contactOptions={contactOptions}
+
+  
+  auctionQuery={auctionQuery}
+  setAuctionQuery={setAuctionQuery}
+  auctionResults={auctionResults}
+  buyerResults={buyerResults}
+  destinationResults={destinationResults}
 />
 
 
-    </main>
-  )
+
+  </main>
+)
+
+
+
 }

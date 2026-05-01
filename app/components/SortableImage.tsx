@@ -56,8 +56,11 @@ export function SortableImage({
           src={image.url}
           alt={image.label || ''}
           style={{
-            width: '100%',
-            height: 'auto',
+
+    maxHeight: 240,        // ✅ LIMITE HAUTEUR
+    width: 'auto',
+    maxWidth: '100%',
+
             objectFit: 'contain',
             display: 'block',
             pointerEvents: 'none', // ⭐ CRITIQUE : empêche conflit click / drag

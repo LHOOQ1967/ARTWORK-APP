@@ -126,6 +126,9 @@ const [statusFilter, setStatusFilter] =
 const [auctionFilter, setAuctionFilter] =
   useState<'all' | 'auction' | 'non-auction'>('all')
 
+const [proposedToFilter, setProposedToFilter] =
+  useState<string | 'all'>('all')
+
 
 
   /* ======================
@@ -198,6 +201,16 @@ const filteredAndSorted = useMemo(() => {
       }
       return true
     })
+    
+.filter(a => {
+  if (proposedToFilter === 'all') return true
+
+  // ✅ artwork doit avoir au moins une proposal vers ce contact
+  return (a.proposals ?? []).some(
+    (p: any) => p.contact_id === proposedToFilter
+  )
+})
+
 
   // ✅ CAS SPÉCIAL : Status = All
   if (statusFilter === 'all') {
@@ -225,6 +238,7 @@ const filteredAndSorted = useMemo(() => {
   statusFilter,
   priorityFilter,
   auctionFilter,
+  proposedToFilter,
   sortKey,
   sortDirection,
 ])
@@ -274,18 +288,21 @@ const filteredAndSorted = useMemo(() => {
 
 
 
+
 <button
-className="print-controls no-print"
+  className="print-controls no-print"
   onClick={() => {
     setSortKey('date')
     setSortDirection('desc')
     setStatusFilter('active')
     setPriorityFilter('all')
     setAuctionFilter('all')
+    setProposedToFilter('all') // ✅ ICI
   }}
 >
   Reset
 </button>
+
 
 
 <div
@@ -366,6 +383,35 @@ className="print-controls no-print"
       <option value="medium">Medium</option>
       <option value="low">Low</option>
     </select>
+
+<select
+  value={proposedToFilter}
+  onChange={e =>
+    setProposedToFilter(e.target.value as any)
+  }
+>
+  <option value="all">Proposed to (all)</option>
+
+  {Array.from(
+    new Map(
+      artworks
+        .flatMap(a => a.proposals ?? [])
+        .map(p => [
+          p.contact_id,
+          {
+            id: p.contact_id,
+            label: p.contact_label,
+          },
+        ])
+    ).values()
+  ).map(c => (
+    <option key={c.id} value={c.id}>
+      {c.label}
+    </option>
+  ))}
+</select>
+
+
   </div>
 
   {/* Action */}
