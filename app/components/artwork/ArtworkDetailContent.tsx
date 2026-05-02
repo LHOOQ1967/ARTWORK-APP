@@ -52,43 +52,6 @@ function SectionBlock({ children }: { children: React.ReactNode }) {
 }
 
 
-function ActionButton({
-  children,
-  onClick,
-  style,
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  style?: React.CSSProperties
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        backgroundColor: '#f3f3f3',
-        border: '1px solid #ccc',
-        borderRadius: 4,
-        padding: '6px 12px',
-        fontSize: '0.9rem',
-        cursor: 'pointer',
-        color: '#333',
-        ...style,
-      }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.backgroundColor = '#e9e9e9')
-      }
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.backgroundColor = '#f3f3f3')
-      }
-      onFocus={(e) =>
-        (e.currentTarget.style.boxShadow = '0 0 0 2px #ddd')
-      }
-      onBlur={(e) => (e.currentTarget.style.boxShadow = 'none')}
-    >
-      {children}
-    </button>
-  )
-}
 
 function InlineRow({
   label,
@@ -549,9 +512,7 @@ setArtwork(prev => {
 
 }
 
- 
- 
- 
+  
 
 async function addDocument() {
   if (!artwork?.id || !newDocUrl) return
@@ -692,6 +653,7 @@ const images =
    border: '1px solid #ccc',
    borderRadius: 4,
    fontSize: '0.95rem',
+   backgroundColor: 'white'
  };
  
  
@@ -892,7 +854,7 @@ const destinationContact = artwork.destination_contact ?? null
 
 
 
-<ActionButton
+<button className="edit-button"
   onClick={() => {
     if (!artwork?.id) return
 
@@ -906,36 +868,29 @@ const destinationContact = artwork.destination_contact ?? null
   }}
 >
   {isEditing ? 'Cancel' : 'Edit'}
-</ActionButton>
+</button>
 
 
 
 {isEditing && (
-  <ActionButton
+<button className="edit-button"
     onClick={deleteArtwork}
     style={{
       backgroundColor: '#cc0000',
-      borderColor: '#cc0000',
       color: 'white',
     }}
   >
     Delete
-  </ActionButton>
+  </button>
 )}
 
 
 {isEditing && (
-  <ActionButton
+<button className="edit-button"
     onClick={saveArtwork}
-    style={{
-      padding: '6px 12px',
-      borderRadius: 4,
-      border: '1px solid #ccc',
-      cursor: 'pointer',
-    }}
   >
     Save
-  </ActionButton>
+  </button>
 )}
 
 
@@ -948,14 +903,13 @@ const destinationContact = artwork.destination_contact ?? null
   <section
     style={{
       marginTop: 40,
-      backgroundColor: '#ffffff',
+      marginBottom: 40,
+      backgroundColor: '#e6e5e5',
       color: '#000',
       borderRadius: 8,
       padding: 24,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
     }}
   >
-    <h3 style={{ marginBottom: 16 }}>Images</h3>
 
     {isEditing && artwork.id && (
       <ImageUploader
@@ -982,6 +936,8 @@ const destinationContact = artwork.destination_contact ?? null
           <div
             style={{
               display: 'flex',
+              justifyContent: 'center',
+              backgroundColor: '#e6e5e5',
               gap: 12,
               flexWrap: 'wrap',
               marginTop: 16,
@@ -1021,43 +977,61 @@ const destinationContact = artwork.destination_contact ?? null
   <section
     style={{
       marginTop: 40,
-      backgroundColor: '#ffffff',
+      backgroundColor: '#e6e5e5',
       color: '#000',
       borderRadius: 8,
       padding: 24,
       boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
     }}
   >
-    <h3 style={{ marginBottom: 16 }}>Documents</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem', 
+    marginBottom: '10px'   // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Documents
+</h3>
 
-    {isEditing && artwork.id && (
-      <div style={{ marginBottom: 16 }}>
-        <InlineRow label="Add document">
-          <input
-            type="text"
-            placeholder="Label"
-            value={newDocLabel}
-            onChange={(e) => setNewDocLabel(e.target.value)}
-            style={editInputStyle}
-          />
 
-          <input
-            type="url"
-            placeholder="URL"
-            value={newDocUrl}
-            onChange={(e) => setNewDocUrl(e.target.value)}
-            style={editInputStyle}
-          />
 
-          <ActionButton
-            onClick={addDocument}
-            style={{ marginTop: 8 }}
-          >
-            Add
-          </ActionButton>
-        </InlineRow>
-      </div>
-    )}
+{isEditing && artwork.id && (
+  <div style={{ marginBottom: 16 }}>
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        width: '100%',
+      }}
+    >
+      <input
+        type="text"
+        placeholder="Label"
+        value={newDocLabel}
+        onChange={(e) => setNewDocLabel(e.target.value)}
+        style={{ ...editInputStyle, flex: 1 }}
+      />
+
+      <input
+        type="url"
+        placeholder="URL"
+        value={newDocUrl}
+        onChange={(e) => setNewDocUrl(e.target.value)}
+        style={{ ...editInputStyle, flex: 2 }}
+      />
+
+      <button
+        className="edit-button"
+        onClick={addDocument}
+      >
+        Add
+      </button>
+    </div>
+  </div>
+)}
+
 
     {onedriveDocuments.length > 0 && (
       <DndContext

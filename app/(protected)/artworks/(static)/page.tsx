@@ -181,22 +181,12 @@ const archivedArtworks = sortedArtworks.filter(
           Primary and Secondary Market ({activeArtworks.length})
         </h2>
 
+
         <Link href="/artworks/new">
-          <span
-            style={{
-              display: 'inline-block',
-              padding: '12px 24px',
-              fontWeight: 700,
-              backgroundColor: '#f5f5f5',
-              borderBottom: '2px solid #ccc',
-              color: 'black',
-              borderRadius: 6,
-              cursor: 'pointer',
-              textDecoration: 'none',
-            }}
+          <button className="edit-button"
           >
             + New artwork
-          </span>
+          </button>
         </Link>
       </div>
 

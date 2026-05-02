@@ -69,9 +69,11 @@ const res = await fetch(`/api/artworks/${artworkId}/documents`, {
       onPaste={handlePaste}
       tabIndex={0}
       style={{
+        backgroundColor: 'white',
+        textAlign: 'center',
         marginTop: 15,
         padding: 12,
-        border: '2px dashed #ccc',
+        border: '1px dashed #5a5959',
         borderRadius: 6,
       }}
     >

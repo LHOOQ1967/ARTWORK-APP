@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import type { ArtworkForm, ArtworkWithRelations } from '@/app/types/artwork'
+import type { ArtworkForm, Artist, Contact, ArtworkWithRelations } from '@/app/types/artwork'
 import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
 
 
@@ -48,8 +48,7 @@ const EMPTY_ARTWORK: ArtworkForm = {
   underbidder: false,
   guarantee: false,
 
-  date_proposition: null,
-  date_proposition: new Date().toISOString().slice(0, 10),
+   date_proposition: new Date().toISOString().slice(0, 10),
   view_date: null,
   condition: null,
   notes: null,
@@ -314,7 +313,14 @@ if (!artwork) {
 
 return (
   <main style={{ padding: 40, backgroundColor: '#006039', color: 'white' }}>
-    <h1>Create artwork</h1>
+  <h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Create Artwork
+</h3>
 
 
 <div
@@ -322,68 +328,31 @@ return (
     display: 'flex',
     justifyContent: 'flex-end',
     gap: 12,
-    marginTop: 32,
+    marginTop: 1,
   }}
 >
   {/* Cancel */}
-  <button
+  <button className="edit-button"
     type="button"
     onClick={() => router.back()}
-    style={{
-      padding: '10px 16px',
-      background: 'transparent',
-      color: 'white',
-      border: '1px solid white',
-      borderRadius: 4,
-      cursor: 'pointer',
-    }}
   >
     Cancel
   </button>
 
   {/* Save */}
-  <button
+  <button className="edit-button"
     type="button"
     onClick={saveArtwork}
     disabled={loading}
-    style={{
-      padding: '10px 16px',
-      background: '#ffffff',
-      color: '#006039',
-      border: 'none',
-      borderRadius: 4,
-      cursor: 'pointer',
-      fontWeight: 600,
-    }}
-  >
+      >
     {loading ? 'Saving…' : 'Save'}
   </button>
 </div>
-
-
-
 
 <ArtworkFieldsLayout
   artwork={artwork}
   setArtwork={setArtwork}
   isEditing={true}
-
-  artistQuery={artistQuery}
-  setArtistQuery={setArtistQuery}
-  artistResults={artistResults}
-  artistOptions={artistOptions}
-
-  contactQuery={contactQuery}
-  setContactQuery={setContactQuery}
-  contactResults={contactResults}
-  contactOptions={contactOptions}
-
-  
-  auctionQuery={auctionQuery}
-  setAuctionQuery={setAuctionQuery}
-  auctionResults={auctionResults}
-  buyerResults={buyerResults}
-  destinationResults={destinationResults}
 />
 
 

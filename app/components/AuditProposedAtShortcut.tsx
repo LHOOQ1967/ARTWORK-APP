@@ -2,17 +2,28 @@
 'use client'
 
 import { useState } from 'react'
+import type { ArtworkBase } from '@/app/types/artwork'
+
+
+type AuditArtwork = {
+  id: string
+  title: string | null
+  artist_name: string | null
+  proposed_by_date: string | null
+}
 
 type AuditResult = {
   checked_at: string
   total_artworks: number
   invalid_count: number
+  artworks: AuditArtwork[]
   invalid_artworks: {
     id: string
     title: string | null
     proposals_count: number
   }[]
 }
+
 
 
 const thStyle: React.CSSProperties = {

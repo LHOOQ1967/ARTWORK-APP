@@ -95,5 +95,8 @@ if (!data) {
     return <p style={{ padding: 40 }}>Artwork not found</p>
   }
 
-  return artwork ? <ArtworkSheet artwork={artwork} /> : null
+  return (
+    <main style={{ padding: 40 }}> <ArtworkSheet artwork={artwork} />
+    </main>
+  )
 }

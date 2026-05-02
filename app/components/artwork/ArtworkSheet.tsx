@@ -135,24 +135,24 @@ const images: ArtworkDocument[] =
 
 
   return (
-    
-    <section
+  <section
       style={{
-        padding: 40,
+        padding: 1,
         boxSizing: 'border-box',
       }}
     >
 {!isEditMode && (
 <div className="print-controls no-print">
   <Link href={`/artworks/${artworkId}/edit`}>
-    <button
-      style={{
-        padding: '6px 12px',
-        fontSize: '0.9rem',
-        borderRadius: 4,
-        border: '1px solid #ccc',
-        backgroundColor: '#f3f3f3',
-        cursor: 'pointer',
+    <button className="edit-button"
+
+      onMouseUp={e => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
       }}
     >
       Edit
@@ -161,7 +161,7 @@ const images: ArtworkDocument[] =
 </div>)}
 
 <div key={artwork.id} className="artwork-block">
-<h2 style={{ fontSize: '1.3rem', marginBottom: 8, textAlign: 'center' }}>
+<h2 style={{ fontSize: '1.3rem', textAlign: 'center' }}>
   {artwork.date_proposition
     ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
     : '—'}
@@ -169,12 +169,12 @@ const images: ArtworkDocument[] =
   {proposedBy && <> by {proposedBy}</>}
 </h2>
 
-<h2 style={{ fontSize: '1.3rem', marginBottom: 8, textAlign: 'right' }}> Status: {artwork.status}
+<h2 style={{ fontSize: '1.3rem',  textAlign: 'right' }}> Status: {artwork.status}
 </h2>
 
       {/* ✅ Artist */}
       {artwork.artist && (
-        <h2 style={{ fontSize: '1.6rem', marginBottom: 4 }}>
+        <h2 style={{ fontSize: '1.6rem', }}>
           {[artwork.artist.first_name, artwork.artist.last_name]
             .filter(Boolean)
             .join(' ')}
@@ -182,26 +182,26 @@ const images: ArtworkDocument[] =
       )}
 
       {/* ✅ Title */}
-      <h1 style={{ fontSize: '1.4rem', marginBottom: 3 }}>
+      <h1 style={{ fontSize: '1.4rem',  }}>
         {artwork.title || 'Untitled'}
         {artwork.year_execution ? `, ${artwork.year_execution}` : ''}
       </h1>
 
 
       {/* ✅ Medium */}
-      <h1 style={{ fontSize: '1.2rem', marginBottom: 0 }}>{artwork.medium}</h1> 
+      <h1 style={{ fontSize: '1.2rem',  }}>{artwork.medium}</h1> 
 
              {/* ✅ Medium */}
 
         
        {artwork.signature && (
-          <h1 style={{fontSize: '1.2rem',  marginBottom: 0 }}>{artwork.signature}</h1>  
+          <h1 style={{fontSize: '1.2rem',  }}>{artwork.signature}</h1>  
         
       )}
 
       {/* ✅ Dimensions */}
       {artwork.height_cm && artwork.width_cm && (
-        <div style={{ fontSize: '1.2rem', marginBottom: 10 }}>
+        <div style={{ fontSize: '1.2rem', marginBottom: 5 }}>
           {artwork.height_cm} × {artwork.width_cm}
           {artwork.depth_cm ? ` × ${artwork.depth_cm}` : ''} cm
         </div>
@@ -228,7 +228,7 @@ const images: ArtworkDocument[] =
 
       {/* ✅ Metadata */}
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 12 }}>
         {artwork.asking_price && (
         <InfoRow
           label="Asking price"

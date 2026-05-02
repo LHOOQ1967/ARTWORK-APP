@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
 import { supabase } from '@/lib/supabaseClient'
 import type { ArtworkPrint } from '@/app/types/artwork'
+import { useSearchParams } from 'next/navigation'
+
 
 
 
@@ -30,6 +32,7 @@ const STATUS_ORDER: Record<string, number> = {
   bought: 4,
   archived: 99,
 }
+
 
 const PRIORITY_ORDER: Record<string, number> = {
   high: 3,
@@ -96,6 +99,27 @@ function sortArtworks(
 }
 
 
+
+function sortArtworksForPrint(
+  artworks: ArtworkPrint[],
+  sortKey: SortKey,
+  sortDirection: SortDirection
+) {
+  return [...artworks].sort((a, b) => {
+    const va = getSortValue(a, sortKey)
+    const vb = getSortValue(b, sortKey)
+
+    if (va < vb) return sortDirection === 'asc' ? -1 : 1
+    if (va > vb) return sortDirection === 'asc' ? 1 : -1
+    return 0
+  })
+}
+``
+
+
+
+
+
 /* ======================
    Page
    ====================== */
@@ -108,14 +132,16 @@ export default function ArtworksPrintPage() {
 const [artworks, setArtworks] = useState<ArtworkPrint[]>([])
 const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
-
+const [exporting, setExporting] = useState(false)
   /* ===== UI state ===== */
 
 const [sortKey, setSortKey] = useState<SortKey>('date')
 const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
+
 const [statusFilter, setStatusFilter] =
-  useState<StatusFilter>('active')
+  useState<StatusFilter>('all')
+
 
 
 
@@ -128,6 +154,25 @@ const [auctionFilter, setAuctionFilter] =
 
 const [proposedToFilter, setProposedToFilter] =
   useState<string | 'all'>('all')
+
+
+const searchParams = useSearchParams()
+
+useEffect(() => {
+  const k = searchParams.get('sortKey')
+  const d = searchParams.get('sortDirection')
+  const s = searchParams.get('statusFilter')
+  const p = searchParams.get('priorityFilter')
+  const a = searchParams.get('auctionFilter')
+  const pt = searchParams.get('proposedToFilter')
+
+  if (k) setSortKey(k as SortKey)
+  if (d) setSortDirection(d as SortDirection)
+  if (s) setStatusFilter(s as StatusFilter)
+  if (p) setPriorityFilter(p as any)
+  if (a) setAuctionFilter(a as any)
+  if (pt) setProposedToFilter(pt as any)
+}, [searchParams])
 
 
 
@@ -194,13 +239,7 @@ const filteredAndSorted = useMemo(() => {
       if (auctionFilter === 'auction') return a.auctions === true
       return a.auctions !== true
     })
-    // ✅ RÈGLE MÉTIER : tri par sale_date → uniquement œuvres avec sale_date
-    .filter(a => {
-      if (sortKey === 'sale_date') {
-        return !!a.sale_date
-      }
-      return true
-    })
+
     
 .filter(a => {
   if (proposedToFilter === 'all') return true
@@ -231,8 +270,13 @@ const filteredAndSorted = useMemo(() => {
     })
   }
 
+
+
+
+
   // ✅ comportement normal
-  return sortArtworks(filtered, sortKey, sortDirection)
+
+return sortArtworks(filtered, sortKey, sortDirection)
 }, [
   artworks,
   statusFilter,
@@ -244,106 +288,49 @@ const filteredAndSorted = useMemo(() => {
 ])
 
 
-
-
-
-
-
   if (loading) {
     return <p style={{ padding: 40 }}>Loading…</p>
   }
 
+const marketArtworks = filteredAndSorted.filter(
+  a => !a.auctions && a.status !== 'bought'
+)
 
+const auctionArtworks = filteredAndSorted.filter(
+  a => a.auctions === true
+)
 
-  return (
+const boughtArtworks = filteredAndSorted.filter(
+  a => a.status === 'bought'
+)
+return (
     <main style={{ padding: 40 }}>
       {/* ===== Controls (screen only) ===== */}
 
-
-
-
-<button
-  className="print-controls no-print"
-  onClick={async () => {
-    document.documentElement.classList.add('pdf-puppeteer')
-
-    const res = await fetch('/api/pdf/adobe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        html: document.documentElement.outerHTML,
-        mode: 'puppeteer',
-      }),
-    })
-
-    document.documentElement.classList.remove('pdf-puppeteer')
-
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    window.open(url)
-  }}
->
-  Export PDF (liens actifs)
-</button>
-
-
-
-
-<button
-  className="print-controls no-print"
-  onClick={() => {
-    setSortKey('date')
-    setSortDirection('desc')
-    setStatusFilter('active')
-    setPriorityFilter('all')
-    setAuctionFilter('all')
-    setProposedToFilter('all') // ✅ ICI
-  }}
->
-  Reset
-</button>
-
-
-
+<section 
+  style={{
+    padding: '12px 16px',
+    backgroundColor: '#b2dee6',
+    marginBottom: 10,
+    alignItems: 'center',
+  }}>
 <div
   className="print-controls no-print"
   style={{
+   
     display: 'grid',
     gridTemplateColumns: '1fr auto',
     rowGap: 12,
     columnGap: 24,
     padding: '12px 16px',
-    backgroundColor: '#e9eceb',
-    marginBottom: 24,
+    backgroundColor: '#b2dee6',
+    marginBottom: 18,
     alignItems: 'center',
+    border: '3px solid rgba(0, 0, 0, 0.61)', // ✅ bordure fine
+    borderRadius: 12,    
   }}
 >
-  {/* ===== Row 1 : Sorting ===== */}
-  <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-    <strong>Sort by</strong>
 
-    <select value={sortKey} onChange={e => setSortKey(e.target.value as any)}>
-      <option value="date">Date proposed</option>
-      <option value="sale_date">Sale Date</option>
-      <option value="artist">Artist</option>
-      <option value="asking">Asking price</option>
-      <option value="priority">Priority</option>
-      <option value="status">Status</option>
-    </select>
-
-    <select
-      value={sortDirection}
-      onChange={e => setSortDirection(e.target.value as any)}
-    >
-      <option value="desc">Descending</option>
-      <option value="asc">Ascending</option>
-    </select>
-  </div>
-
-  {/* Counter */}
-  <div style={{ color: '#555' }}>
-    {filteredAndSorted.length} artworks
-  </div>
 
   {/* ===== Row 2 : Filters ===== */}
   <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -410,29 +397,154 @@ const filteredAndSorted = useMemo(() => {
     </option>
   ))}
 </select>
-
-
   </div>
 
-  {/* Action */}
-  <div>
-    <button onClick={() => window.print()}>Print</button>
+  {/* Counter */}
+  <div style={{ color: '#f80808' }}>
+    {filteredAndSorted.length} artworks
   </div>
+
 </div>
 
 
+<div
+  className="print-controls no-print"
+  style={{
+    display: 'grid',
+    gridTemplateColumns: '1fr auto',
+    rowGap: 12,
+    columnGap: 24,
+    padding: '12px 16px',
+    backgroundColor: '#b2dee6',
+    marginBottom: 12,
+    alignItems: 'center',
+    border: '3px solid rgba(0, 0, 0, 0.61)', // ✅ bordure fine
+    borderRadius: 12,    
+    }}
+>
+  {/* ===== Row 1 : Sorting ===== */}
+  <div style={{ display: 'flex', gap: 16, alignItems: 'center',  }}>
+    <strong>Sort by</strong>
 
+    <select value={sortKey} onChange={e => setSortKey(e.target.value as any)}>
+      <option value="date">Date proposed</option>
+      <option value="sale_date">Sale Date</option>
+      <option value="artist">Artist</option>
+      <option value="asking">Asking price</option>
+      <option value="priority">Priority</option>
+      <option value="status">Status</option>
+    </select>
 
+    <select
+      value={sortDirection}
+      onChange={e => setSortDirection(e.target.value as any)}
+    >
+      <option value="desc">Descending</option>
+      <option value="asc">Ascending</option>
+    </select>
+  </div>
+</div>
 
+<div
+  className="print-controls no-print"
+  style={{
+    display: 'flex',
+    justifyContent: 'space-between', // ✅ gauche / droite
+    alignItems: 'center',
+  }}
+>
+<button className="edit-button"
 
-{filteredAndSorted.map(artwork => (
-  <ArtworkSheet
-    key={artwork.id}
-    artwork={artwork}
-  />
-))}
+  onClick={() => {
+    setSortKey('date')
+    setSortDirection('desc')
+    setStatusFilter('active')
+    setPriorityFilter('all')
+    setAuctionFilter('all')
+    setProposedToFilter('all') // ✅ ICI
+  }}
+>
+  Reset
+</button>
 
-     
-    </main>
+  <button
+    className="edit-button"
+    disabled={exporting}
+    style={{
+      cursor: exporting ? 'wait' : 'pointer',
+    }}
+    onClick={async () => {
+      try {
+        setExporting(true)
+
+        document.documentElement.classList.add('pdf-puppeteer')
+
+        const res = await fetch('/api/pdf/adobe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            html: document.documentElement.outerHTML,
+            mode: 'puppeteer',
+          }),
+        })
+
+        document.documentElement.classList.remove('pdf-puppeteer')
+
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        window.open(url)
+      } finally {
+        setExporting(false)
+      }
+    }}
+  >
+    {exporting ? '⌛ Exporting…' : 'Export PDF'}
+  </button>
+</div>
+</section>
+
+{/* ===== Primary / Private Market ===== */}
+{marketArtworks.length > 0 && (
+  <section style={{ marginTop: 40 }}>
+    <h1>Primary & Private Market</h1>
+
+    {marketArtworks.map(artwork => (
+      <ArtworkSheet
+        key={artwork.id}
+        artwork={artwork}
+      />
+    ))}
+  </section>
+)}
+
+{/* ===== Auction ===== */}
+{auctionArtworks.length > 0 && (
+  <section style={{ marginTop: 60 }}>
+    <h1>Auction</h1>
+
+    {auctionArtworks.map(artwork => (
+      <ArtworkSheet
+        key={artwork.id}
+        artwork={artwork}
+      />
+    ))}
+  </section>
+)}
+
+{/* ===== Bought ===== */}
+{boughtArtworks.length > 0 && (
+  <section style={{ marginTop: 60 }}>
+    <h1>Bought</h1>
+
+    {boughtArtworks.map(artwork => (
+      <ArtworkSheet
+        key={artwork.id}
+        artwork={artwork}
+      />
+    ))}
+  </section>
+)}
+
+  </main>
   )
 }

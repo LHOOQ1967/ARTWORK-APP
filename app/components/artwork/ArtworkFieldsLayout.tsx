@@ -1,7 +1,7 @@
 
 'use client'
 
-import type { ArtworkForm } from '@/app/types/artwork'
+import type { ArtworkForm, Artist, Contact } from '@/app/types/artwork'
 
 
 
@@ -10,21 +10,28 @@ type Props = {
   setArtwork: React.Dispatch<React.SetStateAction<ArtworkForm>>
   isEditing: boolean
 
-  // 🔍 SEARCH – Proposed by
-  contactQuery: string
-  setContactQuery: (v: string) => void
-  contactResults: Contact[]
-  contactOptions: Contact[]
+  // 🔎 Artists
+  artistQuery?: string
+  setArtistQuery?: React.Dispatch<React.SetStateAction<string>>
+  artistResults?: Artist[]
+  artistOptions?: Artist[]
 
-  auctionResults: Contact[]
-  buyerResults: Contact[]
-  destinationResults: Contact[]
-  
-  // 🔍 Auction house search
-  auctionQuery: string
-  setAuctionQuery: (v: string) => void
-  auctionResults: Contact[]
+  // 🔎 Contacts
+  contactQuery?: string
+  setContactQuery?: React.Dispatch<React.SetStateAction<string>>
+  contactResults?: Contact[]
+  contactOptions?: Contact[]
 
+  // 🔎 Auctions
+  auctionQuery?: string
+  setAuctionQuery?: React.Dispatch<React.SetStateAction<string>>
+  auctionResults?: any[]   // remplace par Auction[] si tu as un type
+
+  // 🔎 Buyers
+  buyerResults?: Contact[]
+
+  // 🔎 Destinations
+  destinationResults?: Contact[]
 }
 
 
@@ -35,10 +42,11 @@ function SectionBlock({ children }: { children: React.ReactNode }) {
   return (
     <section
       style={{
-        backgroundColor: '#ffffff',
+        backgroundColor: '#e6e5e5',
+        color: '#000000',
         borderRadius: 8,
         padding: 24,
-        border: '1px solid #e0e0e0',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
       }}
     >
       {children}
@@ -69,16 +77,20 @@ const editInputStyle: React.CSSProperties = {
   border: '1px solid #ccc',
   borderRadius: 4,
   fontSize: '0.95rem',
+  backgroundColor: 'white'
 }
+
 
 function DimensionInput({
   placeholder,
   value,
   onChange,
+  disabled,
 }: {
   placeholder: string
   value: number | null | undefined
   onChange: (v: number | null) => void
+  disabled?: boolean
 }) {
   return (
     <input
@@ -90,10 +102,12 @@ function DimensionInput({
           e.target.value ? Number(e.target.value) : null
         )
       }
+      disabled={disabled}
       style={{ ...editInputStyle, width: 90 }}
     />
   )
 }
+
 
 function Divider() {
   return (
@@ -153,13 +167,21 @@ export function ArtworkFieldsLayout({
         flexDirection: 'column',
         gap: 30,
         color: 'black',
+        marginTop: '30px'
       }}
     >
       {/* ===================== */}
       {/* Proposal */}
       {/* ===================== */}
       <SectionBlock>
-        <h3>Proposal</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Proposition by
+</h3>
 
         <EditRow label="Date proposed">
           <input
@@ -191,13 +213,18 @@ export function ArtworkFieldsLayout({
         type="text"
         placeholder="Search"
         value={contactQuery}
-        onChange={e => setContactQuery(e.target.value)}
+onChange={e => {
+  if (setContactQuery) {
+    setContactQuery(e.target.value)
+  }
+}}
         style={{
           width: 120,
           padding: '6px 8px',
           fontSize: '0.9rem',
           border: '1px solid #ccc',
           borderRadius: 4,
+          backgroundColor: 'white'
         }}
       />
     )}
@@ -219,7 +246,7 @@ export function ArtworkFieldsLayout({
     >
       <option value="">—</option>
 
-      {(contactQuery ? contactResults : contactOptions).map(c => (
+      {(contactQuery ? contactResults ?? [] : contactOptions ?? []).map(c => (
         <option key={c.id} value={c.id}>
           {contactLabel(c)}
         </option>
@@ -234,7 +261,14 @@ export function ArtworkFieldsLayout({
       {/* Artwork */}
       {/* ===================== */}
       <SectionBlock>
-        <h3>Artwork</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Artwork detail
+</h3>
 
 
 <EditRow label="Artist">
@@ -243,6 +277,7 @@ export function ArtworkFieldsLayout({
       display: 'flex',
       gap: 8,
       alignItems: 'center',
+      backgroundColor: 'white'
     }}
   >
     {/* 🔍 Search artist */}
@@ -251,7 +286,7 @@ export function ArtworkFieldsLayout({
         type="text"
         placeholder="Search"
         value={artistQuery}
-        onChange={e => setArtistQuery(e.target.value)}
+        onChange={e => setArtistQuery?.(e.target.value)}
         style={{
           width: 120,
           padding: '6px 8px',
@@ -279,7 +314,7 @@ export function ArtworkFieldsLayout({
     >
       <option value="">—</option>
 
-      {(artistQuery ? artistResults : artistOptions).map(a => (
+      {(artistQuery ? artistResults ?? [] : artistOptions ?? []).map(a => (
         <option key={a.id} value={a.id}>
           {[a.first_name, a.last_name].filter(Boolean).join(' ')}
         </option>
@@ -380,32 +415,67 @@ export function ArtworkFieldsLayout({
       </SectionBlock>
 
 
-<Divider />
+
 
 <SectionBlock>
 {/* ===================== */}
 {/* Location */}
 {/* ===================== */}
+
 <EditRow label="Location">
-  <select
-    value={artwork.location_contact_id ?? ''}
-    onChange={e =>
-      setArtwork({
-        ...artwork,
-        location_contact_id: e.target.value || null,
-      })
-    }
-    style={editInputStyle}
-    disabled={!isEditing}
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
   >
-    <option value="">—</option>
-    {contactOptions.map(c => (
-      <option key={c.id} value={c.id}>
-        {contactLabel(c)}
-      </option>
-    ))}
-  </select>
+    {/* 🔍 Search */}
+    {isEditing && (
+      <input
+        type="text"
+        placeholder="Search"
+        value={contactQuery}
+        onChange={e => setContactQuery?.(e.target.value)}
+        style={{
+          width: 120,
+          padding: '6px 8px',
+          fontSize: '0.9rem',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white'
+        }}
+      />
+    )}
+
+    {/* ✅ Select */}
+    <select
+      value={artwork.location_contact_id ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          location_contact_id: e.target.value || null,
+        })
+      }
+      style={{
+        ...editInputStyle,
+        flex: 1,
+      }}
+      disabled={!isEditing}
+    >
+      <option value="">—</option>
+
+
+{(artistQuery ? contactResults ?? [] : contactOptions ?? []).map(a => (
+  <option key={a.id} value={a.id}>
+    {contactLabel(a)}
+  </option>
+
+      ))}
+    </select>
+  </div>
 </EditRow>
+
 
 {/* ===================== */}
 {/* View date */}
@@ -465,8 +535,35 @@ export function ArtworkFieldsLayout({
 {/* ===================== */}
 {/* Certificate location */}
 {/* ===================== */}
+
 {artwork.certificate && (
-  <EditRow label="Certificate location">
+<EditRow label="Certificate Location">
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
+  >
+    {/* 🔍 Search */}
+    {isEditing && (
+      <input
+        type="text"
+        placeholder="Search"
+        value={contactQuery}
+        onChange={e => setContactQuery?.(e.target.value)}
+        style={{
+          width: 120,
+          padding: '6px 8px',
+          fontSize: '0.9rem',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white'
+        }}
+      />
+    )}
+
+    {/* ✅ Select */}
     <select
       value={artwork.certificate_location_contact_id ?? ''}
       onChange={e =>
@@ -475,18 +572,24 @@ export function ArtworkFieldsLayout({
           certificate_location_contact_id: e.target.value || null,
         })
       }
-      style={editInputStyle}
+      style={{
+        ...editInputStyle,
+        flex: 1,
+      }}
       disabled={!isEditing}
     >
       <option value="">—</option>
-      {contactOptions.map(c => (
+
+      {(contactQuery ? contactResults ?? [] : contactOptions ?? []).map(c => (
         <option key={c.id} value={c.id}>
           {contactLabel(c)}
         </option>
       ))}
     </select>
-  </EditRow>
+  </div>
+</EditRow>
 )}
+
 
 {/* ===================== */}
 {/* Priority */}
@@ -542,7 +645,14 @@ export function ArtworkFieldsLayout({
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Auction</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Auction
+</h3>
 
   {/* Auction yes / no */}
   <EditRow label="Auction">
@@ -583,26 +693,60 @@ export function ArtworkFieldsLayout({
         />
       </EditRow>
 
-      <EditRow label="Auction house">
-        <select
-          value={artwork.auction_contact_id ?? ''}
-          onChange={e =>
-            setArtwork({
-              ...artwork,
-              auction_contact_id: e.target.value || null,
-            })
-          }
-          style={editInputStyle}
-          disabled={!isEditing}
-        >
-          <option value="">—</option>
-          {auctionResults.map(c => (
-            <option key={c.id} value={c.id}>
-              {contactLabel(c)}
-            </option>
-          ))}
-        </select>
-      </EditRow>
+      {artwork.certificate && (
+<EditRow label="Auction House">
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
+  >
+    {/* 🔍 Search */}
+    {isEditing && (
+      <input
+        type="text"
+        placeholder="Search"
+        value={contactQuery}
+        onChange={e => setContactQuery?.(e.target.value)}
+        style={{
+          width: 120,
+          padding: '6px 8px',
+          fontSize: '0.9rem',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white'
+        }}
+      />
+    )}
+
+    {/* ✅ Select */}
+    <select
+      value={artwork.auction_contact_id ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          auction_contact_id: e.target.value || null,
+        })
+      }
+      style={{
+        ...editInputStyle,
+        flex: 1,
+      }}
+      disabled={!isEditing}
+    >
+      <option value="">—</option>
+
+      {(contactQuery ? contactResults ?? [] : contactOptions ?? []).map(c => (
+        <option key={c.id} value={c.id}>
+          {contactLabel(c)}
+        </option>
+      ))}
+    </select>
+  </div>
+</EditRow>
+)}
+
 
       <EditRow label="Sale date">
         <input
@@ -758,7 +902,14 @@ export function ArtworkFieldsLayout({
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Market</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Private Market
+</h3>
 
   <EditRow label="Currency">
     <select
@@ -800,7 +951,14 @@ export function ArtworkFieldsLayout({
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Acquisition</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Acquisition
+</h3>
 
   <EditRow label="Acquired">
     <select
@@ -823,28 +981,61 @@ export function ArtworkFieldsLayout({
     </select>
   </EditRow>
 
+
+
   {artwork.date_acquisition && (
     <>
-      <EditRow label="Buyer">
-        <select
-          value={artwork.buyer_contact_id ?? ''}
-          onChange={e =>
-            setArtwork({
-              ...artwork,
-              buyer_contact_id: e.target.value || null,
-            })
-          }
-          style={editInputStyle}
-          disabled={!isEditing}
-        >
-          <option value="">—</option>
-          {buyerResults.map(c => (
-            <option key={c.id} value={c.id}>
-              {contactLabel(c)}
-            </option>
-          ))}
-        </select>
-      </EditRow>
+<EditRow label="Buyer">
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
+  >
+    {/* 🔍 Search */}
+    {isEditing && (
+      <input
+        type="text"
+        placeholder="Search"
+        value={contactQuery}
+        onChange={e => setContactQuery?.(e.target.value)}
+        style={{
+          width: 120,
+          padding: '6px 8px',
+          fontSize: '0.9rem',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: 'white'
+        }}
+      />
+    )}
+
+    {/* ✅ Select */}
+    <select
+      value={artwork.buyer_contact_id ?? ''}
+      onChange={e =>
+        setArtwork({
+          ...artwork,
+          buyer_contact_id: e.target.value || null,
+        })
+      }
+      style={{
+        ...editInputStyle,
+        flex: 1,
+      }}
+      disabled={!isEditing}
+    >
+      <option value="">—</option>
+
+      {(contactQuery ? contactResults ?? [] : contactOptions ?? []).map(c => (
+        <option key={c.id} value={c.id}>
+          {contactLabel(c)}
+        </option>
+      ))}
+    </select>
+  </div>
+</EditRow>
 
       <EditRow label="Date acquisition">
         <input
@@ -906,9 +1097,16 @@ export function ArtworkFieldsLayout({
       {/* Notes */}
       {/* ===================== */}
       <SectionBlock>
-        <h3>Notes</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Notes
+</h3>
 
-        <EditRow label="Notes">
+        <EditRow label=" ">
           <textarea
             value={artwork.notes ?? ''}
             onChange={e =>
@@ -918,6 +1116,7 @@ export function ArtworkFieldsLayout({
               })
             }
             style={{
+              marginTop: '10px',
               width: '100%',
               minHeight: 120,
               padding: 8,
@@ -925,6 +1124,7 @@ export function ArtworkFieldsLayout({
               border: '1px solid #ccc',
               borderRadius: 4,
               resize: 'vertical',
+              backgroundColor: 'white'
             }}
             disabled={!isEditing}
           />

@@ -2,9 +2,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import type { ArtworkListItem } from '@/app/types/artwork'
+import { useRouter } from 'next/navigation'
 
 
 type ArtworkListProps = {
@@ -32,9 +32,9 @@ export default function ArtworkList({
   mode = 'market',
 }: ArtworkListProps) {
 
+const router = useRouter()
 
 
-  const router = useRouter()
   
   const [sortKey, setSortKey] = useState<
     'artist' | 'title' | 'date' | 'asking' | 'estimate'| 'cost' | 'priority' | 'status' | null
@@ -44,6 +44,9 @@ export default function ArtworkList({
     useState<'asc' | 'desc'>('asc')
 
 
+
+const PREVIEW_COUNT = 5
+const [showAll, setShowAll] = useState(false)
 
 
 useEffect(() => {
@@ -58,7 +61,13 @@ useEffect(() => {
 }, [artworks, mode])
 
 
- const sortedArtworks = sortArtworks(artworks) 
+
+const sortedArtworks = sortArtworks(artworks)
+
+const displayedArtworks = showAll
+  ? sortedArtworks
+  : sortedArtworks.slice(0, PREVIEW_COUNT)
+
 
  
 
@@ -173,7 +182,7 @@ columnKey:
   const active = sortKey === columnKey
 
 
-  
+ 
 
 
   return (
@@ -201,6 +210,8 @@ columnKey:
 
 
   return (
+
+    
     <div
       style={{
         backgroundColor: 'white',
@@ -208,6 +219,7 @@ columnKey:
         overflow: 'hidden',
       }}
     >
+
       <table
         style={{
           width: '100%',
@@ -215,6 +227,8 @@ columnKey:
           backgroundColor: 'white',
         }}
       >
+
+
 
 <thead>
   <tr>
@@ -283,7 +297,7 @@ label={
 </thead>
 
         <tbody>
-          {sortedArtworks.map((a) => (
+          {displayedArtworks.map((a) => (
             <tr key={a.id}
               onClick={() => router.push(`/artworks/print/${a.id}`)}
               style={{
@@ -402,6 +416,40 @@ label={
           ))}
         </tbody>
       </table>
+      
+{artworks.length > PREVIEW_COUNT && (
+  <div
+    style={{
+      padding: '10px 12px',
+      borderTop: '1px solid #eee',
+      fontSize: '0.85rem',
+      textAlign: 'right',
+      backgroundColor: '#e6e5e5',
+      justifyContent: 'center', 
+   
+    }}
+  >
+    <button
+      onClick={() => setShowAll((v) => !v)}
+      style={{
+      display: 'block',
+        margin: '0 auto',        // ✅ centrage réel
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        color: 'black',
+        cursor: 'pointer',
+        textDecoration: 'underline',
+
+          }}
+    >
+      {showAll
+        ? 'Voir moins'
+        : `Voir les ${artworks.length} artworks`}
+    </button>
+  </div>
+)}
+
     </div>
   )
 }

@@ -54,7 +54,7 @@ function SectionBlock({ children }: { children: React.ReactNode }) {
   return (
     <section
       style={{
-        backgroundColor: '#ffffff',
+        backgroundColor: '#e6e5e5',
         borderRadius: 8,
         padding: 24,
         border: '1px solid #e0e0e0',
@@ -72,6 +72,7 @@ const editInputStyle: React.CSSProperties = {
   border: '1px solid #ccc',
   borderRadius: 4,
   fontSize: '0.95rem',
+  backgroundColor: '#ffffff',
 }
 
 
@@ -450,7 +451,15 @@ return (
   >
 
 <SectionBlock>
-  <h3>Proposal</h3>
+
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Proposal
+</h3>
 
 
 <EditRow label="Date proposed">
@@ -495,6 +504,7 @@ return (
           fontSize: '0.9rem',
           border: '1px solid #ccc',
           borderRadius: 4,
+          backgroundColor: '#ffffff',
         }}
       />
     )}
@@ -533,8 +543,6 @@ return (
 
 
 
-
-
 <EditRow label="Proposed to">
   <div>
     {/* 🔒 Artwork non encore sauvé */}
@@ -570,6 +578,7 @@ return (
             fontSize: '0.9rem',
             border: '1px solid #ccc',
             borderRadius: 4,
+            backgroundColor: '#ffffff',
           }}
         />
 
@@ -584,10 +593,9 @@ return (
             fontSize: '0.9rem',
             border: '1px solid #ccc',
             borderRadius: 4,
+            backgroundColor: '#ffffff',
           }}
         />
-
-
 
         <select
           onChange={e => {
@@ -619,6 +627,8 @@ return (
             gap: 8,
             alignItems: 'baseline',
             marginBottom: 4,
+            border: '1px solid #3a3939',
+            borderRadius: 4,
           }}
         >
           <span>{contactLabel(p.contact)}</span>
@@ -626,7 +636,7 @@ return (
           {p.proposed_at && (
 
 
-<span style={{ fontSize: 12, color: '#777' }}>
+<span style={{ fontSize: 12,  }}>
   (
   {(
     p.proposed_at
@@ -645,10 +655,10 @@ return (
                 border: 'none',
                 background: 'none',
                 cursor: 'pointer',
-                color: '#999',
+                color: '#e21111',
               }}
             >
-              ✕
+              [delete]
             </button>
           )}
         </div>
@@ -666,7 +676,14 @@ return (
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Artwork</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Artwork detail
+</h3>
 
   {/* Artist */}
 
@@ -690,6 +707,7 @@ return (
           fontSize: '0.9rem',
           border: '1px solid #ccc',
           borderRadius: 4,
+          backgroundColor: 'white'
         }}
       />
     )}
@@ -826,32 +844,61 @@ artist: (() => {
 
 <Divider />
 
-
 <EditRow label="Location">
-  {isEditing ? (
-    <select
-      value={artwork.location_contact_id ?? ''}
-      onChange={e =>
-        setArtwork({
-          ...artwork,
-          location_contact_id: e.target.value || null,
-          location:
-            contactOptions.find(c => c.id === e.target.value) ||
-            null,
-        })
-      }
-      style={editInputStyle}
-    >
-      <option value="">—</option>
-      {contactOptions.map(c => (
-        <option key={c.id} value={c.id}>
-          {contactLabel(c)}
-        </option>
-      ))}
-    </select>
-  ) : (
-    contactLabel(artwork.location)
-  )}
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
+  >
+    {isEditing && (
+      <input
+        type="text"
+        placeholder="Search"
+        value={contactQuery}
+        onChange={e => setContactQuery(e.target.value)}
+        style={{
+          width: 120,
+          padding: '6px 8px',
+          fontSize: '0.9rem',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: '#ffffff',
+        }}
+      />
+    )}
+
+    {isEditing ? (
+      <select
+        value={artwork.location_contact_id ?? ''}
+        onChange={e =>
+          setArtwork({
+            ...artwork,
+            location_contact_id: e.target.value || null,
+            location:
+              contactResults.find(c => c.id === e.target.value) ||
+              contactOptions.find(c => c.id === e.target.value) ||
+              null,
+          })
+        }
+        style={{
+          ...editInputStyle,
+          flex: 1,
+        }}
+      >
+        <option value="">—</option>
+
+        {(contactQuery ? contactResults : contactOptions).map(c => (
+          <option key={c.id} value={c.id}>
+            {contactLabel(c)}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <span>{contactLabel(artwork.location)}</span>
+    )}
+  </div>
 </EditRow>
 
 
@@ -914,36 +961,63 @@ artist: (() => {
   )}
 </EditRow>
 
-
 {artwork.certificate && (
-  <EditRow label="Certificate location">
+<EditRow label="Certificate location">
+  <div
+    style={{
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center',
+    }}
+  >
+    {isEditing && (
+      <input
+        type="text"
+        placeholder="Search"
+        value={contactQuery}
+        onChange={e => setContactQuery(e.target.value)}
+        style={{
+          width: 120,
+          padding: '6px 8px',
+          fontSize: '0.9rem',
+          border: '1px solid #ccc',
+          borderRadius: 4,
+          backgroundColor: '#ffffff',
+        }}
+      />
+    )}
+
     {isEditing ? (
       <select
         value={artwork.certificate_location_contact_id ?? ''}
         onChange={e =>
           setArtwork({
             ...artwork,
-            certificate_location_contact_id:
-              e.target.value || null,
+            certificate_location_contact_id: e.target.value || null,
             certificateLocation:
-              contactOptions.find(
-                c => c.id === e.target.value
-              ) || null,
+              contactResults.find(c => c.id === e.target.value) ||
+              contactOptions.find(c => c.id === e.target.value) ||
+              null,
           })
         }
-        style={editInputStyle}
+        style={{
+          ...editInputStyle,
+          flex: 1,
+        }}
       >
         <option value="">—</option>
-        {contactOptions.map(c => (
+
+        {(contactQuery ? contactResults : contactOptions).map(c => (
           <option key={c.id} value={c.id}>
             {contactLabel(c)}
           </option>
         ))}
       </select>
     ) : (
-      contactLabel(artwork.certificateLocation)
+      <span>{contactLabel(artwork.certificateLocation)}</span>
     )}
-  </EditRow>
+  </div>
+</EditRow>
 )}
 
 
@@ -1016,7 +1090,14 @@ onChange={e =>
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Auction</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Auction
+</h3>
 
  
 {/* Auction yes / no + link */}
@@ -1107,6 +1188,7 @@ onChange={e =>
               padding: '6px 8px',
               border: '1px solid #ccc',
               borderRadius: 4,
+              backgroundColor: 'white'
             }}
           />
 
@@ -1303,7 +1385,14 @@ onChange={e =>
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Market</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Private Market
+</h3>
 
   {/* Currency */}
   <EditRow label="Currency">
@@ -1350,7 +1439,14 @@ onChange={e =>
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Acquisition</h3>
+<h3
+  style={{
+    textAlign: 'center',   // ✅ centre uniquement cette ligne
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Acquisition
+</h3>
 
   {/* Acquisition Yes / No */}
   <EditRow label="Acquired">
@@ -1374,9 +1470,26 @@ onChange={e =>
     </select>
   </EditRow>
 
+
+
+
   {/* Champs visibles uniquement si acquis */}
   {artwork.date_acquisition && (
+    
     <div>
+                  <EditRow label="Date acquisition">
+        <input
+          type="date"
+          value={artwork.date_acquisition ?? ''}
+          onChange={e =>
+            setArtwork({
+              ...artwork,
+              date_acquisition: e.target.value || null,
+            })
+          }
+          style={editInputStyle}
+        />
+      </EditRow>
       {/* Buyer */}
       <EditRow label="Buyer">
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1392,6 +1505,7 @@ onChange={e =>
                 fontSize: '0.9rem',
                 border: '1px solid #ccc',
                 borderRadius: 4,
+                backgroundColor: 'white'
               }}
             />
           )}
@@ -1425,23 +1539,29 @@ onChange={e =>
       </EditRow>
 
       {/* Cost */}
-            <EditRow label="Date acquisition">
-        <input
-          type="date"
-          value={artwork.date_acquisition ?? ''}
-          onChange={e =>
-            setArtwork({
-              ...artwork,
-              date_acquisition: e.target.value || null,
-            })
-          }
-          style={editInputStyle}
-        />
-      </EditRow>
+
 
 
       <EditRow label="Cost">
+        
         <div style={{ display: 'flex', gap: 8 }}>
+                    <select
+            value={artwork.cost_currency || ''}
+            onChange={e =>
+              setArtwork({
+                ...artwork,
+                cost_currency: e.target.value || null,
+              })
+            }
+            style={{ ...editInputStyle, width: 90 }}
+          >
+            <option value="">—</option>
+            {CURRENCY_OPTIONS.map(c => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
           <input
             type="number"
             placeholder="Amount"
@@ -1456,6 +1576,13 @@ onChange={e =>
             style={{ ...editInputStyle, width: 140 }}
           />
 
+
+        </div>
+      </EditRow>
+
+      {/* Insurance */}
+      <EditRow label="Insurance">
+        <div style={{ display: 'flex', gap: 8 }}>
           <select
             value={artwork.cost_currency || ''}
             onChange={e =>
@@ -1473,12 +1600,6 @@ onChange={e =>
               </option>
             ))}
           </select>
-        </div>
-      </EditRow>
-
-      {/* Insurance */}
-      <EditRow label="Insurance">
-        <div style={{ display: 'flex', gap: 8 }}>
           <input
             type="number"
             placeholder="Amount"
@@ -1492,24 +1613,6 @@ onChange={e =>
             }
             style={{ ...editInputStyle, width: 140 }}
           />
-
-          <select
-            value={artwork.insurance_currency || ''}
-            onChange={e =>
-              setArtwork({
-                ...artwork,
-                insurance_currency: e.target.value || null,
-              })
-            }
-            style={{ ...editInputStyle, width: 90 }}
-          >
-            <option value="">—</option>
-            {CURRENCY_OPTIONS.map(c => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
         </div>
       </EditRow>
 
@@ -1528,6 +1631,7 @@ onChange={e =>
                 fontSize: '0.9rem',
                 border: '1px solid #ccc',
                 borderRadius: 4,
+                backgroundColor: 'white'
               }}
             />
           )}
@@ -1568,9 +1672,16 @@ onChange={e =>
 
 
 <SectionBlock>
-  <h3 style={{ marginBottom: 16 }}>Notes</h3>
+<h3
+  style={{
+  
+    fontSize: '1.3rem',    // ✅ légèrement plus grand (optionnel)
+    }}
+>
+  Notes
+</h3>
 
-  <EditRow label="Notes">
+  <EditRow label=" ">
     {isEditing ? (
       <textarea
         value={artwork.notes ?? ''}
@@ -1588,6 +1699,8 @@ onChange={e =>
           border: '1px solid #ccc',
           borderRadius: 4,
           resize: 'vertical',
+          backgroundColor: 'white',
+          marginTop: '10px'
         }}
       />
     ) : (
@@ -1627,7 +1740,7 @@ function EditRow({
 }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 12 }}>{label}</div>
+      <div style={{ fontSize: 12, }}>{label}</div>
       {children}
     </div>
   )

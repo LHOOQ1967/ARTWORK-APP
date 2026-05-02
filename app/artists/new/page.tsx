@@ -61,7 +61,7 @@ export default function NewArtistPage() {
           maxWidth: 640,
           margin: '0 auto',
           padding: 24,
-          backgroundColor: '#f7f7f7',
+          backgroundColor: '#ffffff',
           borderRadius: 6,
           color: 'black',
         }}

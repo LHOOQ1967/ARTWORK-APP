@@ -82,20 +82,28 @@ export default function HeaderNav() {
 
       {/* RIGHT ACTIONS */}
       <div style={{ display: 'flex', gap: 10 }}>
-        {loggedIn && (
-          <Link href="/artworks/new" style={primaryButton}>
-            + New artwork
-          </Link>
-        )}
+
 
         {!loggedIn && (
-          <Link href="/login" style={primaryButton}>
+         <Link href="/login">
+           <button className="edit-button"
+
+      onMouseUp={e => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
+      }}
+    >
             Login
+            </button>
           </Link>
         )}
 
         {loggedIn && (
-          <button onClick={handleLogout} style={dangerButton}>
+          <button onClick={handleLogout} className="edit-button">
             Logout
           </button>
         )}
@@ -130,10 +138,11 @@ const primaryButton: React.CSSProperties = {
 }
 
 const dangerButton: React.CSSProperties = {
-  backgroundColor: '#ffe5e5',
-  color: '#900',
-  border: '1px solid #cc0000',
+  backgroundColor: ' #f3f3f3',
+  color: '#006b54',
+  border: '1px solid',
   padding: '6px 12px',
   borderRadius: 4,
   cursor: 'pointer',
+  
 }

@@ -40,11 +40,14 @@ export async function GET() {
       id: artwork.id,
       title: artwork.title,
       proposed_by_date: artwork.date_proposition,
-      artist_name: artwork.artists
-        ? [artwork.artists.first_name, artwork.artists.last_name]
-            .filter(Boolean)
-            .join(' ')
-        : null,
+
+
+artist_name: artwork.artists?.[0]
+  ? [artwork.artists[0].first_name, artwork.artists[0].last_name]
+      .filter(Boolean)
+      .join(' ')
+  : null,
+
     })),
   })
 }

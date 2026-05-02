@@ -125,7 +125,7 @@ export type Artwork = {
 }
 
 
-
+export type ArtworkBase = ArtworkForm | ArtworkWithRelations
 // app/types/artwork.ts
 
 
@@ -338,6 +338,13 @@ export type ArtworkPrint = {
   certificateLocation?: Contact | null
 
   documents?: ArtworkDocument[]
+  
+  proposals?: {
+    contact_id: string
+    contact_label?: string
+  }[] | null
+
+
 }
 
 

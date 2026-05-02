@@ -128,7 +128,7 @@ const archivedArtworks = sortedAuctions.filter(
         style={{
           padding: 40,
           minHeight: '100vh',
-          backgroundColor: '#007a5e',
+          backgroundColor: '#006039',
           color: 'white',
         }}
       >
@@ -141,9 +141,12 @@ const archivedArtworks = sortedAuctions.filter(
         >
           <h1>Auctions</h1>
 
-          <Link href="/artworks/new">
+        <Link href="/artworks/new">
+          <button className="edit-button"
+          >
             + New artwork
-          </Link>
+          </button>
+        </Link>
         </div>
 
         <p>No auction artworks yet.</p>
@@ -185,21 +188,10 @@ const archivedArtworks = sortedAuctions.filter(
         </h2>
 
         <Link href="/artworks/new">
-          <span
-            style={{
-              display: 'inline-block',
-              padding: '12px 24px',
-              fontWeight: 700,
-              backgroundColor: '#f5f5f5',
-              borderBottom: '2px solid #ccc',
-              color: 'black',
-              borderRadius: 6,
-              cursor: 'pointer',
-              textDecoration: 'none',
-            }}
+          <button className="edit-button"
           >
             + New artwork
-          </span>
+          </button>
         </Link>
       </div>
 

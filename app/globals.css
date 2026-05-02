@@ -10,6 +10,7 @@
   --foreground: #171717;
 }
 
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -64,11 +65,48 @@ body {
 
 @media screen {
 
+.edit-button {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background: #f3f3f3;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: none;
+  color: #000;
+  box-shadow: 0 3px 0 #bbb;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.edit-button:hover {
+  background: #eaeaea;
+}
+
+.edit-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #bbb;
+}
+
+
+.hourglass {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  animation: hourglass-spin 1s linear infinite;
+}
   .print-controls {
     display: flex;
     justify-content: flex-end;
     margin-bottom: 16px;
   }
+
+@keyframes hourglass-spin {
+  0%   { transform: rotate(0deg); }
+  50%  { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
 
   /* ✅ IMAGES – ÉCRAN */
   .artwork-images {
@@ -119,7 +157,6 @@ body {
     margin: 0;
     padding: 0;
   }
-
   button,
   select,
   header,
@@ -168,3 +205,5 @@ body {
     padding-bottom: 0 !important;
   }
 }
+
+
