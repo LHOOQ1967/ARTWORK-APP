@@ -2,13 +2,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
 import { supabase } from '@/lib/supabaseClient'
 import type { ArtworkPrint } from '@/app/types/artwork'
-import { useSearchParams } from 'next/navigation'
+import { resolveSource } from '@/lib/viewerSources'
+import { useSessionProfile } from '@/app/contexts/SessionContext'
 
-
-
+/* ======================
+   Types
+   ====================== */
 
 type SortKey =
   | 'date'
@@ -16,15 +19,15 @@ type SortKey =
   | 'artist'
   | 'asking'
   | 'priority'
-  | 'status';
+  | 'status'
 
-type SortDirection = 'desc' | 'asc';
-
-type StatusFilter = 'active' | 'bought' | 'archived' | 'all';
+type SortDirection = 'desc' | 'asc'
+type StatusFilter = 'active' | 'bought' | 'archived' | 'all'
 
 /* ======================
-   Sort orders (métier)
+   Sort orders
    ====================== */
+
 const STATUS_ORDER: Record<string, number> = {
   draft: 1,
   viewed: 2,
@@ -33,7 +36,6 @@ const STATUS_ORDER: Record<string, number> = {
   archived: 99,
 }
 
-
 const PRIORITY_ORDER: Record<string, number> = {
   high: 3,
   medium: 2,
@@ -41,272 +43,146 @@ const PRIORITY_ORDER: Record<string, number> = {
 }
 
 
-
-/* ======================
-   Sorting helper
-   ====================== */
-
 function getSortValue(artwork: any, sortKey: SortKey) {
   switch (sortKey) {
     case 'artist':
       return artwork.artist?.last_name?.toLowerCase() ?? ''
-
-
     case 'sale_date':
       return artwork.sale_date
         ? new Date(artwork.sale_date).getTime()
         : 0
-
-
-case 'date': {
-  // ✅ Auctions → date de vente
-  if (artwork.auctions === true && artwork.sale_date) {
-    return new Date(artwork.sale_date).getTime()
-  }
-
-  // ✅ Sinon → date de proposition
-  return artwork.date_proposition
-    ? new Date(artwork.date_proposition).getTime()
-    : 0
-}
-
-
+    case 'date':
+      if (artwork.auctions && artwork.sale_date) {
+        return new Date(artwork.sale_date).getTime()
+      }
+      return artwork.date_proposition
+        ? new Date(artwork.date_proposition).getTime()
+        : 0
     case 'asking':
       return artwork.asking_price ?? 0
-
     case 'priority':
       return PRIORITY_ORDER[artwork.priority] ?? 0
-
     case 'status':
       return STATUS_ORDER[artwork.status] ?? 99
   }
 }
 
-
 function sortArtworks(
-  artworks: any[],
+  artworks: ArtworkPrint[],
   sortKey: SortKey,
   direction: SortDirection
 ) {
   return [...artworks].sort((a, b) => {
     const va = getSortValue(a, sortKey)
     const vb = getSortValue(b, sortKey)
-
     if (va < vb) return direction === 'asc' ? -1 : 1
     if (va > vb) return direction === 'asc' ? 1 : -1
     return 0
   })
 }
 
-
-
-function sortArtworksForPrint(
-  artworks: ArtworkPrint[],
-  sortKey: SortKey,
-  sortDirection: SortDirection
-) {
-  return [...artworks].sort((a, b) => {
-    const va = getSortValue(a, sortKey)
-    const vb = getSortValue(b, sortKey)
-
-    if (va < vb) return sortDirection === 'asc' ? -1 : 1
-    if (va > vb) return sortDirection === 'asc' ? 1 : -1
-    return 0
-  })
-}
-``
-
-
-
-
-
-/* ======================
-   Page
-   ====================== */
-
-export default function ArtworksPrintPage() {
-  /* ======================
-     State
-     ====================== */
-  
-const [artworks, setArtworks] = useState<ArtworkPrint[]>([])
-const [loading, setLoading] = useState(true)
-  const [mounted, setMounted] = useState(false)
-const [exporting, setExporting] = useState(false)
-  /* ===== UI state ===== */
-
-const [sortKey, setSortKey] = useState<SortKey>('date')
-const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-
-
-const [statusFilter, setStatusFilter] =
-  useState<StatusFilter>('all')
-
-
-
-
-
-  const [priorityFilter, setPriorityFilter] =
-    useState<'all' | 'high' | 'medium' | 'low'>('all')
-
-const [auctionFilter, setAuctionFilter] =
-  useState<'all' | 'auction' | 'non-auction'>('all')
-
-const [proposedToFilter, setProposedToFilter] =
-  useState<string | 'all'>('all')
-
-
-const searchParams = useSearchParams()
-
-useEffect(() => {
-  const k = searchParams.get('sortKey')
-  const d = searchParams.get('sortDirection')
-  const s = searchParams.get('statusFilter')
-  const p = searchParams.get('priorityFilter')
-  const a = searchParams.get('auctionFilter')
-  const pt = searchParams.get('proposedToFilter')
-
-  if (k) setSortKey(k as SortKey)
-  if (d) setSortDirection(d as SortDirection)
-  if (s) setStatusFilter(s as StatusFilter)
-  if (p) setPriorityFilter(p as any)
-  if (a) setAuctionFilter(a as any)
-  if (pt) setProposedToFilter(pt as any)
-}, [searchParams])
-
-
-
-  /* ======================
-     Data loading
-     ====================== */
-
- 
-useEffect(() => {
-  const loadArtworks = async () => {
-    try {
-
-
-
-const { data, error } = await supabase
-  .from('artwork_print_view')
-  .select(`*`)
-
-
-
-
-if (error) {
-  console.error(error)
-  setArtworks([])
-  return
-}
-
-
-      setArtworks(data as ArtworkPrint[])
-    } catch (err) {
-      console.error(err)
-      setArtworks([])
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  loadArtworks()
-}, [])
-
-
-function getStatusGroupOrder(artwork: any): number {
+function getStatusGroupOrder(artwork: ArtworkPrint): number {
   if (artwork.status === 'archived') return 3
   if (artwork.status === 'bought') return 2
-  return 1 // active = tout le reste
+  return 1
 }
 
+export default function ArtworksPrintPage() {
+  const { profile, loading: sessionLoading } = useSessionProfile()
 
 
-const filteredAndSorted = useMemo(() => {
-  const filtered = artworks
-    .filter(a => {
-      if (statusFilter === 'all') return true
-      if (statusFilter === 'archived') return a.status === 'archived'
-      if (statusFilter === 'bought') return a.status === 'bought'
-      return a.status !== 'archived' && a.status !== 'bought'
-    })
-    .filter(a => {
-      if (priorityFilter === 'all') return true
-      return a.priority === priorityFilter
-    })
-    .filter(a => {
-      if (auctionFilter === 'all') return true
-      if (auctionFilter === 'auction') return a.auctions === true
-      return a.auctions !== true
-    })
-
-    
-.filter(a => {
-  if (proposedToFilter === 'all') return true
-
-  // ✅ artwork doit avoir au moins une proposal vers ce contact
-  return (a.proposals ?? []).some(
-    (p: any) => p.contact_id === proposedToFilter
-  )
-})
+const canEdit =
+  profile?.role === 'Administrator' ||
+  profile?.role === 'Editor'
 
 
-  // ✅ CAS SPÉCIAL : Status = All
-  if (statusFilter === 'all') {
-    return [...filtered].sort((a, b) => {
-      // 1️⃣ tri par groupe de statut
-      const ga = getStatusGroupOrder(a)
-      const gb = getStatusGroupOrder(b)
+  const [artworks, setArtworks] = useState<ArtworkPrint[]>([])
+  const [loadingData, setLoadingData] = useState(true)
+  const [exporting, setExporting] = useState(false)
 
-      if (ga !== gb) return ga - gb
+  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [priorityFilter, setPriorityFilter] =
+    useState<'all' | 'high' | 'medium' | 'low'>('all')
+  const [auctionFilter, setAuctionFilter] =
+    useState<'all' | 'auction' | 'non-auction'>('all')
+  const [proposedToFilter, setProposedToFilter] =
+    useState<string | 'all'>('all')
 
-      // 2️⃣ tri secondaire normal
-      const va = getSortValue(a, sortKey)
-      const vb = getSortValue(b, sortKey)
+  const searchParams = useSearchParams()
 
-      if (va < vb) return sortDirection === 'asc' ? -1 : 1
-      if (va > vb) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-  }
+  useEffect(() => {
+    if (!profile) return
 
+    const loadArtworks = async () => {
+      const source = resolveSource('prints', profile.role)
+      const { data } = await supabase.from(source).select('*')
+      setArtworks((data as ArtworkPrint[]) ?? [])
+      setLoadingData(false)
+    }
 
+    loadArtworks()
+  }, [profile])
 
+  const filteredAndSorted = useMemo(() => {
+    let filtered = artworks
+      .filter(a =>
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'archived'
+          ? a.status === 'archived'
+          : statusFilter === 'bought'
+          ? a.status === 'bought'
+          : a.status !== 'archived' && a.status !== 'bought'
+      )
+      .filter(a =>
+        priorityFilter === 'all' ? true : a.priority === priorityFilter
+      )
+      .filter(a =>
+        auctionFilter === 'all'
+          ? true
+          : auctionFilter === 'auction'
+          ? a.auctions
+          : !a.auctions
+      )
+      .filter(a =>
+        proposedToFilter === 'all'
+          ? true
+          : (a.proposals ?? []).some(
+              p => p.contact_id === proposedToFilter
+            )
+      )
 
+    if (statusFilter === 'all') {
+      return [...filtered].sort((a, b) => {
+        const ga = getStatusGroupOrder(a)
+        const gb = getStatusGroupOrder(b)
+        if (ga !== gb) return ga - gb
+        return sortArtworks([a, b], sortKey, sortDirection)[0] === a
+          ? -1
+          : 1
+      })
+    }
 
-  // ✅ comportement normal
+    return sortArtworks(filtered, sortKey, sortDirection)
+  }, [
+    artworks,
+    statusFilter,
+    priorityFilter,
+    auctionFilter,
+    proposedToFilter,
+    sortKey,
+    sortDirection,
+  ])
 
-return sortArtworks(filtered, sortKey, sortDirection)
-}, [
-  artworks,
-  statusFilter,
-  priorityFilter,
-  auctionFilter,
-  proposedToFilter,
-  sortKey,
-  sortDirection,
-])
-
-
-  if (loading) {
+  if (sessionLoading || loadingData) {
     return <p style={{ padding: 40 }}>Loading…</p>
   }
 
-const marketArtworks = filteredAndSorted.filter(
-  a => !a.auctions && a.status !== 'bought'
-)
-
-const auctionArtworks = filteredAndSorted.filter(
-  a => a.auctions === true
-)
-
-const boughtArtworks = filteredAndSorted.filter(
-  a => a.status === 'bought'
-)
-return (
+  return (
     <main style={{ padding: 40 }}>
-      {/* ===== Controls (screen only) ===== */}
-
+      {/* ===== FILTERS / SORTING ===== */}
 <section 
   style={{
     padding: '12px 16px',
@@ -314,6 +190,7 @@ return (
     marginBottom: 10,
     alignItems: 'center',
   }}>
+
 <div
   className="print-controls no-print"
   style={{
@@ -503,48 +380,10 @@ return (
 </div>
 </section>
 
-{/* ===== Primary / Private Market ===== */}
-{marketArtworks.length > 0 && (
-  <section style={{ marginTop: 40 }}>
-    <h1>Primary & Private Market</h1>
-
-    {marketArtworks.map(artwork => (
-      <ArtworkSheet
-        key={artwork.id}
-        artwork={artwork}
-      />
-    ))}
-  </section>
-)}
-
-{/* ===== Auction ===== */}
-{auctionArtworks.length > 0 && (
-  <section style={{ marginTop: 60 }}>
-    <h1>Auction</h1>
-
-    {auctionArtworks.map(artwork => (
-      <ArtworkSheet
-        key={artwork.id}
-        artwork={artwork}
-      />
-    ))}
-  </section>
-)}
-
-{/* ===== Bought ===== */}
-{boughtArtworks.length > 0 && (
-  <section style={{ marginTop: 60 }}>
-    <h1>Bought</h1>
-
-    {boughtArtworks.map(artwork => (
-      <ArtworkSheet
-        key={artwork.id}
-        artwork={artwork}
-      />
-    ))}
-  </section>
-)}
-
-  </main>
+      {filteredAndSorted.map(a => (
+        <ArtworkSheet key={a.id} artwork={a}
+        canEdit={canEdit} />
+      ))}
+    </main>
   )
 }

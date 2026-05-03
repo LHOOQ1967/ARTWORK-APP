@@ -1,12 +1,16 @@
 
 import ArtworkDetailContent from '@/app/components/artwork/ArtworkDetailContent'
 
+
+
+
 export const dynamic = 'force-dynamic'
 
 type PageProps = {
   params: Promise<{ id: string }>
   searchParams: Promise<{ mode?: string }>
 }
+
 
 export default async function ArtworkDetailPage({
   params,

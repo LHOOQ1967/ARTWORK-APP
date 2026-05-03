@@ -6,6 +6,9 @@ import Link from 'next/link'
 import ArtworkList from '@/app/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseClient'
 import type { ArtworkListItem } from '@/app/types/artwork'
+import { useSessionProfile } from '@/app/contexts/SessionContext'
+import { resolveSource } from '@/lib/viewerSources'
+
 
 
 export default function ArtworksPage() {
@@ -16,6 +19,13 @@ const [artworks, setArtworks] = useState<ArtworkListItem[]>([])
 
 const [loading, setLoading] = useState(true)
 const [error, setError] = useState<string | null>(null)
+
+
+const { profile, loading: profileLoading } = useSessionProfile()
+
+const source = resolveSource('artworks', profile?.role)
+
+
 
 
   /* ======================
@@ -41,32 +51,9 @@ checkSession()
 
 
 const { data, error } = await supabase
-  .from('artworks')
-  .select(`
-    id,
-    title,
-    status,
-    priority,
-    currency,
-    asking_price,
+  .from(source)
+  .select(`*`)
 
-    date_proposition,
-    sale_date,
-    date_acquisition,
-
-    artist:artists!artworks_artist_id_fkey (
-      id,
-      first_name,
-      last_name
-    ),
-    documents:documents (
-      id,
-      document_type,
-      label,
-      url
-    )
-  `)
-  .neq('auctions', true)
 
 
         if (error) {
@@ -150,6 +137,13 @@ const archivedArtworks = sortedArtworks.filter(
   if (error) {
     return <p style={{ padding: 40, color: 'red' }}>{error}</p>
   }
+
+  
+console.log('[ARTWORKS PAGE]', {
+  role: profile.role,
+  source,
+  firstRow: artworks?.[0],
+})
 
   /* ======================
      RENDER

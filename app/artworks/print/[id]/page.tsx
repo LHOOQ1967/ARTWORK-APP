@@ -6,7 +6,8 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
 import type { ArtworkPrint } from '@/app/types/artwork'
-
+import { useSessionProfile } from '@/app/contexts/SessionContext'
+import { resolveSource } from '@/lib/viewerSources'
 
 
 function logSupabaseError(context: string, error: any) {
@@ -20,11 +21,13 @@ function logSupabaseError(context: string, error: any) {
 }
 
 
+
 export default function ArtworkPrintPage() {
   const { id } = useParams<{ id: string }>()
  
   console.log('PRINT PARAM ID:', id, typeof id)
-  
+
+  const profile = useSessionProfile()
   const [artwork, setArtwork] = useState<ArtworkPrint | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -38,12 +41,14 @@ export default function ArtworkPrintPage() {
         setLoading(true)
 
 
+const source = resolveSource('prints', profile.role)
 
 const { data, error } = await supabase
-  .from('artwork_print_view')
+  .from(source)
   .select('*')
   .eq('id', id)
   .maybeSingle()
+
 
 
 

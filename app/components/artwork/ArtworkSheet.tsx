@@ -4,6 +4,10 @@ import React from 'react'
 import Link from 'next/link'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/types/artwork'
 
+import { useSessionProfile } from '@/app/contexts/SessionContext'
+import { canEditArtworks } from '@/lib/permissions'
+
+
 
 
 
@@ -11,7 +15,9 @@ import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/types
 type Props = {
   artwork: ArtworkPrint
   isEditMode?: boolean
+  canEdit: boolean
 }
+
 
 
 
@@ -83,7 +89,7 @@ function hasValidNumber(value: unknown) {
 
 /* ---------- component ---------- */
 
-export default function ArtworkSheet({ artwork, isEditMode }: Props) {
+export default function ArtworkSheet({ artwork, isEditMode, canEdit }: Props) {
 const artworkId = artwork.id
 
   
@@ -130,6 +136,7 @@ const images: ArtworkDocument[] =
       (d: ArtworkDocument) => d.document_type === 'onedrive'
     ) || []
 
+const profile = useSessionProfile()
 
 
 
@@ -141,7 +148,7 @@ const images: ArtworkDocument[] =
         boxSizing: 'border-box',
       }}
     >
-{!isEditMode && (
+{!isEditMode && canEdit && (
 <div className="print-controls no-print">
   <Link href={`/artworks/${artworkId}/edit`}>
     <button className="edit-button"

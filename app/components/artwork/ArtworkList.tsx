@@ -208,7 +208,6 @@ columnKey:
   )
 }
 
-
   return (
 
     
@@ -315,10 +314,7 @@ label={
 {/* Image */}
 <td style={{ ...td, width: 80 }}>
   {(() => {
-    const images =
-      a.documents?.filter(
-        (d: any) => d.document_type === 'image'
-      ) || []
+const images = Array.isArray(a.images) ? a.images : [];
 
     return images.length > 0 ? (
 
@@ -369,16 +365,31 @@ label={
 
 
               {/* Artist */}
-              <td style={td}>
-                {a.artist
-                  ? `${a.artist.last_name}`.trim()
-                  : '—'}
-              </td>
 
-              {/* Title */}
-              <td style={td}>
-                {a.title}
-                 </td>
+
+
+
+
+<td>
+  {a.artist &&
+  typeof a.artist === 'object' &&
+  (a.artist.first_name || a.artist.last_name)
+    ? `${a.artist.first_name ?? ''} ${a.artist.last_name ?? ''}`.trim()
+    : '—'}
+</td>
+
+
+
+
+
+
+{/* Title */}
+<td style={td}>
+  {typeof a.title === 'string' && a.title.trim() !== ''
+    ? a.title
+    : '—'}
+</td>
+
 
               {/* Asking */}
               {mode === 'market' && (
@@ -392,7 +403,7 @@ label={
               {mode === 'auction' && (
                 <td style={{ ...td, textAlign: 'right' }}>
                   {a.estimate_low && a.estimate_high
-                    ? `${a.auction_currency} ${a.estimate_low.toLocaleString('fr-CH')} – ${a.estimate_high.toLocaleString('fr-CH')}`
+                    ? `${a.estimate_currency} ${a.estimate_low.toLocaleString('fr-CH')} – ${a.estimate_high.toLocaleString('fr-CH')}`
                     : '—'}
                 </td>
               )}
@@ -453,3 +464,4 @@ label={
     </div>
   )
 }
+

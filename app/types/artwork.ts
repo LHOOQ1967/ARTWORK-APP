@@ -164,7 +164,20 @@ export type ArtworkListItem = {
     document_type: 'image' | 'onedrive'
     url?: string | null
   }[]
+  
+  // ✅ Champs artiste au niveau racine
+  first_name?: string | null
+  last_name?: string | null
+
+  // ✅ Images JSON
+  images?: {
+    id?: string
+    url: string
+    position?: number
+  }[] | null
 }
+
+  
 
 
 
@@ -346,5 +359,7 @@ export type ArtworkPrint = {
 
 
 }
+
+
 
 

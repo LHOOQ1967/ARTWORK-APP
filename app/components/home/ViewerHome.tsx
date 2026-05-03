@@ -2,9 +2,8 @@
 'use client'
 
 import Link from 'next/link'
-import { AuditProposedAtShortcut } from '@/app/components/AuditProposedAtShortcut'
 
-export default function HomePage() {
+export default function ViewerHome() {
   return (
     <main
       style={{
@@ -43,19 +42,10 @@ export default function HomePage() {
         />
 
         <EntryCard
-          href="/referentials"
-          title="Referentials"
-          subtitle="Artists & contacts"
-        />
-
-        <EntryCard
           href="/artworks/print"
           title="Fiche descriptive"
           subtitle="pour impression"
         />
-
-  <AuditProposedAtShortcut />
-
       </div>
     </main>
   )
@@ -82,12 +72,12 @@ function EntryCard({
         textAlign: 'center',
         transition: 'transform 0.15s, box-shadow 0.15s',
       }}
-      onMouseEnter={(e) => {
+      onMouseEnter={e => {
         e.currentTarget.style.transform = 'translateY(-2px)'
         e.currentTarget.style.boxShadow =
           '0 6px 16px rgba(0,0,0,0.15)'
       }}
-      onMouseLeave={(e) => {
+      onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)'
         e.currentTarget.style.boxShadow = 'none'
       }}
