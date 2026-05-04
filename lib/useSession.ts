@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabaseBrowser'
+import { supabase } from '@/lib/supabaseClient'
 import { Session } from '@supabase/supabase-js'
 
 export function useSession() {
@@ -10,20 +10,20 @@ export function useSession() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Récupérer la session courante
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       setLoading(false)
     })
 
-    // Écouter les changements de session
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session)
+      }
+    )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      listener.subscription.unsubscribe()
+    }
   }, [])
 
   return { session, loading }

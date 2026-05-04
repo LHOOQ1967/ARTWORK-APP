@@ -18,7 +18,7 @@ type Props = {
 
   // 🔎 Contacts
   contactQuery?: string
-  setContactQuery?: React.Dispatch<React.SetStateAction<string>>
+  setContactQuery: React.Dispatch<React.SetStateAction<string>>
   contactResults?: Contact[]
   contactOptions?: Contact[]
 
@@ -213,12 +213,7 @@ export function ArtworkFieldsLayout({
         type="text"
         placeholder="Search"
         value={contactQuery}
-onChange={e => {
-  if (setContactQuery) {
-    setContactQuery(e.target.value)
-  }
-}}
-        style={{
+onChange={(e) => setContactQuery(e.target.value)}        style={{
           width: 120,
           padding: '6px 8px',
           fontSize: '0.9rem',

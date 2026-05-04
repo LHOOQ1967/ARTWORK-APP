@@ -6,30 +6,30 @@ import { supabase } from '@/lib/supabaseClient'
 
 export type UserRole = 'Viewer' | 'Editor' | 'Administrator'
 
-export type SessionProfile = {
-  id: string
-  email: string
-  role: UserRole
+type SessionProfileContextValue = {
+  role: UserRole | undefined
+  loading: boolean
 }
 
-const SessionContext = createContext<
-  SessionProfile | null | undefined
->(undefined)
-
+const SessionContext = createContext<SessionProfileContextValue | undefined>(
+  undefined
+)
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<SessionProfile | null>(null)
+  const [role, setRole] = useState<UserRole | undefined>(undefined)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
 
     const loadProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
       if (!user) {
         if (active) {
-          setProfile(null)
+          setRole(undefined)
           setLoading(false)
         }
         return
@@ -37,20 +37,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('id,email,role')
+        .select('role')
         .eq('id', user.id)
         .single()
 
       if (active) {
-        setProfile(error ? null : data)
+        setRole(error ? undefined : data.role)
         setLoading(false)
       }
     }
 
     loadProfile()
 
-    const { data: { subscription } } =
-      supabase.auth.onAuthStateChange(loadProfile)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(loadProfile)
 
     return () => {
       active = false
@@ -59,13 +60,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <SessionContext.Provider value={{ profile, loading }}>
+    <SessionContext.Provider value={{ role, loading }}>
       {children}
     </SessionContext.Provider>
   )
 }
-
-
 
 export function useSessionProfile() {
   const ctx = useContext(SessionContext)

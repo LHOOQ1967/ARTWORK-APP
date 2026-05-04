@@ -3,9 +3,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
 import type { ArtworkForm, Artist, Contact, ArtworkWithRelations } from '@/app/types/artwork'
 import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
+import { supabase } from '@/lib/supabaseClient'
+
 
 
 const EMPTY_ARTWORK: ArtworkForm = {
@@ -87,10 +88,17 @@ useEffect(() => {
       .select('id, company_name, first_name, last_name')
       .order('company_name', { ascending: true })
 
+
+    console.log('CONTACTS (loadContacts) DATA:', data)
+    console.log('CONTACTS (loadContacts) ERROR:', error)
+
+
+
     if (!error && data) {
       setContactOptions(data)
     }
   }
+
 
   loadContacts()
 }, [])
@@ -98,9 +106,13 @@ useEffect(() => {
 
 
 
+
+
 const [artistQuery, setArtistQuery] = useState('')
 const [artistResults, setArtistResults] = useState<Artist[]>([])
 const [artistOptions, setArtistOptions] = useState<Artist[]>([])
+
+
 
 
 useEffect(() => {
@@ -181,6 +193,8 @@ useEffect(() => {
     const { data } = await supabase
       .from('contacts')
       .select('id, company_name, first_name, last_name')
+
+     
 
 .or([
   `company_name.ilike.%${contactQuery}%`,
@@ -309,7 +323,25 @@ if (!artwork) {
   return null // ou un loader, ou un message
 }
 
+
  
+
+
+
+
+
+useEffect(() => {
+  const checkSession = async () => {
+    const { data } = await supabase.auth.getSession()
+    console.log('SESSION', data)
+  }
+
+  checkSession()
+}, [])
+
+
+
+console.log('CONTACT OPTIONS STATE:', contactOptions)
 
 return (
   <main style={{ padding: 40, backgroundColor: '#006039', color: 'white' }}>
@@ -349,11 +381,36 @@ return (
   </button>
 </div>
 
+
+
 <ArtworkFieldsLayout
   artwork={artwork}
   setArtwork={setArtwork}
   isEditing={true}
+
+  // ✅ ARTIST
+  artistQuery={artistQuery}
+  setArtistQuery={setArtistQuery}
+  artistResults={artistResults}
+  artistOptions={artistOptions}
+
+  // ✅ CONTACT
+  contactQuery={contactQuery}
+  setContactQuery={setContactQuery}
+  contactResults={contactResults}
+  contactOptions={contactOptions}
+
+  // ✅ AUCTION
+  auctionQuery={auctionQuery}
+  setAuctionQuery={setAuctionQuery}
+  auctionResults={auctionResults}
+
+  // ✅ BUYER / DESTINATION
+  buyerResults={buyerResults}
+  destinationResults={destinationResults}
 />
+
+
 
 
 

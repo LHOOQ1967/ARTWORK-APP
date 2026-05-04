@@ -6,8 +6,8 @@ import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import ArtworkSheet from '@/app/components/artwork/ArtworkSheet'
 import type { ArtworkPrint } from '@/app/types/artwork'
-import { useSessionProfile } from '@/app/contexts/SessionContext'
 import { resolveSource } from '@/lib/viewerSources'
+import { useSessionProfile } from '@/app/contexts/SessionContext'
 
 
 function logSupabaseError(context: string, error: any) {
@@ -25,9 +25,9 @@ function logSupabaseError(context: string, error: any) {
 export default function ArtworkPrintPage() {
   const { id } = useParams<{ id: string }>()
  
-  console.log('PRINT PARAM ID:', id, typeof id)
-
-  const profile = useSessionProfile()
+ 
+  const { role } = useSessionProfile()
+  const canEdit = role === 'Administrator' || role === 'Editor'
   const [artwork, setArtwork] = useState<ArtworkPrint | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -41,7 +41,7 @@ export default function ArtworkPrintPage() {
         setLoading(true)
 
 
-const source = resolveSource('prints', profile.role)
+const source = resolveSource('prints', role)
 
 const { data, error } = await supabase
   .from(source)
@@ -56,6 +56,11 @@ const { data, error } = await supabase
         if (!isMounted) return
 
 
+
+console.log(
+  'PRINT DETAIL – FIELDS RETURNED:',
+  Object.keys(data ?? {})
+)
 
 
 if (error) {
@@ -87,6 +92,9 @@ if (!data) {
 
     loadArtwork()
 
+    
+
+
     return () => {
       isMounted = false
     }
@@ -100,8 +108,19 @@ if (!data) {
     return <p style={{ padding: 40 }}>Artwork not found</p>
   }
 
+  
+
+
   return (
-    <main style={{ padding: 40 }}> <ArtworkSheet artwork={artwork} />
+    <main style={{ padding: 40 }}> 
+
+<ArtworkSheet
+  key={artwork.id}
+  artwork={artwork}
+  canEdit={canEdit}
+/>
+
+
     </main>
   )
 }

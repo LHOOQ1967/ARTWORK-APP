@@ -17,44 +17,53 @@ export default function AuctionArtworksPage() {
   const [error, setError] = useState<string | null>(null)
 
 
- const { profile, loading: profileLoading } = useSessionProfile()
-
+ const { role } = useSessionProfile()
+const roleReady = role !== undefined && role !== null
   /* ======================
      LOAD ARTWORKS (AUCTIONS)
      ====================== */
-  useEffect(() => {
-    if (!profile) return
-
-    const source =
-      profile.role === 'Administrator' || profile.role === 'Editor'
-        ? 'auction_artworks_base'
-        : 'viewer_auction_artworks_secure'
 
 
 
-    const loadArtworks = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+useEffect(() => {
+  if (!roleReady) return
 
-        const { data, error } = await supabase
-          .from(source)
-          .select('*')
+  const isAdmin =
+    role === 'Administrator' ||
+    role === 'Editor' ||
+    role === 'admin' ||
+    role === 'editor'
 
-        if (error) {
-          console.error(error)
-          setError('Failed to load auction artworks')
-          return
-        }
+  const source = isAdmin
+    ? 'auction_artworks_base'
+    : 'viewer_auction_artworks_secure'
 
-        setArtworks(data ?? [])
-      } finally {
-        setLoading(false)
-      }
+  console.log('[AUCTIONS LOAD]', { role, source })
+
+  const loadArtworks = async () => {
+    setLoading(true)
+    setError(null)
+
+    const { data, error } = await supabase
+      .from(source)
+      .select('*')
+
+    if (error) {
+      console.error(error)
+      setError('Failed to load auction artworks')
+      setArtworks([])
+    } else {
+      setArtworks(data ?? [])
     }
 
-    loadArtworks()
-  }, [profile])
+    setLoading(false)
+  }
+
+  loadArtworks()
+}, [roleReady, role])
+
+
+
 
  
 
@@ -84,9 +93,23 @@ export default function AuctionArtworksPage() {
     (a) => a.status === 'archived'
   )
 
+console.log('[AUCTIONS DEBUG]', {
+  role,
+  source:
+    role === 'Administrator' || role === 'Editor'
+      ? 'auction_artworks_base'
+      : 'viewer_auction_artworks_secure'
+})
+
   /* ======================
      EARLY RETURNS
      ====================== */
+
+if (!roleReady) {
+  return <p style={{ padding: 40 }}>Loading user role…</p>
+}
+
+
   if (loading) {
     return <p style={{ padding: 40 }}>Loading auction artworks…</p>
   }
@@ -123,6 +146,9 @@ export default function AuctionArtworksPage() {
       </main>
     )
   }
+
+  
+
 
   /* ======================
      RENDER

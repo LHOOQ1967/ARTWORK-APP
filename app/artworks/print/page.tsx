@@ -88,12 +88,12 @@ function getStatusGroupOrder(artwork: ArtworkPrint): number {
 }
 
 export default function ArtworksPrintPage() {
-  const { profile, loading: sessionLoading } = useSessionProfile()
+   const { role } = useSessionProfile()
 
 
 const canEdit =
-  profile?.role === 'Administrator' ||
-  profile?.role === 'Editor'
+  role === 'Administrator' ||
+  role === 'Editor'
 
 
   const [artworks, setArtworks] = useState<ArtworkPrint[]>([])
@@ -113,17 +113,17 @@ const canEdit =
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    if (!profile) return
+    if (!role) return
 
     const loadArtworks = async () => {
-      const source = resolveSource('prints', profile.role)
+      const source = resolveSource('prints', role)
       const { data } = await supabase.from(source).select('*')
       setArtworks((data as ArtworkPrint[]) ?? [])
       setLoadingData(false)
     }
 
     loadArtworks()
-  }, [profile])
+  }, [role])
 
   const filteredAndSorted = useMemo(() => {
     let filtered = artworks
@@ -176,7 +176,7 @@ const canEdit =
     sortDirection,
   ])
 
-  if (sessionLoading || loadingData) {
+  if (loadingData) {
     return <p style={{ padding: 40 }}>Loading…</p>
   }
 

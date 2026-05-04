@@ -13,10 +13,10 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body style={{ margin: 0 }}>
-        <SessionProvider>
-          <HeaderNav />
-          <main>{children}</main>
-        </SessionProvider>
+          <SessionProvider>
+            <HeaderNav />
+            <main>{children}</main>
+          </SessionProvider>
       </body>
     </html>
   )

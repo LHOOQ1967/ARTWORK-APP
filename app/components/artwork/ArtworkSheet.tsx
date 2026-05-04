@@ -136,7 +136,7 @@ const images: ArtworkDocument[] =
       (d: ArtworkDocument) => d.document_type === 'onedrive'
     ) || []
 
-const profile = useSessionProfile()
+const { role } = useSessionProfile()
 
 
 

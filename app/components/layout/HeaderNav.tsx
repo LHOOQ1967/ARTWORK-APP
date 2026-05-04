@@ -10,13 +10,12 @@ import { canEditArtworks } from '@/lib/permissions'
 export default function HeaderNav() {
   const pathname = usePathname()
   const router = useRouter()
-  const { profile, loading } = useSessionProfile()
+ const { role, loading } = useSessionProfile()
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
 
-  const canEdit =
-    profile !== null ? canEditArtworks(profile.role) : false
+  const canEdit = role === 'Administrator' || role === 'Editor'
 
   return (
     <header
@@ -70,14 +69,14 @@ export default function HeaderNav() {
         {loading && null}
 
         {/* ✅ Non connecté */}
-        {!loading && !profile && (
+        {!loading && !role && (
           <Link href="/login">
             <button className="edit-button">Login</button>
           </Link>
         )}
 
         {/* ✅ Connecté */}
-        {!loading && profile && (
+        {!loading && role && (
           <button onClick={() => supabase.auth.signOut()}>
             Logout
           </button>

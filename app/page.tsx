@@ -6,7 +6,7 @@ import AdminHome from '@/app/components/home/AdminHome'
 import { useSessionProfile } from '@/app/contexts/SessionContext'
 
 export default function HomePage() {
-  const { profile, loading } = useSessionProfile()
+  const { role } = useSessionProfile()
 
   if (loading) return null
 

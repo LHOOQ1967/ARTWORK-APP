@@ -21,9 +21,9 @@ const [loading, setLoading] = useState(true)
 const [error, setError] = useState<string | null>(null)
 
 
-const { profile, loading: profileLoading } = useSessionProfile()
+const { role } = useSessionProfile()
 
-const source = resolveSource('artworks', profile?.role)
+const source = resolveSource('artworks', role)
 
 
 
@@ -139,11 +139,7 @@ const archivedArtworks = sortedArtworks.filter(
   }
 
   
-console.log('[ARTWORKS PAGE]', {
-  role: profile.role,
-  source,
-  firstRow: artworks?.[0],
-})
+
 
   /* ======================
      RENDER

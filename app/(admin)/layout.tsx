@@ -10,27 +10,22 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { profile, loading } = useSessionProfile()
+  const { role } = useSessionProfile()
   const router = useRouter()
 
   useEffect(() => {
-    if (loading) return
-
-    if (!profile || profile.role === 'Viewer') {
-      router.replace('/') // ✅ redirection propre
+    if (role === 'Viewer') {
+      router.replace('/')
     }
-  }, [profile, loading, router])
+  }, [role, router])
 
-  // ✅ Ne JAMAIS retourner null pendant loading
-  if (loading) {
-    return <p style={{ padding: 40 }}>Loading session…</p>
-  }
-
-  // ✅ Cas non autorisé (court instant avant redirect)
-  if (!profile || profile.role === 'Viewer') {
+  if (role === 'Viewer') {
     return <p style={{ padding: 40 }}>Redirecting…</p>
   }
 
-  // ✅ Admin / Editor autorisés
-  return <>{children}</>
+  return (
+    <>
+      {children}
+    </>
+  )
 }
