@@ -1,7 +1,5 @@
 
-'use client'
-
-export function AppSupabaseProvider({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode

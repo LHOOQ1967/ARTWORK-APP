@@ -1,7 +1,5 @@
 
-'use client'
-
-export function AppSupabaseProvider({
+export default function ViewerLayout({
   children,
 }: {
   children: React.ReactNode

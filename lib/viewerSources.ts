@@ -1,5 +1,5 @@
 
-import type { UserRole } from '@/app/contexts/SessionContext'
+import type { UserRole } from '@/contexts/SessionContext'
 
 export type ViewerPage =
   | 'artworks'

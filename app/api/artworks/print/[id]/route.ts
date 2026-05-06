@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabaseClient'
+import { supabaseServer } from '@/lib/supabaseServer'
 
 export async function GET(
   req: NextRequest,
@@ -14,6 +14,7 @@ export async function GET(
       { status: 400 }
     )
   }
+const supabase = await supabaseServer()
 
   const { data, error } = await supabase
     .from('artworks')

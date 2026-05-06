@@ -1,33 +1,56 @@
 
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseServer } from '@/lib/supabaseServer'
+
+type RouteParams = {
+  id: string
+  documentId: string
+}
+
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<RouteParams> }
+) {
+  const { id } = await context.params
+  const body = await req.json()
+const supabase = await supabaseServer()
+
+  const { data, error } = await supabase
+    .from('documents')
+    .insert({
+      artwork_id: id,
+      document_type: body.document_type,
+      label: body.label,
+      url: body.url,
+      position: body.position,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('INSERT DOCUMENT ERROR:', error)
+    return NextResponse.json(error, { status: 400 })
+  }
+
+  return NextResponse.json(data)
+}
 
 export async function DELETE(
   req: NextRequest,
-  context: {
-    params: Promise<{ id: string; documentId: string }>
-  }
+  context: { params: Promise<RouteParams> }
 ) {
   const { documentId } = await context.params
 
-  const accessToken = req.cookies.get('sb-access-token')?.value
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const supabase = await supabaseServer()
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/documents?id=eq.${documentId}`,
-    {
-      method: 'DELETE',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  )
+  const { error } = await supabase
+    .from('documents')
+    .delete()
+    .eq('id', documentId)
 
-  if (!res.ok) {
-    const text = await res.text()
-    return NextResponse.json({ error: text }, { status: res.status })
+  if (error) {
+    console.error('DELETE DOCUMENT ERROR:', error)
+    return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
   return NextResponse.json({ success: true })
@@ -35,40 +58,24 @@ export async function DELETE(
 
 export async function PATCH(
   req: NextRequest,
-  context: {
-    params: Promise<{ id: string; documentId: string }>
-  }
+  context: { params: Promise<RouteParams> }
 ) {
   const { documentId } = await context.params
-
-  const accessToken = req.cookies.get('sb-access-token')?.value
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   const body = await req.json()
+const supabase = await supabaseServer()
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/documents?id=eq.${documentId}`,
-    {
-      method: 'PATCH',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      body: JSON.stringify({
-        label: body.label ?? null,
-      }),
-    }
-  )
+  const { data, error } = await supabase
+    .from('documents')
+    .update({
+      label: body.label ?? null,
+    })
+    .eq('id', documentId)
+    .select()
+    .single()
 
-  if (!res.ok) {
-    const text = await res.text()
-    return NextResponse.json({ error: text }, { status: res.status })
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  const data = await res.json()
-  return NextResponse.json(data[0])
+  return NextResponse.json(data)
 }

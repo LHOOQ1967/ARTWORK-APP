@@ -1,14 +1,14 @@
 
 'use client'
 
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabaseBrowser'
 
 export default function LoginPage() {
   async function handleMicrosoftLogin() {
     await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {
-        redirectTo: `${window.location.origin}/artworks`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
   }
@@ -18,43 +18,42 @@ export default function LoginPage() {
       style={{
         minHeight: '100vh',
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'center',
-        background: '#f5f5f5',
+        background: '#006039',
       }}
     >
       <div
         style={{
-          background: 'white',
           padding: 40,
           borderRadius: 8,
-          width: 360,
+          width: 400,
           textAlign: 'center',
         }}
       >
-        <h1
+                <h1
           style={{
             fontSize: '1.5rem',
             fontWeight: 700,
             marginBottom: 24,
+            color: 'white'
+            
           }}
         >
-          Sign in
+          Blondeau & Cie
+        </h1><h1
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            marginBottom: 40,
+            color: 'white'
+          }}
+        >
+          Application Proposals
         </h1>
 
-        <button
+        <button className="edit-button"
           onClick={handleMicrosoftLogin}
-          style={{
-            width: '100%',
-            padding: '14px 16px',
-            fontSize: '1rem',
-            fontWeight: 600,
-            borderRadius: 6,
-            border: '1px solid #ccc',
-            cursor: 'pointer',
-            backgroundColor: '#fff',
-          }}
-        >
+          >
           Sign in with Microsoft
         </button>
       </div>

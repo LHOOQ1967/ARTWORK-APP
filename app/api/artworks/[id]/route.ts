@@ -1,7 +1,9 @@
+export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 /* =========================================================
    Supabase server client (SSR, cookies + RLS)
@@ -235,11 +237,14 @@ export async function PATCH(
 /* =========================================================
    DELETE /api/artworks/[id]
    ========================================================= */
+
+
 export async function DELETE(
-  req: NextRequest,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+
   if (!id) {
     return NextResponse.json(
       { error: 'Missing artwork id' },
@@ -247,33 +252,28 @@ export async function DELETE(
     )
   }
 
-  const accessToken = req.cookies.get('sb-access-token')?.value
-  if (!accessToken) {
+  const { data, error } = await supabaseAdmin
+    .from('artworks')
+    .delete()
+    .eq('id', id)
+    .select()
+
+  if (error) {
+    console.error('DELETE ARTWORK FAILED', error)
     return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
+      { error: error.message },
+      { status: 400 }
     )
   }
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/artworks?id=eq.${id}`,
-    {
-      method: 'DELETE',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
-        Prefer: 'return=minimal',
-      },
-    }
-  )
-
-  if (!res.ok) {
-    const text = await res.text()
+  if (!data || data.length === 0) {
     return NextResponse.json(
-      { error: text || 'Delete artwork failed' },
-      { status: res.status }
+      { error: 'Artwork not deleted (blocked by constraints or not found)' },
+      { status: 404 }
     )
   }
 
   return NextResponse.json({ success: true })
 }
+
+
