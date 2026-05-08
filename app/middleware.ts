@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+type UserRole = 'Viewer' | 'Editor' | 'Administrator'
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const { pathname } = req.nextUrl
@@ -29,10 +31,7 @@ export async function middleware(req: NextRequest) {
   /* ---------------------------------------------------
      1️⃣ Routes PUBLIQUES (toujours autorisées)
      --------------------------------------------------- */
-  if (
-    pathname === '/login' ||
-    pathname.startsWith('/auth')
-  ) {
+  if (pathname === '/login' || pathname.startsWith('/auth')) {
     return res
   }
 
@@ -46,26 +45,36 @@ export async function middleware(req: NextRequest) {
   }
 
   /* ---------------------------------------------------
-     3️⃣ Logué → contrôle des rôles
+     3️⃣ Logué → contrôle des rôles via profiles
      --------------------------------------------------- */
-  const role = session.user.user_metadata?.role
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', session.user.id)
+    .single()
 
-  // 🔒 Accès admin uniquement
-  if (pathname.startsWith('/admin') && role !== 'Administrator' && role !== 'Editor') {
+  const profileRole = profileData?.role as UserRole | undefined
+  const metadataRole = session.user.user_metadata?.role as UserRole | undefined
+  const role = profileRole ?? metadataRole
+
+  const redirectToHome = () => {
     const url = req.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
   }
 
-  // 🔒 Accès viewer uniquement
+  if (pathname.startsWith('/admin') && role !== 'Administrator' && role !== 'Editor') {
+    return redirectToHome()
+  }
+
   if (pathname.startsWith('/viewer') && role !== 'Viewer') {
-    const url = req.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
+    return redirectToHome()
   }
 
   /* ---------------------------------------------------
-     4️⃣ Tout le reste est autorisé
+     4️⃣ Si le profil n’existe pas mais la session est valide,
+     on laisse quand même l’accès général au site.
+     Les contrôles de route spécifiques restent actifs.
      --------------------------------------------------- */
   return res
 }

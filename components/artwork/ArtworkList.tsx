@@ -403,7 +403,7 @@ const images = Array.isArray(a.images) ? a.images : [];
               {mode === 'auction' && (
                 <td style={{ ...td, textAlign: 'right' }}>
                   {a.estimate_low && a.estimate_high
-                    ? `${a.estimate_currency} ${a.estimate_low.toLocaleString('fr-CH')} – ${a.estimate_high.toLocaleString('fr-CH')}`
+                    ? `${a.auction_currency} ${a.estimate_low.toLocaleString('fr-CH')} – ${a.estimate_high.toLocaleString('fr-CH')}`
                     : '—'}
                 </td>
               )}

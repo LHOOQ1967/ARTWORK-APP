@@ -2,16 +2,26 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
 
 export async function POST(req: NextRequest) {
   try {
     const { html } = await req.json()
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    })
+
+(async () => {
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: `wss://production-sfo.browserless.io?token=2UToKDaHlNWyrQ2f2888b9486038f47236b9f647b11820b5c`,
+  });
+
+  const page = await browser.newPage();
+  await page.goto('https://example.com');
+
+  const screenshot = await page.screenshot();
+  console.log('Screenshot taken!');
+
+  await browser.close();
+})();
 
     const page = await browser.newPage()
 

@@ -57,18 +57,16 @@ export default function AdminHome() {
         <AuditProposedAtShortcut />
       
       
-
-<Link href="/artworks/print?preset=florac-market">
-  <button className="edit-button">
-    Print Florac market artworks
-  </button>
+</div>
+<div>
+<Link href="/artworks/print?preset=florac-market" className="florac-button">
+  Florac market artworks
 </Link>
 
-<Link href="/artworks/print?preset=florac-auction">
-  <button className="edit-button">
-    Print Florac auction artworks
-  </button>
+<Link href="/artworks/print?preset=florac-auction" className="florac-button">
+  Florac auction artworks
 </Link>
+
 
 
       </div>

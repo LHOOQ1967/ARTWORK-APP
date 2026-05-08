@@ -119,13 +119,16 @@ function hasValidNumber(value: unknown) {
 export default function ArtworkSheet({ artwork, isEditMode, canEdit }: Props) {
 const artworkId = artwork.id
 
-  
+ const statusKey = artwork.status ?? 'UNKNOWN' 
+ 
+
 const statusStyle =
-  STATUS_STYLES[artwork.status] ?? {
+  STATUS_STYLES[statusKey] ?? {
     bg: '#E2E3E5',
     color: '#383D41',
-    label: artwork.status,
+    label: statusKey,
   }
+
 
 
 const proposedBy =
@@ -164,6 +167,10 @@ const images: ArtworkDocument[] =
         (a.position ?? 0) - (b.position ?? 0)
     ) ?? []
 
+const thumbnailCount = Math.max(0, images.length - 1)
+const thumbnailRows = Math.max(1, Math.ceil(thumbnailCount / 2))
+const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
+
   
   const onedriveDocuments =
     artwork.documents?.filter(
@@ -182,42 +189,33 @@ const { role } = useSessionProfile()
         boxSizing: 'border-box',
       }}
     >
-{!isEditMode && canEdit && (
-<div className="print-controls no-print">
-  <Link href={`/artworks/${artworkId}/edit`}>
-    <button className="edit-button"
-
-      onMouseUp={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
-      }}
-    >
-      Edit
-    </button>
-  </Link>
-</div>)}
-
-<div key={artwork.id} className="artwork-block">
-<h2 style={{ fontSize: '1.3rem', textAlign: 'center' }}>
-  {artwork.date_proposition
-    ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
-    : '—'}
-
-  {proposedBy && <> by {proposedBy}</>}
-</h2>
-
 
 <div
+  className="no-print"
   style={{
     display: 'flex',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'flex-end', // ✅ tout à droite
+    gap: 10,                    // ✅ espace entre les 3
     marginBottom: 8,
   }}
 >
+  {/* Priority */}
+  <span
+    style={{
+      padding: '4px 12px',
+      borderRadius: 14,
+      fontSize: '1rem',
+      fontWeight: 600,
+      letterSpacing: '0.04em',
+      backgroundColor: '#eef0f5', // optionnel
+      color: '#111',
+    }}
+  >
+    [{artwork.priority}]
+  </span>
+
+  {/* Status */}
   <span
     style={{
       backgroundColor: statusStyle.bg,
@@ -232,7 +230,56 @@ const { role } = useSessionProfile()
   >
     {statusStyle.label ?? artwork.status}
   </span>
+
+  {/* Edit */}
+  {!isEditMode && canEdit && (
+    <Link href={`/artworks/${artworkId}/edit`}>
+      <button
+        className="edit-button"
+        onMouseUp={e => {
+          e.currentTarget.style.transform = 'translateY(0)'
+          e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0)'
+          e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
+        }}
+      >
+        Edit
+      </button>
+    </Link>
+  )}
 </div>
+
+<div key={artwork.id} className="artwork-block">
+
+<h2 style={{ fontSize: '1.3rem', textAlign: 'center' }}>
+  {artwork.date_proposition
+    ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
+    : '—'}
+
+  {proposedBy && (
+    <>
+      {' by '}
+      {artwork.auction_link ? (
+        <a
+          href={artwork.auction_link}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#007a5e',
+            textDecoration: 'underline',
+          }}
+        >
+          {proposedBy}
+        </a>
+      ) : (
+        <span>{proposedBy}</span>
+      )}
+    </>
+  )}
+</h2>
+
 
 
       {/* ✅ Artist */}
@@ -263,7 +310,7 @@ const { role } = useSessionProfile()
       )}
 
       {/* ✅ Dimensions */}
-      {artwork.height_cm && artwork.width_cm && (
+      {artwork.height_cm && (
         <div style={{ fontSize: '1.2rem', marginBottom: 5 }}>
           {artwork.height_cm} × {artwork.width_cm}
           {artwork.depth_cm ? ` × ${artwork.depth_cm}` : ''} cm
@@ -275,12 +322,90 @@ const { role } = useSessionProfile()
 
 
 
-{images[0] && (
+{images.length > 0 && (
 
-<div className="artwork-images">
-  {images.length > 0 && (
-    <div className="artwork-image-wrapper">
-      <img src={images[0].url ?? ''} alt="" />
+<div
+  className="artwork-images"
+  style={{
+    display: 'flex',
+    gap: 16,
+    flexWrap: 'nowrap',
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    width: '100%',
+  }}
+>
+  <div
+    className="artwork-image-wrapper"
+    style={{
+      flex: '1 1 auto',
+      minWidth: 240,
+      maxWidth: '100%',
+      maxHeight: '10cm',
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'flex-start',
+      overflow: 'hidden',
+    }}
+  >
+    <a
+      href={images[0].url ?? ''}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ display: 'block', width: '100%', height: '100%' }}
+    >
+      <img
+        src={images[0].url ?? ''}
+        alt={artwork.title ?? 'Artwork image'}
+        style={{
+          width: '100%',
+          height: '100%',
+          maxHeight: '10cm',
+          objectFit: 'contain',
+          objectPosition: 'left top',
+          cursor: 'zoom-in',
+        }}
+      />
+    </a>
+  </div>
+
+  {images.length > 1 && (
+    <div
+      className="artwork-image-thumbnails"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gridTemplateRows: `repeat(${thumbnailRows}, minmax(0, 1fr))`,
+        gridAutoRows: '1fr',
+        gap: 12,
+        width: 320,
+        minWidth: 320,
+        height: thumbnailHeight,
+        alignSelf: 'flex-start',
+      }}
+    >
+      {images.slice(1).map((image) => (
+        <a
+          key={image.id}
+          href={image.url ?? ''}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: 'block', width: '100%', height: '100%' }}
+        >
+          <img
+            src={image.url ?? ''}
+            alt={image.label ?? artwork.title ?? 'Artwork thumbnail'}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              borderRadius: 4,
+              cursor: 'zoom-in',
+              display: 'block',
+            }}
+          />
+        </a>
+      ))}
     </div>
   )}
 </div>

@@ -117,6 +117,8 @@ body {
     width: 100%;
     max-width: 100%;
 
+    margin-top: 20;
+    margin-bottom: 20;
     margin-left: 0;
     margin-right: auto;
     justify-content: start;
@@ -207,3 +209,34 @@ body {
 }
 
 
+
+.florac-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #4A5068;
+  color: #ffffff;
+
+  padding: 10px 16px;
+  border-radius: 999px;      /* style “pilule” comme sur ton image */
+  border: none;
+  text-decoration: none;
+
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.05s ease;
+}
+
+.florac-button:hover {
+  filter: brightness(1.08);
+}
+
+.florac-button:active {
+  transform: translateY(1px);
+}
+
+.edit-button:focus-visible {
+  outline: 2px solid rgba(74, 80, 104, 0.35);
+  outline-offset: 3px;
+}
