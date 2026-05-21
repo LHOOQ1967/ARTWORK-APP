@@ -10,6 +10,11 @@
   --foreground: #171717;
 }
 
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 
 @theme inline {
   --color-background: var(--background);
@@ -97,19 +102,15 @@ body {
   animation: hourglass-spin 1s linear infinite;
 }
   .print-controls {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    row-gap: 12px;
+    column-gap: 24px;
+    align-items: center;
     justify-content: flex-end;
     margin-bottom: 16px;
   }
-
-@keyframes hourglass-spin {
-  0%   { transform: rotate(0deg); }
-  50%  { transform: rotate(180deg); }
-  100% { transform: rotate(360deg); }
-}
-
-  /* ✅ IMAGES – ÉCRAN */
-  .artwork-images {
+   .artwork-images {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
@@ -132,6 +133,30 @@ body {
     justify-content: center;
     overflow: hidden;
   }
+    .artwork-block {
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    border-bottom: 3px solid #e0e0e0;
+    break-after: page;          /* CSS moderne */
+    page-break-after: always;   /* fallback ancien */
+
+  }
+
+  /* ✅ pas de ligne après le dernier */
+  .artwork-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    break-after: auto;
+    page-break-after: auto;
+
+  }
+
+@keyframes hourglass-spin {
+  0%   { transform: rotate(0deg); }
+  50%  { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
 }
 
 /* =========================================================
@@ -145,20 +170,46 @@ body {
   display: block;
 }
 
+
 /* =========================================================
    PRINT
    ========================================================= */
 
+@page {
+  margin: 12mm;
+  /* size: A4; */ /* optionnel */
+}
 
 @media print {
 
-  /* --- socle print : nettoyage UI --- */
-
-  body,
-  main {
-    margin: 0;
-    padding: 0;
+  /* IMPORTANT: neutraliser les contraintes écran */
+  html, body {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
   }
+
+  /* Tes styles inline sur <main> doivent être écrasés */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: auto !important;
+    background: transparent !important;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  /* conserver les couleurs (si tu imprimes des fonds) */
+  * {
+    -webkit-print-color-adjust: exact !important; /* Chrome/Edge */
+    print-color-adjust: exact !important;         /* Standard */
+  }
+
+  /* masquer l’UI */
   button,
   select,
   header,
@@ -177,34 +228,27 @@ body {
     padding: 6px 8px;
   }
 
-}
-
-
-/* =========================================================
-   SÉPARATION VISUELLE ÉCRAN UNIQUEMENT
-   ========================================================= */
-
-@media screen {
+  /* sauts de page */
   .artwork-block {
-    padding-bottom: 12px;
-    margin-bottom: 12px;
-    border-bottom: 3px solid #e0e0e0;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  /* ✅ pas de ligne après le dernier */
-  .artwork-block:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
+  /* éviter page blanche finale */
+  .artwork-block:last-child,
+  .artwork-block:last-of-type {
+    break-after: auto !important;
+    page-break-after: auto !important;
   }
-}
 
-
-
-@media print {
+  /* éviter que les sections ajoutent des espaces inutiles */
   section {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
   }
 }
 
@@ -240,3 +284,4 @@ body {
   outline: 2px solid rgba(74, 80, 104, 0.35);
   outline-offset: 3px;
 }
+

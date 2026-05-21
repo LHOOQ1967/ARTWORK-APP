@@ -77,13 +77,13 @@ const editInputStyle: React.CSSProperties = {
 
 
 const CURRENCY_OPTIONS = ['CHF', 'EUR', 'USD', 'GBP', 'HKD']
-const PRIORITY_OPTIONS = ['information', 'medium', 'high']
+const PRIORITY_OPTIONS = ['Information', 'Medium', 'High']
 const STATUS_OPTIONS = [
-  'draft',
-  'viewed',
-  'negotiation',
-  'bought',
-  'archived',
+  'Draft',
+  'Viewed',
+  'Negotiation',
+  'Bought',
+  'Archived',
 ]
 
 
@@ -1032,9 +1032,9 @@ onChange={e =>
     ...artwork,
 
 priority: e.target.value as
-  | 'information'
-  | 'medium'
-  | 'high',
+  | 'Information'
+  | 'Medium'
+  | 'High',
 
   })
 }
@@ -1042,9 +1042,9 @@ priority: e.target.value as
       style={{ ...editInputStyle, width: 120 }}
     >
       <option value="">—</option>
-      <option value="information">Information</option>
-      <option value="medium">Medium</option>
-      <option value="high">High</option>
+      <option value="Information">Information</option>
+      <option value="Medium">Medium</option>
+      <option value="High">High</option>
     </select>
   ) : (
     artwork.priority || '—'
@@ -1061,22 +1061,22 @@ onChange={e =>
   setArtwork({
     ...artwork,
     status: e.target.value as
-      | 'draft'
-      | 'viewed'
-      | 'negotiation'
-      | 'bought'
-      | 'archived',
+      | 'Draft'
+      | 'Viewed'
+      | 'Negotiation'
+      | 'Bought'
+      | 'Archived',
   })
 }
 
       style={{ ...editInputStyle, width: 160 }}
     >
       <option value="">—</option>
-      <option value="draft">Draft</option>
-      <option value="viewed">Viewed</option>
-      <option value="negotiation">Negotiation</option>
-      <option value="bought">Bought</option>
-      <option value="archived">Archived</option>
+      <option value="Draft">Draft</option>
+      <option value="Viewed">Viewed</option>
+      <option value="Negotiation">Negotiation</option>
+      <option value="Bought">Bought</option>
+      <option value="Archived">Archived</option>
     </select>
   ) : (
     artwork.status || '—'
@@ -1231,6 +1231,7 @@ onChange={e =>
       </EditRow>
 
             <EditRow label="Sale time">
+        <div style={{ display: 'flex', gap: 8 }}>
         <input
           type="time"
           value={artwork.sale_time ?? ''}
@@ -1242,7 +1243,19 @@ onChange={e =>
           }
           style={editInputStyle}
         />
+              <a
+  href="https://buyerspremium.blondeau.ch/auction_time.php"
+  target="_blank"
+  rel="noopener noreferrer"
+  style={{
+    color: '#006039',
+    textDecoration: 'underline',
+    fontSize: '0.9rem',
+  }}
+>Auction Time calculator</a>
+</div>
       </EditRow>
+
 
             <EditRow label="Lot#">
         <input
@@ -1584,11 +1597,11 @@ onChange={e =>
       <EditRow label="Insurance">
         <div style={{ display: 'flex', gap: 8 }}>
           <select
-            value={artwork.cost_currency || ''}
+            value={artwork.insurance_currency || ''}
             onChange={e =>
               setArtwork({
                 ...artwork,
-                cost_currency: e.target.value || null,
+                insurance_currency: e.target.value || null,
               })
             }
             style={{ ...editInputStyle, width: 90 }}

@@ -28,13 +28,13 @@ function isUUID(value: string) {
 // ✅ constante hors composant
 
 const CURRENCY_OPTIONS = ['CHF', 'EUR', 'USD', 'GBP', 'HKD']
-const PRIORITY_OPTIONS = ['information', 'medium', 'high']
+const PRIORITY_OPTIONS = ['Information', 'Medium', 'High']
 const STATUS_OPTIONS = [
-  'draft',
-  'viewed',
-  'negotiation',
-  'bought',
-  'archived',
+  'Draft',
+  'Viewed',
+  'Negotiation',
+  'Bought',
+  'Archived',
 ]
 
 
@@ -800,7 +800,7 @@ if (!artwork) return null
 
 
 
-   const isBought = artwork.status === 'bought'
+   const isBought = artwork.status === 'Bought'
 const auctionContact = artwork.auction_house ?? null
 const proposedByContact = artwork.proposedBy ?? null
 const buyerContact = artwork.buyer ?? null

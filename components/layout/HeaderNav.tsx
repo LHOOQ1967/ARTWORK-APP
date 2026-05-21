@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
 
+
+
 export default function HeaderNav() {
   const pathname = usePathname()
   const router = useRouter()
@@ -51,15 +53,6 @@ export default function HeaderNav() {
           </Link>
         )}
 
-        {isLoggedIn && (
-          <Link
-            href="/artworks/auctions"
-            prefetch={false}
-            style={navLink(isActive('/artworks/auctions'))}
-          >
-            Auctions
-          </Link>
-        )}
 
         {!loading && isLoggedIn && canEdit && (
           <Link

@@ -10,8 +10,8 @@ export type ArtworkForm = {
   year_execution: number | null
   dimensions?: string | null
 
-  status: 'draft' | 'viewed' | 'negotiation' | 'bought' | 'archived'
-  priority: 'information' | 'medium' | 'high'
+  status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
+  priority: 'Information' | 'Medium' | 'High'
   auctions: boolean
 
   asking_price: number | null
@@ -71,10 +71,10 @@ export type Artwork = {
   artist_id: string | null
 
   // Statut & canal
-  status: 'draft' | 'viewed' | 'negotiation' | 'bought' | 'archived'
+  status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
   auctions: boolean
 
-  priority: 'information' | 'medium' | 'high' | null
+  priority: 'Information' | 'Medium' | 'High' | null
 
   // Dates CLÉS
   date_proposition: string | null
@@ -140,8 +140,8 @@ export type ArtworkListItem = {
     last_name?: string | null
   } | null
 
-  status?: 'draft' | 'viewed' | 'negotiation' | 'bought' | 'archived' | null
-  priority?: 'high' | 'medium' | 'low' | null
+  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived' | null
+  priority?: 'High' | 'Medium' | 'Information' | null
 
   // ✅ MARKET
   date_proposition?: string | null
@@ -244,8 +244,8 @@ id: string
   documents: ArtworkDocument[]
   artwork_proposals?: ArtworkProposal[]
 
-  status?: 'draft' | 'viewed' | 'negotiation' | 'bought' | 'archived'
-  priority?: 'information' | 'medium' | 'high'
+  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
+  priority?: 'Information' | 'Medium' | 'High'
 
   asking_price?: number | null
   currency?: string | null
@@ -311,8 +311,8 @@ export type ArtworkPrint = {
   width_cm?: number | null
   depth_cm?: number | null
 
-  status?: 'draft' | 'viewed' | 'negotiation' | 'bought' | 'archived'
-  priority?: 'information' | 'medium' | 'high'
+  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
+  priority?: 'Information' | 'Medium' | 'High'
 
   date_proposition?: string | null
   view_date?: string | null

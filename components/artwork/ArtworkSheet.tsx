@@ -19,7 +19,7 @@ const STATUS_STYLES: Record<
   string,
   { bg: string; color: string; label?: string }
 > = {
-  draft: {
+  Draft: {
     bg: '#d9d6d6',
     color: 'black',
     label: 'Draft',
@@ -34,12 +34,12 @@ const STATUS_STYLES: Record<
     color: 'black',
     label: 'Negociation',
   }, 
-  bought: {
+Bought: {
     bg: '#006039',
     color: 'white',
     label: 'Bought',
   },
-  archived: {
+  Archived: {
     bg: '#F8D7DA',
     color: '#721C24',
     label: 'Archived',
@@ -95,7 +95,7 @@ function formatDateTimeGeneva(
     timeZone: 'Europe/Zurich',
   }).format(new Date(`${date}T${time}`))
 
-  return `${formattedDate} at ${formattedTime} (Geneva time)`
+  return `${formattedDate} at ${formattedTime} (local time)`
 }
 
 
@@ -180,6 +180,38 @@ const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
 const { role } = useSessionProfile()
 
 
+const isAuction = !!artwork.auctions
+
+const displayDateText = (() => {
+  if (isAuction) {
+    const datePart = artwork.sale_date
+      ? new Date(artwork.sale_date).toLocaleDateString('fr-CH')
+      : '—'
+
+    // sale_time peut être "14:30", "14:30:00", etc.
+    const timePart =
+      artwork.sale_time
+        ? String(artwork.sale_time).slice(0, 5) // "HH:MM"
+        : ''
+
+    return timePart ? `${datePart} at ${timePart}` : datePart
+  }
+
+  return artwork.date_proposition
+    ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
+    : '—'
+})()
+
+const displayTitle = (() => {
+  // Pour le tooltip: si auction, on met date+heure; sinon date_proposition + proposedBy
+  if (isAuction) {
+    const datePart = artwork.sale_date ?? '—'
+    const timePart = artwork.sale_time ? String(artwork.sale_time).slice(0, 5) : ''
+    return timePart ? `${datePart} ${timePart}` : `${datePart}`
+  }
+
+  return `${artwork.date_proposition ?? '—'} ${proposedBy ?? ''}`.trim()
+})()
 
 
   return (
@@ -189,96 +221,161 @@ const { role } = useSessionProfile()
         boxSizing: 'border-box',
       }}
     >
-
+<div key={artwork.id} className="artwork-block">
 <div
-  className="no-print"
   style={{
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'flex-end', // ✅ tout à droite
-    gap: 10,                    // ✅ espace entre les 3
+    justifyContent: 'flex-end', // ✅ gauche / droite
+    gap: 12,
     marginBottom: 8,
+    width: '100%',
   }}
 >
-  {/* Priority */}
-  <span
+  {/* LEFT: Proposed date + by */}
+
+
+{/* LEFT: Proposed date + by */}
+
+  {/* RIGHT: Priority + Status + Edit */}
+  <div
     style={{
-      padding: '4px 12px',
-      borderRadius: 14,
-      fontSize: '1rem',
-      fontWeight: 600,
-      letterSpacing: '0.04em',
-      backgroundColor: '#eef0f5', // optionnel
-      color: '#111',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      flexShrink: 0,         // ✅ ne se compresse pas
+      flexWrap: 'wrap',  // ✅ reste sur une ligne
     }}
   >
-    [{artwork.priority}]
-  </span>
+    {/* Priority */}
+    <span
+      style={{
+        padding: '4px 12px',
+        borderRadius: 14,
+        fontSize: '1rem',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        backgroundColor:
+          artwork.priority === 'High'
+            ? '#006039'
+            : artwork.priority === 'Medium'
+            ? '#f2c94c'
+            : '#eef0f5',
+        color: artwork.priority === 'High' ? '#fff' : '#111',
+      }}
+    >
+      [{artwork.priority}]
+    </span>
 
-  {/* Status */}
-  <span
-    style={{
-      backgroundColor: statusStyle.bg,
-      color: statusStyle.color,
-      padding: '4px 12px',
-      borderRadius: 14,
-      fontSize: '1rem',
-      fontWeight: 600,
-      textTransform: 'uppercase',
-      letterSpacing: '0.04em',
-    }}
-  >
-    {statusStyle.label ?? artwork.status}
-  </span>
+    {/* Status */}
+    <span
+      style={{
+        backgroundColor: statusStyle.bg,
+        color: statusStyle.color,
+        padding: '4px 12px',
+        borderRadius: 14,
+        fontSize: '1rem',
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+      }}
+    >
+      {statusStyle.label ?? artwork.status}
+    </span>
 
-  {/* Edit */}
-  {!isEditMode && canEdit && (
-    <Link href={`/artworks/${artworkId}/edit`}>
-      <button
-        className="edit-button"
-        onMouseUp={e => {
-          e.currentTarget.style.transform = 'translateY(0)'
-          e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'translateY(0)'
-          e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
-        }}
-      >
-        Edit
-      </button>
-    </Link>
-  )}
-</div>
-
-<div key={artwork.id} className="artwork-block">
-
-<h2 style={{ fontSize: '1.3rem', textAlign: 'center' }}>
-  {artwork.date_proposition
-    ? new Date(artwork.date_proposition).toLocaleDateString('fr-CH')
-    : '—'}
-
-  {proposedBy && (
-    <>
-      {' by '}
-      {artwork.auction_link ? (
-        <a
-          href={artwork.auction_link}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            color: '#007a5e',
-            textDecoration: 'underline',
+    {/* Edit */}
+    {!isEditMode && canEdit && (
+      <Link className="no-print" href={`/artworks/${artworkId}/edit`}>
+        <button
+          className="edit-button"
+          onMouseUp={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(0)'
+            e.currentTarget.style.boxShadow = '0 3px 0 #bbb'
           }}
         >
-          {proposedBy}
-        </a>
-      ) : (
-        <span>{proposedBy}</span>
-      )}
-    </>
-  )}
-</h2>
+          Edit
+        </button>
+      </Link>
+    )}
+  </div>
+</div>
+
+<div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between', // ✅ gauche / droite
+    gap: 12,
+    marginBottom: 8,
+    width: '100%',
+  }}
+>
+  {/* LEFT: Proposed date + by */}
+
+
+{/* LEFT: Proposed date + by */}
+<div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+    flex: 1,
+  }}
+>
+  <h2
+    style={{
+      fontSize: '1.3rem',
+      textAlign: 'left',
+      margin: 0,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+    }}
+    title={displayTitle}
+  >
+    {displayDateText}
+
+    {proposedBy && (
+      <>
+        {' by '}
+        {artwork.auction_link ? (
+          <a
+            href={artwork.auction_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#007a5e', textDecoration: 'underline' }}
+          >
+            {proposedBy}
+          </a>
+        ) : (
+          <span>{proposedBy}</span>
+        )}
+      </>
+    )}
+  </h2>
+</div>
+
+
+
+  {/* RIGHT: Priority + Status + Edit */}
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      flexShrink: 0,         // ✅ ne se compresse pas
+      flexWrap: 'wrap',  // ✅ reste sur une ligne
+    }}
+  >
+  </div>
+</div>
 
 
 
@@ -318,100 +415,115 @@ const { role } = useSessionProfile()
       )}
 
 
+{images.length > 0 && (() => {
+  // Ajuste ici la hauteur souhaitée pour la colonne de droite
+  const mainMaxHeight = '10cm'
+  const rightMaxHeight = '10cm' // <-- mets '6cm' si tu veux encore plus bas
 
-
-
-
-{images.length > 0 && (
-
-<div
-  className="artwork-images"
-  style={{
-    display: 'flex',
-    gap: 16,
-    flexWrap: 'nowrap',
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-    width: '100%',
-  }}
->
-  <div
-    className="artwork-image-wrapper"
-    style={{
-      flex: '1 1 auto',
-      minWidth: 240,
-      maxWidth: '100%',
-      maxHeight: '10cm',
-      display: 'flex',
-      alignItems: 'flex-start',
-      justifyContent: 'flex-start',
-      overflow: 'hidden',
-    }}
-  >
-    <a
-      href={images[0].url ?? ''}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={{ display: 'block', width: '100%', height: '100%' }}
-    >
-      <img
-        src={images[0].url ?? ''}
-        alt={artwork.title ?? 'Artwork image'}
-        style={{
-          width: '100%',
-          height: '100%',
-          maxHeight: '10cm',
-          objectFit: 'contain',
-          objectPosition: 'left top',
-          cursor: 'zoom-in',
-        }}
-      />
-    </a>
-  </div>
-
-  {images.length > 1 && (
+  return (
     <div
-      className="artwork-image-thumbnails"
+      className="artwork-images"
       style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-        gridTemplateRows: `repeat(${thumbnailRows}, minmax(0, 1fr))`,
-        gridAutoRows: '1fr',
-        gap: 12,
-        width: 320,
-        minWidth: 320,
-        height: thumbnailHeight,
-        alignSelf: 'flex-start',
+        display: 'flex',
+        gap: 16,
+        flexWrap: 'nowrap',
+        alignItems: 'flex-start',  // ✅ pas stretch
+        justifyContent: 'flex-start',
+        width: '100%',
       }}
     >
-      {images.slice(1).map((image) => (
+      {/* ===== Image principale (gauche) ===== */}
+      <div
+        className="artwork-image-wrapper"
+        style={{
+          flex: '1 1 0',
+          minWidth: 240,
+          maxWidth: '100%',
+          height: mainMaxHeight,
+          maxHeight: mainMaxHeight,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'flex-start',
+          overflow: 'hidden',
+        }}
+      >
         <a
-          key={image.id}
-          href={image.url ?? ''}
+          href={images[0].url ?? ''}
           target="_blank"
           rel="noopener noreferrer"
           style={{ display: 'block', width: '100%', height: '100%' }}
         >
           <img
-            src={image.url ?? ''}
-            alt={image.label ?? artwork.title ?? 'Artwork thumbnail'}
+            src={images[0].url ?? ''}
+            alt={artwork.title ?? 'Artwork image'}
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
-              borderRadius: 4,
+              objectFit: 'contain',
+              objectPosition: 'left top',
               cursor: 'zoom-in',
               display: 'block',
             }}
           />
         </a>
-      ))}
+      </div>
+
+      {/* ===== Thumbnails (droite) ===== */}
+      {images.length > 1 && (
+        <div
+          className="artwork-image-thumbnails"
+          style={{
+            flex: '0 0 320px', // ✅ largeur fixe, reste à droite
+            width: 320,
+            minWidth: 320,
+
+            height: rightMaxHeight,   // ✅ moins haut que l’image principale
+            maxHeight: rightMaxHeight,
+
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+
+            // ✅ Simple, stable : la grille se répartit dans la hauteur donnée
+            // (pas besoin de thumbnailHeight)
+            gridAutoRows: '1fr',
+
+            gap: 12,
+            alignSelf: 'flex-start',
+            overflow: 'hidden', // ✅ important
+          }}
+        >
+          {images.slice(1).map((image) => (
+            <a
+              key={image.id}
+              href={image.url ?? ''}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'block',
+                width: '100%',
+                height: '100%',
+                overflow: 'hidden',
+                borderRadius: 4,
+              }}
+            >
+              <img
+                src={image.url ?? ''}
+                alt={image.label ?? artwork.title ?? 'Artwork thumbnail'}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  cursor: 'zoom-in',
+                  display: 'block',
+                }}
+              />
+            </a>
+          ))}
+        </div>
+      )}
     </div>
-  )}
-</div>
-
-)}
-
+  )
+})()}
 
 
       {/* ✅ Metadata */}
@@ -562,10 +674,6 @@ const { role } = useSessionProfile()
 {artwork.condition && (
         <InfoRow label="Condition" value={artwork.condition} />
  )}
-
-        
-        <InfoRow label="Priority" value={artwork.priority} />
-  
 
 {artwork.certificate === true && (
   <InfoRow

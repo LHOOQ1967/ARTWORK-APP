@@ -35,6 +35,16 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+
+// ✅ Autoriser l'accès à /print/* uniquement si une clé est présente
+if (pathname.startsWith('/print')) {
+  const key = req.nextUrl.searchParams.get('key')
+  if (key && key === process.env.PRINT_SECRET) {
+    return res
+  }
+}
+
+
   /* ---------------------------------------------------
      2️⃣ Non logué → REDIRECTION LOGIN
      --------------------------------------------------- */

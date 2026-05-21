@@ -4,8 +4,12 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
+  const url = new URL(request.url)
+  const code = url.searchParams.get('code')
+
+  // (optionnel mais utile) support d’un paramètre next=/quelquechose
+  const next = url.searchParams.get('next') ?? '/'
+
   const cookieStore = await cookies()
 
   if (code) {
@@ -15,7 +19,6 @@ export async function GET(request: Request) {
       {
         cookies: {
           get: (name) => cookieStore.get(name)?.value,
-          // ✅ OBLIGATOIRE : autoriser l’écriture
           set: (name, value, options) => {
             cookieStore.set({ name, value, ...options })
           },
@@ -26,9 +29,19 @@ export async function GET(request: Request) {
       }
     )
 
-    // ✅ ÉCHANGE LE CODE CONTRE UNE SESSION RÉELLE
+    // ✅ échange le code contre une session
     await supabase.auth.exchangeCodeForSession(code)
   }
 
-  return NextResponse.redirect(`${origin}/`)
+  // ✅ IMPORTANT : reconstruire l’origin PUBLIC derrière reverse proxy
+  const proto = request.headers.get('x-forwarded-proto') ?? 'https'
+  const host =
+    request.headers.get('x-forwarded-host') ??
+    request.headers.get('host') ??
+    url.host
+
+  const publicOrigin = `${proto}://${host}`
+
+  // ✅ redirection finale vers le domaine public
+  return NextResponse.redirect(new URL(next, publicOrigin))
 }

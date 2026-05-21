@@ -595,16 +595,16 @@ onChange={(e) => setContactQuery(e.target.value)}        style={{
     onChange={e =>
       setArtwork({
         ...artwork,
-        priority: e.target.value as 'information' | 'medium' | 'high',
+        priority: e.target.value as 'Information' | 'Medium' | 'High',
       })
     }
     style={{ ...editInputStyle, width: 120 }}
     disabled={!isEditing}
   >
     <option value="">—</option>
-    <option value="information">Information</option>
-    <option value="medium">Medium</option>
-    <option value="high">High</option>
+    <option value="Information">Information</option>
+    <option value="Medium">Medium</option>
+    <option value="High">High</option>
   </select>
 </EditRow>
 
@@ -618,22 +618,22 @@ onChange={(e) => setContactQuery(e.target.value)}        style={{
       setArtwork({
         ...artwork,
         status: e.target.value as
-          | 'draft'
-          | 'viewed'
-          | 'negotiation'
-          | 'bought'
-          | 'archived',
+          | 'Draft'
+          | 'Viewed'
+          | 'Negotiation'
+          | 'Bought'
+          | 'Archived',
       })
     }
     style={{ ...editInputStyle, width: 160 }}
     disabled={!isEditing}
   >
     <option value="">—</option>
-    <option value="draft">Draft</option>
-    <option value="viewed">Viewed</option>
-    <option value="negotiation">Negotiation</option>
-    <option value="bought">Bought</option>
-    <option value="archived">Archived</option>
+    <option value="Draft">Draft</option>
+    <option value="Viewed">Viewed</option>
+    <option value="Negotiation">Negotiation</option>
+    <option value="Bought">Bought</option>
+    <option value="Archived">Archived</option>
   </select>
 </EditRow>
 </SectionBlock>

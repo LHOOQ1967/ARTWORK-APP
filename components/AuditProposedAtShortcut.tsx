@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import type { ArtworkBase } from '@/app/(protected)/types/artwork'
-
+import Link from 'next/link'
 
 type AuditArtwork = {
   id: string
@@ -137,9 +137,23 @@ export function AuditProposedAtShortcut() {
           <tbody>
             {result.artworks.map(artwork => (
               <tr key={artwork.id}>
-                <td style={tdStyle}>
-                  {artwork.title || '—'}
-                </td>
+
+<td style={tdStyle}>
+  <Link
+    href={`/artworks/print/${artwork.id}`}
+    style={{
+      color: '#0b66c3',
+      textDecoration: 'underline',
+      textUnderlineOffset: 2,
+    }}
+    target="_blank"
+    rel="noreferrer"
+    title="Ouvrir l'œuvre dans un nouvel onglet"
+  >
+    {artwork.title || '—'}
+  </Link>
+</td>
+
                 <td style={tdStyle}>
                   {artwork.artist_name || '—'}
                 </td>

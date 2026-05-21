@@ -20,8 +20,8 @@ const EMPTY_ARTWORK: ArtworkForm = {
   cost_amount: null,
   cost_currency: null,
 
-  status: 'draft',
-  priority: 'medium',
+  status: 'Draft',
+  priority: 'Medium',
   auctions: false,
 
   asking_price: null,
@@ -87,12 +87,6 @@ useEffect(() => {
       .from('contacts')
       .select('id, company_name, first_name, last_name')
       .order('company_name', { ascending: true })
-
-
-    console.log('CONTACTS (loadContacts) DATA:', data)
-    console.log('CONTACTS (loadContacts) ERROR:', error)
-
-
 
     if (!error && data) {
       setContactOptions(data)
@@ -324,10 +318,6 @@ if (!artwork) {
 }
 
 
-
-
-
-console.log('CONTACT OPTIONS STATE:', contactOptions)
 
 return (
   <main style={{ padding: 40, backgroundColor: '#006039', color: 'white' }}>

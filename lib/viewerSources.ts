@@ -27,7 +27,7 @@ if (typeof role === 'string' && role.toLowerCase() === 'viewer') {
       return 'viewer_auction_artworks_secure'
 
     case 'prints':
-      return 'viewer_artwork_prints_secure'
+      return 'viewer_artworks_prints_secure'
 
     case 'documents':
       return 'viewer_documents'
