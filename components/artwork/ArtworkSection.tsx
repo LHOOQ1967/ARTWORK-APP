@@ -442,6 +442,7 @@ useEffect(() => {
 
 
 return (
+  
   <div
     style={{
       display: 'flex',
@@ -1327,7 +1328,21 @@ onChange={e =>
           />
         </div>
       </EditRow>
-
+      <EditRow label="Guarantee">
+        <select
+          value={artwork.guarantee ? 'yes' : 'no'}
+          onChange={e =>
+            setArtwork({
+              ...artwork,
+              guarantee: e.target.value === 'yes',
+            })
+          }
+          style={{ ...editInputStyle, width: 90 }}
+        >
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </EditRow>
       {/* Result */}
       <EditRow label="Result">
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1376,14 +1391,13 @@ onChange={e =>
 
       </EditRow>
 
-      {/* Guarantee */}
-      <EditRow label="Guarantee">
+      <EditRow label="Underbidder">
         <select
-          value={artwork.guarantee ? 'yes' : 'no'}
+          value={artwork.underbidder ? 'yes' : 'no'}
           onChange={e =>
             setArtwork({
               ...artwork,
-              guarantee: e.target.value === 'yes',
+              underbidder: e.target.value === 'yes',
             })
           }
           style={{ ...editInputStyle, width: 90 }}
@@ -1392,6 +1406,7 @@ onChange={e =>
           <option value="yes">Yes</option>
         </select>
       </EditRow>
+
     </div>
   )}
 </SectionBlock>

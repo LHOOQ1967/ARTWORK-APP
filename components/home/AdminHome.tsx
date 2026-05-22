@@ -17,13 +17,13 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
   return (
     <main
       style={{
+        padding: 100,
         minHeight: '100vh',
         backgroundColor: '#006039',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: 40,
-        color: 'white',
+           color: 'white',
       }}
     >
       <div

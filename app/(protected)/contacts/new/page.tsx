@@ -55,7 +55,7 @@ export default function NewContactPage() {
   return (
     <main
       style={{
-        padding: 40,
+        padding: 80,
         minHeight: '100vh',
         backgroundColor: '#006039',
       }}

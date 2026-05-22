@@ -460,7 +460,7 @@ export default function ArtworksIndexPage({ title, fixedProposedToId }: Props) {
   const headerTitle = fixedProposedToId ? `${baseTitle}` : baseTitle
 
   return (
-    <main className="min-h-screen bg-[#006039] p-10">
+    <main className="min-h-screen bg-[#006039] px-10 pb-10 pt-24">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="m-0 text-[1.8rem] font-bold text-white">{headerTitle}</h2>

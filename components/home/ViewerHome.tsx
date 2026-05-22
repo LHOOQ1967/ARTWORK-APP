@@ -7,19 +7,19 @@ export default function ViewerHome() {
 return (
   <main
     style={{
+      padding: 100,
       minHeight: '100vh',
       backgroundColor: '#006039',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: 40,
       color: 'white',
     }}
   >
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gridTemplateColumns: 'repeat(2, 1fr)',
         gap: 20,
         width: '100%',
         maxWidth: 700,
@@ -27,26 +27,37 @@ return (
     >
 
       <EntryCardFlorac
+        href="/artworks/"
+        title="Artworks"
+        subtitle=""
+      />
+      <EntryCardFlorac
+        href="/artworks/print"
+        title="Factsheets"
+        subtitle=""
+      />
+
+      <EntryCardFlorac
         href="/artworks/print?market=private&status=active&priority=all&sort=date&dir=desc"
         title="Private Market"
-        subtitle="Active Proposals by Date"
+        subtitle="Active Proposals by date"
       />
       <EntryCardFlorac
         href="/artworks/print?market=auction&status=active&priority=all&sort=priority&dir=desc"
         title="Auction"
-        subtitle="Active by Priority"
+        subtitle="Active lots by priority"
       />
 
       <EntryCardFlorac
         href="/artworks/print?market=all&status=bought&priority=all&sort=date&dir=desc"
         title="Bought"
-        subtitle="All Artworks by Date"
+        subtitle="All Acquisitions by date"
       />
 
       <EntryCardFlorac
         href="/artworks/print?market=all&status=archived&priority=all&sort=date&dir=desc"
         title="All Archived"
-        subtitle="All Artworks y Date"
+        subtitle="All Artworks by date"
       />
 
       <EntryCardNew
@@ -181,6 +192,7 @@ function EntryCardFlorac({
         backgroundColor: '#4A5068',
         color: 'white',
         padding: '24px 20px',
+        border: '1px solid white',
         borderRadius: 8,
         textDecoration: 'none',
         textAlign: 'center',

@@ -556,23 +556,24 @@ const fieldBox =
   }
 
   return (
-    <main style={{ padding: 40 }}>
+    <main style={{ padding: 80 }}>
       {/* ===== FILTERS / SORTING ===== */}
+
 
 
 <section className="no-print mb-4 rounded-[14px] border-[3px] border-black/60 bg-[#DCEFE7] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.10)]">
   {/* ========================= */}
   {/* ✅ GRILLE 2 LIGNES (3 COLONNES) */}
   {/* ========================= */}
-  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+  <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
     {/* ===== LIGNE 1 ===== */}
     {/* Market */}
-    <div className="min-w-0">
+    <div className="min-w-0 w-full md:w-3/4">
       <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">Market</div>
       <select
         value={auctionFilter}
         onChange={e => setAuctionFilter(e.target.value as any)}
-        className="w-full rounded-[10px] border border-black/25 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-black/15"
+        className="w-full rounded-[10px] border border-black/25 bg-white px-1 py-1.5 outline-none focus:ring-2 focus:ring-black/15"
       >
         <option value="all">All market</option>
         <option value="auction">Auction</option>
@@ -581,12 +582,12 @@ const fieldBox =
     </div>
 
     {/* Status */}
-    <div className="min-w-0">
+    <div className="min-w-0 w-full md:w-3/4">
       <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">Status</div>
       <select
         value={statusFilter}
         onChange={e => setStatusFilter(e.target.value as any)}
-        className="w-full rounded-[10px] border border-black/25 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-black/15"
+        className="w-full rounded-[10px] border border-black/25 bg-white px-1 py-1.5 outline-none focus:ring-2 focus:ring-black/15"
       >
         <option value="active">Active</option>
         <option value="bought">Bought</option>
@@ -596,12 +597,12 @@ const fieldBox =
     </div>
 
     {/* Priority */}
-    <div className="min-w-0">
+    <div className="min-w-0 w-full md:w-3/4">
       <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">Priority</div>
       <select
         value={priorityFilter}
         onChange={e => setPriorityFilter(e.target.value as any)}
-        className="w-full rounded-[10px] border border-black/25 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-black/15"
+        className="w-full rounded-[10px] border border-black/25 bg-white px-1 py-1.5 outline-none focus:ring-2 focus:ring-black/15"
       >
         <option value="all">All priorities</option>
         <option value="High">High</option>
@@ -610,31 +611,27 @@ const fieldBox =
       </select>
     </div>
 
-    {/* ===== LIGNE 2 ===== */}
-    {/* Proposed to (SearchSelect) */}
-
-{/* Proposed to (SearchSelect) — caché pour Viewer */}
-{!isViewer && (
-  <div className="min-w-0">
-    <SearchSelect
-      label="Proposed to"
-      placeholder="Search contact…"
-      valueId={proposedToFilter}
-      onChangeId={id => setProposedToFilter(id as any)}
-      options={proposedToOptions}
-      allLabel="All"
-    />
-  </div>
-)}
-
+    {/* Proposed to */}
+    {!isViewer && (
+      <div className="min-w-0 w-full md:w-3/4">
+        <SearchSelect
+          label="Proposed to"
+          placeholder="Search contact…"
+          valueId={proposedToFilter}
+          onChangeId={id => setProposedToFilter(id as any)}
+          options={proposedToOptions}
+          allLabel="All"
+        />
+      </div>
+    )}
 
     {/* Sort by */}
-    <div className="min-w-0">
+    <div className="min-w-0 w-full md:w-3/4">
       <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">Sort by</div>
       <select
         value={sortKey}
         onChange={e => setSortKey(e.target.value as any)}
-        className="w-full rounded-[10px] border border-black/25 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-black/15"
+        className="w-full rounded-[10px] border border-black/25 bg-white px-1 py-1.5 outline-none focus:ring-2 focus:ring-black/15"
       >
         <option value="date">Date proposed</option>
         <option value="sale_date">Sale date</option>
@@ -646,12 +643,12 @@ const fieldBox =
     </div>
 
     {/* Direction */}
-    <div className="min-w-0">
+    <div className="min-w-0 w-full md:w-3/4">
       <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">Direction</div>
       <select
         value={sortDirection}
         onChange={e => setSortDirection(e.target.value as any)}
-        className="w-full rounded-[10px] border border-black/25 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-black/15"
+        className="w-full rounded-[10px] border border-black/25 bg-white px-1 py-1.5 outline-none focus:ring-2 focus:ring-black/15"
       >
         <option value="desc">Descending</option>
         <option value="asc">Ascending</option>
@@ -659,47 +656,38 @@ const fieldBox =
     </div>
   </div>
 
-  {/* ========================= */}
-  {/* ✅ LIGNE ACTIONS : Total à gauche / Reset à droite */}
-  {/* ========================= */}
   <div className="mt-4 flex items-center">
     <div className="text-[1.05rem] font-bold text-[#006039]">
       Total: {filteredAndSorted.length} artworks
     </div>
 
+    <button
+      className="ml-auto rounded-[10px] border border-black/25 bg-white px-4 py-2.5 font-semibold hover:bg-black/5"
+      onClick={() => {
+        setSortKey(preset === 'bought' ? 'sale_date' : 'date')
+        setSortDirection('desc')
 
-<button
-  className="ml-auto rounded-[10px] border border-black/25 bg-white px-4 py-2.5 font-semibold hover:bg-black/5"
-  onClick={() => {
-    // ✅ Reset des filtres (comme avant)
-    setSortKey(preset === 'bought' ? 'sale_date' : 'date')
-    setSortDirection('desc')
+        setStatusFilter(
+          preset === 'active'
+            ? 'active'
+            : preset === 'bought'
+            ? 'bought'
+            : preset === 'archived'
+            ? 'archived'
+            : 'all'
+        )
 
-    setStatusFilter(
-      preset === 'active'
-        ? 'active'
-        : preset === 'bought'
-        ? 'bought'
-        : preset === 'archived'
-        ? 'archived'
-        : 'all'
-    )
+        setPriorityFilter('all')
+        setAuctionFilter('all')
+        setProposedToFilter('all')
 
-    setPriorityFilter('all')
-    setAuctionFilter('all')
-    setProposedToFilter('all')
-
-    // ✅ IMPORTANT : effacer les query params de l'URL
-    // ex: /artworks/print?market=private...  -> /artworks/print
-    router.replace(pathname)
-  }}
->
-  Reset
-</button>
-
+        router.replace(pathname)
+      }}
+    >
+      Reset
+    </button>
   </div>
 </section>
-
 
 
 

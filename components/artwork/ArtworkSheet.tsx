@@ -64,7 +64,34 @@ function InfoRow({
         gridTemplateColumns: '160px 1fr',
         columnGap: 12,
         alignItems: 'baseline',
-        marginBottom: 8,
+        marginTop: 12,
+      }}
+    >
+      <div style={{ color: '#777', whiteSpace: 'nowrap' }}>
+        {label}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function InfoRowShort({
+  label,
+  value,
+}: {
+  label: string
+  value?: React.ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '160px 1fr',
+        columnGap: 12,
+        alignItems: 'baseline',
+        marginTop: 2,
       }}
     >
       <div style={{ color: '#777', whiteSpace: 'nowrap' }}>
@@ -130,7 +157,6 @@ const statusStyle =
   }
 
 
-
 const proposedBy =
   artwork.proposedBy &&
   (
@@ -140,6 +166,14 @@ const proposedBy =
       .join(' ')
   )
 
+  const buyer =
+  artwork.buyer &&
+  (
+    artwork.buyer.company_name ||
+    [artwork.buyer.first_name, artwork.buyer.last_name]
+      .filter(Boolean)
+      .join(' ')
+  )
 
 
 function formatPersonOrCompany(person?: {
@@ -527,7 +561,15 @@ const displayTitle = (() => {
 
 
       {/* ✅ Metadata */}
-
+{artwork.view_date && (        
+<InfoRow
+  label="Viewed on"
+  value={formatDate(artwork.view_date ?? null)}
+/>
+ )}
+{artwork.condition && (
+        <InfoRowShort label="Condition" value={artwork.condition} />
+ )}
       <div style={{ marginTop: 12 }}>
         {artwork.asking_price && (
         <InfoRow
@@ -545,7 +587,7 @@ const displayTitle = (() => {
 
       {artwork.sale_date && (
         <InfoRow
-        label="Sale Date"
+        label="Auction Sale Date"
         value={formatDateTimeGeneva(
           artwork.sale_date, 
           artwork.sale_time
@@ -554,14 +596,14 @@ const displayTitle = (() => {
       )}
 
       {artwork.lot && (
-        <InfoRow
+        <InfoRowShort
         label="Lot#"
         value={(artwork.lot)}
       />
       )}
       
       {artwork.auction_link && (
-      <InfoRow
+      <InfoRowShort
         label="Auction link"
         value={
           artwork.auction_link ? (
@@ -591,7 +633,7 @@ const displayTitle = (() => {
 
 
       {artwork.estimate_low && (
-        <InfoRow
+        <InfoRowShort
         label="Estimation"
         value={
           artwork.estimate_low && artwork.estimate_high
@@ -611,7 +653,7 @@ const displayTitle = (() => {
 
 
 {artwork.auctions === true && (
-  <InfoRow
+  <InfoRowShort
     label="Guarantee"
     value={artwork.guarantee === true ? 'Yes' : 'No'}
   />
@@ -622,7 +664,7 @@ const displayTitle = (() => {
 
 
 {hasValidNumber(artwork.sold_hammer) && (
-  <InfoRow
+  <InfoRowShort
     label="Sold"
     value={
       <>
@@ -647,7 +689,7 @@ const displayTitle = (() => {
 )}
 
 {artwork.underbidder === true && (
-  <InfoRow
+  <InfoRowShort
     label="Underbidder"
     value="Yes"
   />
@@ -665,15 +707,7 @@ const displayTitle = (() => {
           }
         />
         )}
-{artwork.view_date && (        
-<InfoRow
-  label="Viewed on"
-  value={formatDate(artwork.view_date ?? null)}
-/>
- )}
-{artwork.condition && (
-        <InfoRow label="Condition" value={artwork.condition} />
- )}
+
 
 {artwork.certificate === true && (
   <InfoRow
@@ -698,20 +732,16 @@ const displayTitle = (() => {
 />
  )}
 
+
 {artwork.buyer && (
-  <InfoRow
+  <InfoRowShort
     label="Buyer"
-    value={
-      artwork.buyer.company_name ||
-      [artwork.buyer.first_name, artwork.buyer.last_name]
-        .filter(Boolean)
-        .join(' ')
-    }
+    value={formatPersonOrCompany(artwork.buyer)}
   />
 )}
 
         {artwork.cost_amount && (
-        <InfoRow
+        <InfoRowShort
           label="Cost"
           value={
             artwork.cost_amount
@@ -724,7 +754,7 @@ const displayTitle = (() => {
         )}
 
         {artwork.insurance_value && (
-        <InfoRow
+        <InfoRowShort
           label="Insurance"
           value={
             artwork.insurance_value
@@ -781,7 +811,7 @@ const displayTitle = (() => {
 
       {/* ✅ Notes */}
       {artwork.notes && (
-        <div style={{ whiteSpace: 'pre-wrap' }}>
+        <div style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>
           <strong>Notes</strong>
           <p>{artwork.notes}</p>
         </div>

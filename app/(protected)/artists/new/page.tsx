@@ -48,7 +48,7 @@ export default function NewArtistPage() {
   }
 
   return (
-    <main style={{ padding: 40, minHeight: '100vh', background: '#006039' }}>
+    <main style={{ padding: 80, minHeight: '100vh', background: '#006039' }}>
       <section
         style={{
           maxWidth: 640,

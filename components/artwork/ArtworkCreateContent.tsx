@@ -320,7 +320,7 @@ if (!artwork) {
 
 
 return (
-  <main style={{ padding: 40, backgroundColor: '#006039', color: 'white' }}>
+  <main style={{ paddingTop: 64, padding: 64, backgroundColor: '#006039', color: 'white' }}>
   <h3
   style={{
     textAlign: 'center',   // ✅ centre uniquement cette ligne

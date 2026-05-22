@@ -81,7 +81,7 @@ export default function ArtworkPrintPage() {
   }
 
   return (
-    <main style={{ padding: 40 }}>
+    <main style={{ padding: 80 }}>
       <ArtworkSheet artwork={artwork} canEdit={canEdit} />
     </main>
   )

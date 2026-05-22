@@ -202,8 +202,9 @@ async function remove() {
   return (
     <section
       style={{
+        marginTop: 50,
         marginBottom: 30,
-        padding: 20,
+        padding: 40,
         backgroundColor: '#f7f7f7',
         borderRadius: 6,
         color: 'black',

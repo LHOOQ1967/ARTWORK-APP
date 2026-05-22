@@ -855,8 +855,7 @@ setArtwork(prev => {
  return (
     
    <main
-         style={{
-       padding: 40,
+         style={{ padding: 80,
        minHeight: '100vh',
        backgroundColor: '#006039',
        color: 'white',

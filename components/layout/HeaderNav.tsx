@@ -20,16 +20,25 @@ export default function HeaderNav() {
   const isLoggedIn = !!role
 
   return (
-    <header
-      className="no-print"
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '12px 24px',
-        backgroundColor: '#02804d',
-      }}
-    >
+
+
+<header
+  className="no-print"
+  style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 24px',
+    backgroundColor: '#02804d',
+  }}
+>
+
+
       {/* LEFT NAV */}
       <nav style={{ display: 'flex', gap: 16 }}>
         {/* ✅ Home : seulement si logué */}
