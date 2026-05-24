@@ -158,6 +158,8 @@ export async function PATCH(
     estimate_low,
     estimate_high,
     auction_currency,
+    auction_max_hammer,
+    auction_max_premium,
     sold_hammer,
     sold_premium,
     underbidder,
@@ -166,6 +168,7 @@ export async function PATCH(
     destination_contact_id,
     cost_amount,
     cost_currency,
+    commission_blondeau,
     date_proposition,
     proposed_by_id,
     view_date,
@@ -177,6 +180,7 @@ export async function PATCH(
     artist_id,
     insurance_value,
     insurance_currency,
+    updated_at,
   } = body
 
   const { data, error } = await supabase
@@ -200,6 +204,8 @@ export async function PATCH(
       estimate_low,
       estimate_high,
       auction_currency,
+      auction_max_hammer,
+      auction_max_premium,
       sold_hammer,
       sold_premium,
       underbidder,
@@ -219,6 +225,8 @@ export async function PATCH(
       artist_id,
       insurance_value,
       insurance_currency,
+      commission_blondeau,
+      updated_at,
     })
     .eq('id', id)
     .select()

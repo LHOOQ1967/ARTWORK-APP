@@ -87,7 +87,7 @@ export function AuditProposedAtShortcut() {
           cursor: 'pointer',
         }}
       >
-        {loading ? 'Vérification…' : 'Vérifier les proposed_at'}
+        {loading ? 'Checking…' : 'Check proposed_at'}
       </button>
 
       {error && (
@@ -110,7 +110,7 @@ export function AuditProposedAtShortcut() {
   >
     {result.invalid_count === 0 ? (
       <div style={{ color: '#1b5e20' }}>
-        ✅ Tous les artworks ont au moins une date de proposition.
+        ✅ Tous les artworks ont au moins une proposition.
       </div>
     ) : (
       <>

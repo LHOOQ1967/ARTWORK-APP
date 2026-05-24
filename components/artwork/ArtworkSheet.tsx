@@ -61,7 +61,7 @@ function InfoRow({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '160px 1fr',
+        gridTemplateColumns: '100px 1fr',
         columnGap: 12,
         alignItems: 'baseline',
         marginTop: 12,
@@ -88,7 +88,7 @@ function InfoRowShort({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '160px 1fr',
+        gridTemplateColumns: '100px 1fr',
         columnGap: 12,
         alignItems: 'baseline',
         marginTop: 2,
@@ -144,6 +144,7 @@ function hasValidNumber(value: unknown) {
 /* ---------- component ---------- */
 
 export default function ArtworkSheet({ artwork, isEditMode, canEdit }: Props) {
+  console.log('artwork print data', artwork)
 const artworkId = artwork.id
 
  const statusKey = artwork.status ?? 'UNKNOWN' 
@@ -251,7 +252,11 @@ const displayTitle = (() => {
   return (
   <section
       style={{
-        padding: 1,
+    paddingTop: 1,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+
         boxSizing: 'border-box',
       }}
     >
@@ -449,86 +454,88 @@ const displayTitle = (() => {
       )}
 
 
+
+
+
 {images.length > 0 && (() => {
-  // Ajuste ici la hauteur souhaitée pour la colonne de droite
   const mainMaxHeight = '10cm'
-  const rightMaxHeight = '10cm' // <-- mets '6cm' si tu veux encore plus bas
+  const thumbnailCount = Math.max(images.length - 1, 0)
+  const rightMaxHeight = thumbnailCount === 1 ? '4cm' : '10cm'
 
   return (
     <div
       className="artwork-images"
       style={{
-        display: 'flex',
-        gap: 16,
+        display: 'inline-flex',
+        gap: 12,
         flexWrap: 'nowrap',
-        alignItems: 'flex-start',  // ✅ pas stretch
+        alignItems: 'flex-start',
         justifyContent: 'flex-start',
-        width: '100%',
+        maxWidth: '100%',
       }}
     >
       {/* ===== Image principale (gauche) ===== */}
       <div
         className="artwork-image-wrapper"
         style={{
-          flex: '1 1 0',
-          minWidth: 240,
-          maxWidth: '100%',
-          height: mainMaxHeight,
+          flex: '0 0 auto',
+          height: mainMaxHeight,      // ✅ toujours 10cm
           maxHeight: mainMaxHeight,
+          maxWidth: 420,
+          overflow: 'hidden',
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'flex-start',
-          overflow: 'hidden',
         }}
       >
         <a
           href={images[0].url ?? ''}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ display: 'block', width: '100%', height: '100%' }}
+          style={{
+            display: 'block',
+            height: '100%',
+            width: 'auto',
+            maxWidth: '100%',
+          }}
         >
           <img
             src={images[0].url ?? ''}
             alt={artwork.title ?? 'Artwork image'}
             style={{
-              width: '100%',
+              display: 'block',
               height: '100%',
+              width: 'auto',
+              maxWidth: '100%',
               objectFit: 'contain',
               objectPosition: 'left top',
               cursor: 'zoom-in',
-              display: 'block',
             }}
           />
         </a>
       </div>
 
       {/* ===== Thumbnails (droite) ===== */}
-      {images.length > 1 && (
+      {thumbnailCount > 0 && (
         <div
           className="artwork-image-thumbnails"
           style={{
-            flex: '0 0 320px', // ✅ largeur fixe, reste à droite
-            width: 320,
-            minWidth: 320,
-
-            height: rightMaxHeight,   // ✅ moins haut que l’image principale
+            flex: '0 0 auto',
+            width: 220,                   // ✅ même largeur
+            minWidth: 220,
+            height: rightMaxHeight,       // ✅ 5cm si 1 petite image, sinon 9cm
             maxHeight: rightMaxHeight,
-
             display: 'grid',
             gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-
-            // ✅ Simple, stable : la grille se répartit dans la hauteur donnée
-            // (pas besoin de thumbnailHeight)
             gridAutoRows: '1fr',
-
-            gap: 12,
+            gap: 10,
+            overflow: 'hidden',
             alignSelf: 'flex-start',
-            overflow: 'hidden', // ✅ important
           }}
         >
-          {images.slice(1).map((image) => (
+          {images.slice(1).map((image, index) => (
             <a
-              key={image.id}
+              key={image.id ?? `${image.url}-${index}`}
               href={image.url ?? ''}
               target="_blank"
               rel="noopener noreferrer"
@@ -542,13 +549,14 @@ const displayTitle = (() => {
             >
               <img
                 src={image.url ?? ''}
-                alt={image.label ?? artwork.title ?? 'Artwork thumbnail'}
+                alt={artwork.title ?? 'Artwork thumbnail'}
                 style={{
+                  display: 'block',
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
+                  objectPosition: 'center',
                   cursor: 'zoom-in',
-                  display: 'block',
                 }}
               />
             </a>
@@ -558,6 +566,9 @@ const displayTitle = (() => {
     </div>
   )
 })()}
+
+
+
 
 
       {/* ✅ Metadata */}
@@ -587,7 +598,7 @@ const displayTitle = (() => {
 
       {artwork.sale_date && (
         <InfoRow
-        label="Auction Sale Date"
+        label="Auction Date"
         value={formatDateTimeGeneva(
           artwork.sale_date, 
           artwork.sale_time
@@ -632,6 +643,14 @@ const displayTitle = (() => {
       )}
 
 
+
+{artwork.auctions === true && (
+  <InfoRowShort
+    label="Guarantee"
+    value={artwork.guarantee === true ? 'Yes' : 'No'}
+  />
+)}
+
       {artwork.estimate_low && (
         <InfoRowShort
         label="Estimation"
@@ -651,16 +670,24 @@ const displayTitle = (() => {
       />
       )}
 
-
-{artwork.auctions === true && (
-  <InfoRowShort
-    label="Guarantee"
-    value={artwork.guarantee === true ? 'Yes' : 'No'}
-  />
-)}
-
-
-
+    {artwork.auction_max_hammer && (
+        <InfoRowShort
+        label="Suggestion Blondeau"
+        value={
+          artwork.auction_max_hammer && artwork.auction_max_premium
+            ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
+                artwork.auction_max_hammer
+              )} – ${new Intl.NumberFormat('fr-CH').format(
+                artwork.auction_max_premium
+              )}`
+            : artwork.auction_max_hammer
+            ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
+                artwork.auction_max_hammer
+              )}`
+            : '—'
+        }
+      />
+      )}
 
 
 {hasValidNumber(artwork.sold_hammer) && (
@@ -753,6 +780,20 @@ const displayTitle = (() => {
         />
         )}
 
+        {artwork.commission_blondeau && (
+        <InfoRowShort
+          label="Commission Blondeau"
+          value={
+            artwork.commission_blondeau
+              ? `${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(
+                  artwork.commission_blondeau
+                )}`
+              : null
+          }
+        />
+        )}
+
+
         {artwork.insurance_value && (
         <InfoRowShort
           label="Insurance"
@@ -781,7 +822,7 @@ const displayTitle = (() => {
 
 {onedriveDocuments.length > 0 && (
   <InfoRow
-    label="Links (OneDrive)"
+    label="Links"
     value={
       <>
         {onedriveDocuments.map((doc: ArtworkDocument, index: number) => (

@@ -192,34 +192,83 @@ export default function ArtworksIndexPage({ title, fixedProposedToId }: Props) {
         // Viewer : pas de proposed_to (inutile)
         const shouldLoadProposedTo = !isViewer && !fixedProposedToId
 
-        const [{ data: marketData, error: marketError }, { data: auctionsData, error: auctionsError }] =
-          await Promise.all([
-            supabase.from(marketSource).select('*'),
-            supabase.from(auctionsSource).select('*'),
-          ])
 
-        if (marketError) {
-          console.error(marketError)
-          setError('Failed to load artworks (market)')
-          return
-        }
-        if (auctionsError) {
-          console.error(auctionsError)
-          setError('Failed to load artworks (auctions)')
-          return
-        }
+let baseArtworks: any[] = []
 
-        const marketRows = (Array.isArray(marketData) ? marketData : []) as any[]
-        const auctionsRows = (Array.isArray(auctionsData) ? auctionsData : []) as any[]
+if (marketSource === auctionsSource) {
+  // ✅ Une seule vue fusionnée : on charge UNE SEULE FOIS
+  const { data, error } = await supabase.from(marketSource).select('*')
 
-        // 🔎 Debug utile : vérifier si date_proposition est bien présente côté auctions
-        // console.log('[index] auctions archived rows =', auctionsRows.filter(a => a?.status === 'Archived').length)
-        // console.log('[index] auctions archived with date_proposition =', auctionsRows.filter(a => a?.status === 'Archived' && a?.date_proposition).length)
+  if (error) {
+    console.error(error)
+    setError('Failed to load artworks')
+    return
+  }
 
-        const baseArtworks = [
-          ...marketRows.map(a => ({ ...a, auctions: false })),
-          ...auctionsRows.map(a => ({ ...a, auctions: true })),
-        ]
+  const rows = (Array.isArray(data) ? data : []) as any[]
+
+  // ✅ On garde le vrai champ auctions venant de la vue
+  baseArtworks = rows.map(a => ({
+    ...a,
+    auctions: !!a.auctions,
+  }))
+} else {
+  // ✅ Ancienne logique : deux sources distinctes
+  const [{ data: marketData, error: marketError }, { data: auctionsData, error: auctionsError }] =
+    await Promise.all([
+      supabase.from(marketSource).select('*'),
+      supabase.from(auctionsSource).select('*'),
+    ])
+
+
+if (marketError) {
+  console.error('marketError raw =', marketError)
+  console.error('marketError json =', JSON.stringify(marketError, null, 2))
+  console.error('marketError message =', (marketError as any)?.message)
+  console.error('marketError details =', (marketError as any)?.details)
+  console.error('marketError hint =', (marketError as any)?.hint)
+  console.error('marketError code =', (marketError as any)?.code)
+
+  setError(
+    `Failed to load artworks (market): ${
+      (marketError as any)?.message ||
+      (marketError as any)?.details ||
+      'unknown error'
+    }`
+  )
+  return
+}
+
+
+if (auctionsError) {
+  console.error('auctionsError raw =', auctionsError)
+  console.error('auctionsError json =', JSON.stringify(auctionsError, null, 2))
+  console.error('auctionsError message =', (auctionsError as any)?.message)
+  console.error('auctionsError details =', (auctionsError as any)?.details)
+  console.error('auctionsError hint =', (auctionsError as any)?.hint)
+  console.error('auctionsError code =', (auctionsError as any)?.code)
+
+  setError(
+    `Failed to load artworks (auctions): ${
+      (auctionsError as any)?.message ||
+      (auctionsError as any)?.details ||
+      'unknown error'
+    }`
+  )
+  return
+}
+
+
+  const marketRows = (Array.isArray(marketData) ? marketData : []) as any[]
+  const auctionsRows = (Array.isArray(auctionsData) ? auctionsData : []) as any[]
+
+  baseArtworks = [
+    ...marketRows.map(a => ({ ...a, auctions: false })),
+    ...auctionsRows.map(a => ({ ...a, auctions: true })),
+  ]
+}
+
+
 
         const artworkIds = baseArtworks.map(a => a.id).filter(Boolean) as string[]
         const artistIds = Array.from(new Set(baseArtworks.map(getArtistId).filter(Boolean))) as string[]
@@ -460,7 +509,7 @@ export default function ArtworksIndexPage({ title, fixedProposedToId }: Props) {
   const headerTitle = fixedProposedToId ? `${baseTitle}` : baseTitle
 
   return (
-    <main className="min-h-screen bg-[#006039] px-10 pb-10 pt-24">
+    <main className="min-h-screen bg-[#006039] px-3 pb-10 pt-24">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="m-0 text-[1.8rem] font-bold text-white">{headerTitle}</h2>

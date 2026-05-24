@@ -177,7 +177,6 @@ body {
 
 @page {
   margin: 12mm;
-  /* size: A4; */ /* optionnel */
 }
 
 @media print {

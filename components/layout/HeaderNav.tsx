@@ -62,14 +62,13 @@ export default function HeaderNav() {
           </Link>
         )}
 
-
-        {!loading && isLoggedIn && canEdit && (
+          {isLoggedIn && (
           <Link
-            href="/referentials"
+            href="/artworks/updated"
             prefetch={false}
-            style={navLink(isActive('/referentials'))}
+            style={navLink(isActive('/artworks/updated'))}
           >
-            Referentials
+            Update
           </Link>
         )}
 
@@ -82,6 +81,28 @@ export default function HeaderNav() {
             Factsheets
           </Link>
         )}
+
+        {!loading && isLoggedIn && canEdit && (
+          <Link
+            href="/artworks/new"
+            prefetch={false}
+            style={navLink(isActive('/artworks/new'))}
+          >
+            Add
+          </Link>
+        )}
+
+        {!loading && isLoggedIn && canEdit && (
+          <Link
+            href="/referentials"
+            prefetch={false}
+            style={navLink(isActive('/referentials'))}
+          >
+            Referentials
+          </Link>
+        )}
+
+
       </nav>
 
       {/* RIGHT ACTIONS */}

@@ -53,23 +53,28 @@ export default function NewContactPage() {
   }
 
   return (
-    <main
-      style={{
-        padding: 80,
-        minHeight: '100vh',
-        backgroundColor: '#006039',
-      }}
-    >
-      <section
-        style={{
-          maxWidth: 640,
-          margin: '0 auto',
-          padding: 24,
-          backgroundColor: '#f7f7f7',
-          borderRadius: 6,
-          color: 'black',
-        }}
-      >
+
+<main
+  style={{
+    paddingTop: 80,   // espace sous le menu
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+    minHeight: '100vh',
+    background: '#006039',
+  }}
+>
+  <section
+    style={{
+      maxWidth: 640,
+      margin: '0 auto',
+      padding: 24,
+      backgroundColor: '#e6e5e5',
+      borderRadius: 6,
+      color: 'black',
+    }}
+  >
+
         <h1
           style={{
             fontSize: '1.6rem',
@@ -94,7 +99,7 @@ export default function NewContactPage() {
           <input
             value={companyName}
             onChange={e => setCompanyName(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -104,7 +109,7 @@ export default function NewContactPage() {
           <input
             value={firstName}
             onChange={e => setFirstName(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -114,7 +119,7 @@ export default function NewContactPage() {
           <input
             value={lastName}
             onChange={e => setLastName(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -124,7 +129,7 @@ export default function NewContactPage() {
           <input
             value={email}
             onChange={e => setEmail(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -134,7 +139,7 @@ export default function NewContactPage() {
           <input
             value={telephone}
             onChange={e => setTelephone(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -144,7 +149,7 @@ export default function NewContactPage() {
           <input
             value={city}
             onChange={e => setCity(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -154,7 +159,7 @@ export default function NewContactPage() {
           <input
             value={role}
             onChange={e => setRole(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
@@ -165,17 +170,17 @@ export default function NewContactPage() {
             rows={4}
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            style={{ width: '100%' }}
+            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
           />
         </div>
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={() => router.back()}>
+          <button onClick={() => router.back()} className="edit-button">
             Cancel
           </button>
 
-          <button onClick={handleSubmit} disabled={loading}>
+          <button onClick={handleSubmit} disabled={loading} className="edit-button"> 
             {loading ? 'Saving…' : 'Create contact'}
           </button>
         </div>

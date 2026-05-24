@@ -20,7 +20,12 @@ export default function ArtworkNewLayout({
   }, [role, loading, router])
 
   if (loading || !role) {
-    return <p style={{ padding: 40 }}>Loading…</p>
+    return <p style={{ 
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+ }}>Loading…</p>
   }
 
   return <>{children}</>

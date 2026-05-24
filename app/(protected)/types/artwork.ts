@@ -34,6 +34,8 @@ export type ArtworkForm = {
 
   estimate_low: number | null
   estimate_high: number | null
+  auction_max_hammer?: number | null
+  auction_max_premium?: number | null 
 
   sold_hammer: number | null
   sold_premium: number | null
@@ -49,6 +51,7 @@ export type ArtworkForm = {
   date_acquisition: string | null
   cost_amount: number | null
   cost_currency: string | null
+  commission_blondeau?: number | null
   insurance_value: number | null
   insurance_currency: string | null
 
@@ -60,6 +63,7 @@ export type ArtworkForm = {
 
   documents: unknown[]
   artwork_proposals?: unknown[]
+  updated_at?: string | null
 }
 
 
@@ -91,6 +95,8 @@ export type Artwork = {
   auction_currency: string | null
   estimate_low: number | null
   estimate_high: number | null
+  auction_max_hammer?: number | null
+  auction_max_premium?: number | null
   lot?: string | null
 
   // Result
@@ -101,6 +107,8 @@ export type Artwork = {
   date_acquisition: string | null
   cost_amount: number | null
   cost_currency: string | null
+  commission_blondeau?: number | null
+  updated_at?: string | null
 
   // Meta
   notes: string | null
@@ -153,11 +161,15 @@ export type ArtworkListItem = {
   estimate_low?: number | null
   estimate_high?: number | null
   auction_currency?: string | null
+  auction_max_hammer?: number | null
+  auction_max_premium?: number | null
   lot?: string | null
 
   date_acquisition: string | null
   cost_amount?: number | null
   cost_currency?: string | null
+  commission_blondeau?: number | null
+  updated_at?: string | null
 
   documents?: {
     id: string
@@ -263,7 +275,8 @@ id: string
   estimate_low?: number | null
   estimate_high?: number | null
   lot?: string | null
-
+auction_max_hammer?: number | null
+auction_max_premium?: number | null
   sold_hammer?: number | null
   sold_premium?: number | null
   underbidder?: boolean | null
@@ -271,6 +284,8 @@ id: string
   date_acquisition: string | null
   cost_amount?: number | null
   cost_currency?: string | null
+  commission_blondeau?: number | null
+  updated_at?: string | null
 
   insurance_value?: number | null
   insurance_currency?: string | null
@@ -329,7 +344,10 @@ export type ArtworkPrint = {
   estimate_low?: number | null
   estimate_high?: number | null
   auction_currency?: string | null
-  lot?: string | null
+    lot?: string | null
+  auction_max_hammer?: number | null
+  auction_max_premium?: number | null
+  
 
   sold_hammer?: number | null
   sold_premium?: number | null
@@ -339,6 +357,7 @@ export type ArtworkPrint = {
   date_acquisition: string | null
   cost_amount?: number | null
   cost_currency?: string | null
+  commission_blondeau?: number | null
   insurance_value?: number | null
   insurance_currency?: string | null
 
@@ -349,6 +368,8 @@ export type ArtworkPrint = {
   destination?: Contact | null
   certificate?: boolean | null
   certificateLocation?: Contact | null
+
+  updated_at?: string | null
 
   documents?: ArtworkDocument[]
   

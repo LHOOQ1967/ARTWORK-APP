@@ -21,13 +21,13 @@ export function resolveSource(
 if (typeof role === 'string' && role.toLowerCase() === 'viewer') {
   switch (page) {
     case 'artworks':
-      return 'viewer_artworks_secure'
+      return 'viewer_artworks_full_secure'
 
     case 'auctions':
-      return 'viewer_auction_artworks_secure'
+      return 'viewer_artworks_full_secure'
 
     case 'prints':
-      return 'viewer_artworks_prints_secure'
+      return 'viewer_artworks_full_secure'
 
     case 'documents':
       return 'viewer_documents'
@@ -41,13 +41,13 @@ if (typeof role === 'string' && role.toLowerCase() === 'viewer') {
   // ✅ Admin / Editor
   switch (page) {
     case 'artworks':
-      return 'artworks_base'
+      return 'artworks_full_admin'
 
     case 'auctions':
-      return 'auction_artworks_base'
+      return 'artworks_full_admin'
 
     case 'prints':
-      return 'artwork_print_view_admin'
+      return 'artworks_full_admin'
 
     case 'documents':
       return 'documents'

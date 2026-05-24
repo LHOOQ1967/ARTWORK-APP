@@ -73,15 +73,30 @@ export default function ArtworkPrintPage() {
   }, [id, role])
 
   if (loading) {
-    return <p style={{ padding: 40 }}>Loading artwork…</p>
+    return <p style={{ 
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+ }}>Loading artwork…</p>
   }
 
   if (!artwork) {
-    return <p style={{ padding: 40 }}>Artwork not found</p>
+    return <p style={{ 
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+ }}>Artwork not found</p>
   }
 
   return (
-    <main style={{ padding: 80 }}>
+    <main style={{ 
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+ }}>
       <ArtworkSheet artwork={artwork} canEdit={canEdit} />
     </main>
   )

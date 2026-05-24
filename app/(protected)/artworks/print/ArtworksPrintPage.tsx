@@ -323,6 +323,12 @@ const loadArtworks = async () => {
 
     const res = await supabase.from(source).select("*", { count: "exact" });
 
+    
+console.log("source =", source);
+console.log("res.data[0] =", res.data?.[0]);
+console.log("keys =", res.data?.[0] ? Object.keys(res.data[0]) : []);
+
+
     const { data, error, status, count } = res;
 
     // Logs “lisibles”
@@ -552,11 +558,21 @@ const fieldBox =
 
 
   if (loadingData) {
-    return <p style={{ padding: 40 }}>Loading…</p>
+    return <p style={{ 
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+ }}>Loading…</p>
   }
 
   return (
-    <main style={{ padding: 80 }}>
+    <main style={{ 
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 10,
+ }}>
       {/* ===== FILTERS / SORTING ===== */}
 
 
@@ -688,7 +704,6 @@ const fieldBox =
     </button>
   </div>
 </section>
-
 
 
 <div className="print-list">

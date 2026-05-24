@@ -12,7 +12,7 @@ import type { Artist, Contact } from '@/app/(protected)/types/artwork'
 
 
 
-type ActionButtonVariant = 'default' | 'danger'
+
 
 /* ======================
    InlineRow (identique à Artwork)
@@ -37,7 +37,7 @@ function InlineRow({
     >
       <div
         style={{
-          color: '#777',
+          color: 'black',
           fontSize: '0.9rem',
           whiteSpace: 'nowrap',
           paddingTop: 2,
@@ -51,58 +51,7 @@ function InlineRow({
   )
 }
 
-function ActionButton({
 
-  children,
-  onClick,
-  disabled,
-  variant = 'default',
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  disabled?: boolean
-  variant?: ActionButtonVariant
-}) {
-  const isDanger = variant === 'danger'
-
-  const backgroundColor = isDanger ? '#d32f2f' : '#666'
-  const hoverBackgroundColor = isDanger ? '#b71c1c' : '#555'
-  const textColor = isDanger ? '#fff' : '#fff'
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        backgroundColor,
-        border: '1px solid #444',
-        borderRadius: 4,
-        padding: '6px 12px',
-        fontSize: '0.9rem',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        color: textColor,
-        opacity: disabled ? 0.5 : 1,
-        transition: 'background-color 0.15s ease',
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) {
-          e.currentTarget.style.backgroundColor = hoverBackgroundColor
-        }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = backgroundColor
-      }}
-      onFocus={(e) => {
-        e.currentTarget.style.boxShadow = '0 0 0 2px rgba(0,0,0,0.3)'
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.boxShadow = 'none'
-      }}
-    >
-      {children}
-    </button>
-  )
-}
 
 
 /* ======================
@@ -205,7 +154,7 @@ async function remove() {
         marginTop: 50,
         marginBottom: 30,
         padding: 40,
-        backgroundColor: '#f7f7f7',
+        backgroundColor: '#e6e5e5',
         borderRadius: 6,
         color: 'black',
       }}
@@ -223,13 +172,14 @@ async function remove() {
   }}
 >
   {/* ✅ ADD ARTIST */}
-  <ActionButton
-    onClick={() => window.open('/artists/new', '_blank')}
+  <button
+    onClick={() => window.open('/artists/new', '_self')}
+    className="edit-button"
   >
     + Add artist
-  </ActionButton>
+  </button>
 
-  <ActionButton
+  <button
     onClick={() => {
       if (isEditing) {
         setIsEditing(false)
@@ -237,28 +187,30 @@ async function remove() {
         if (!artist || !artist.id) return
         setIsEditing(true)
       }
-    }}
+    }} className="edit-button"
   >
     {isEditing ? 'Cancel' : 'Edit'}
-  </ActionButton>
+  </button>
 
   {isEditing && (
-    <ActionButton
+    <button
       onClick={remove}
-      variant="danger"
+      
       disabled={!artist || !artist.id}
+      className="edit-button"
     >
       Delete
-    </ActionButton>
+    </button>
   )}
 
   {isEditing && (
-    <ActionButton
+    <button
       onClick={save}
       disabled={!artist || !artist.id}
+      className="edit-button"
     >
       Save
-    </ActionButton>
+    </button>
   )}
 </div>
 
@@ -283,7 +235,7 @@ async function remove() {
     placeholder="Search artist…"
     value={artistSearch}
     onChange={e => setArtistSearch(e.target.value)}
-    style={{ width: '100%' }}
+    style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
   />
 </InlineRow>
 
@@ -291,7 +243,7 @@ async function remove() {
       <InlineRow label="Artist">
         <select
           value={selectedId || ''}
-          onChange={e => setSelectedId(e.target.value || null)}
+          onChange={e => setSelectedId(e.target.value || null)} style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
         >
           <option value="">—</option>
           {filteredArtists.map(a => (
@@ -529,7 +481,7 @@ async function remove() {
     <section
       style={{
         padding: 20,
-        backgroundColor: '#f7f7f7',
+        backgroundColor: '#e6e5e5',
         borderRadius: 6,
         color: 'black',
       }}
@@ -545,13 +497,13 @@ async function remove() {
   }}
 >
   {/* ✅ ADD CONTACT */}
-  <ActionButton
-    onClick={() => window.open('/contacts/new', '_blank')}
+  <button
+    onClick={() => window.open('/contacts/new', '_self')} className="edit-button"
   >
     + Add contact
-  </ActionButton>
+  </button>
 
-  <ActionButton
+  <button
     onClick={() => {
       if (isEditing) {
         setIsEditing(false)
@@ -559,37 +511,30 @@ async function remove() {
         if (!contact || !contact.id) return
         setIsEditing(true)
       }
-    }}
+    }} className="edit-button"
   >
     {isEditing ? 'Cancel' : 'Edit'}
-  </ActionButton>
+  </button>
 
   {isEditing && (
-    <ActionButton
+    <button
       onClick={remove}
-      variant="danger"
-      disabled={!contact || !contact.id}
+       disabled={!contact || !contact.id} className="edit-button"
     >
       Delete
-    </ActionButton>
+    </button>
   )}
 
   {isEditing && (
-    <ActionButton
+    <button
       onClick={save}
       disabled={!contact || !contact.id}
+      className="edit-button"
     >
       Save
-    </ActionButton>
+    </button>
   )}
 </div>
-
-
-
-
-
-
-      
 
 <h2
   style={{
@@ -610,7 +555,7 @@ async function remove() {
     placeholder="Search contact…"
     value={contactSearch}
     onChange={e => setContactSearch(e.target.value)}
-    style={{ width: '100%' }}
+    style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
   />
 </InlineRow>
 
@@ -618,7 +563,8 @@ async function remove() {
       <InlineRow label="Contact">
         <select
           value={selectedId || ''}
-          onChange={e => setSelectedId(e.target.value || null)}
+          onChange={e => setSelectedId(e.target.value || null)} 
+          style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
         >
           <option value="">—</option>
           {filteredContacts.map(c => (
@@ -626,7 +572,7 @@ async function remove() {
               {c.company_name ||
                 [c.last_name, c.first_name].filter(Boolean).join(' ')}
             </option>
-          ))}
+          ))} 
         </select>
       </InlineRow>
 
@@ -775,6 +721,7 @@ export default function ReferentialsPage() {
   return (
     <main
       style={{
+        marginTop: 20,
         padding: 40,
         minHeight: '100vh',
         backgroundColor: '#006039',

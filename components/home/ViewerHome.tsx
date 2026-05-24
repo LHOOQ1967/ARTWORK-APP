@@ -7,7 +7,12 @@ export default function ViewerHome() {
 return (
   <main
     style={{
-      padding: 100,
+
+    paddingTop: 100,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 30,
+
       minHeight: '100vh',
       backgroundColor: '#006039',
       display: 'flex',
@@ -16,25 +21,33 @@ return (
       color: 'white',
     }}
   >
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 20,
-        width: '100%',
-        maxWidth: 700,
-      }}
-    >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 20,
+          width: '100%',
+
+        }}
+      >
 
       <EntryCardFlorac
         href="/artworks/"
         title="Artworks"
-        subtitle=""
+        subtitle="Sorted by Status"
       />
+
+
+        <EntryCardFlorac
+        href="/artworks/updated"
+        title="Update"
+        subtitle="Artworks Sorted by Date updated"
+      />
+      
       <EntryCardFlorac
         href="/artworks/print"
         title="Factsheets"
-        subtitle=""
+        subtitle="All Artworks"
       />
 
       <EntryCardFlorac
@@ -59,6 +72,18 @@ return (
         title="All Archived"
         subtitle="All Artworks by date"
       />
+      </div>
+
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 20,
+        width: '100%',
+        maxWidth: 700,
+        marginTop: 40,
+      }}
+    >
 
       <EntryCardNew
         href="https://buyerspremium.blondeau.ch/calculate.php"

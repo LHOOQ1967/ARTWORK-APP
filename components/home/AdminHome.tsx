@@ -17,7 +17,12 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
   return (
     <main
       style={{
-        padding: 100,
+
+    paddingTop: 100,
+    paddingLeft: 30,
+    paddingRight: 30,
+    paddingBottom: 10,
+
         minHeight: '100vh',
         backgroundColor: '#006039',
         display: 'flex',
@@ -32,9 +37,40 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 20,
           width: '100%',
-          maxWidth: 700,
+
         }}
       >
+
+        <EntryCardNew
+          href="artworks"
+          title="All Artworks"
+          subtitle="Sorted by status"
+        />
+
+        <EntryCardNew
+          href="artworks/print"
+          title="Factsheets"
+          subtitle="Sorted by date"
+        />
+
+          <EntryCardNew
+          href="artworks/new"
+          title="Add artwork"
+          subtitle="Create a new artwork"
+        />
+
+          <EntryCardNew
+          href="referentials"
+          title="Referentials"
+          subtitle="Artists & Contacts"
+        />
+
+        <EntryCardNew
+          href="artworks/updated"
+          title="Updated"
+          subtitle="All artworks sorted by date updated"
+        />
+
         <EntryCardNew
           href="https://buyerspremium.blondeau.ch/calculate.php"
           title="Buyers Premium"
