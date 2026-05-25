@@ -198,145 +198,6 @@ try {
 
     Write-Step "INSTALLATION ET BUILD LOCAL"
 
-    if (-not $SkipLocalNpmCi) {
-        Write-Info "npm ci local..."
-        npm ci
-        Require-Success $LASTEXITCODE "npm ci local a échoué."
-    }
-    else {
-        Write-Warn "npm ci local ignoré (-SkipLocalNpmCi)."
-    }
-
-    Write-Info "Suppression de .next..."
-    if (Test-Path ".next") {
-        Remove-Item -Recurse -Force ".next"
-    }
-
-    Write-Info "Build production..."
-    cmd /c "set NODE_ENV=production&& npm run build"
-    Require-Success $LASTEXITCODE "Le build production a échoué."
-
-    if (-not (Test-Path ".next\BUILD_ID")) {
-        throw "Le fichier '.next\BUILD_ID' est absent après le build."
-    }
-
-    $LocalBuildId = (Get-Content ".next\BUILD_ID" -ErrorAction Stop | Select-Object -First 1).Trim()
-    Write-Ok "BUILD_ID local : $LocalBuildId"
-
-    Write-Step "GENERATION DU MANIFEST"
-
-    $Manifest = [ordered]@{
-        deploy_id              = $DeployId
-        deployed_at_local      = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        project_path           = $ProjectPath
-        environment            = "production"
-        site                   = "artmuse.ch"
-        allowed_branch         = $AllowedBranch
-        current_branch         = $CurrentBranch
-        git_commit             = $CurrentCommit
-        git_tag                = $GitTag
-        build_id               = $LocalBuildId
-        zip_name               = $ZipName
-        remote_host            = $SshHost
-        remote_user            = $SshUser
-        remote_path            = $RemotePath
-        skip_local_npm_ci      = [bool]$SkipLocalNpmCi
-        skip_remote_npm_ci     = [bool]$SkipRemoteNpmCi
-        skip_git_push          = [bool]$SkipGitPush
-        skip_branch_push       = [bool]$SkipBranchPush
-        skip_tag_push          = [bool]$SkipTagPush
-        allow_dirty            = [bool]$AllowDirty
-    }
-
-    $ManifestJson = $Manifest | ConvertTo-Json -Depth 10
-    Set-Content -Path $ManifestPath -Value $ManifestJson -Encoding UTF8
-    Set-Content -Path $ManifestArchivePath -Value $ManifestJson -Encoding UTF8
-
-    Write-Ok "Manifest généré : $ManifestArchivePath"
-
-    Write-Step "CREATION DU ZIP"
-
-    if (Test-Path $ZipPath) {
-        Remove-Item -Force $ZipPath
-    }
-
-    $FilesToZip = Get-ExistingRelativePaths -BasePath $ProjectPath -Candidates $IncludePaths
-
-    if ($FilesToZip.Count -eq 0) {
-        throw "Aucun fichier/dossier trouvé pour le zip."
-    }
-
-    Write-Info "Contenu du zip :"
-    foreach ($entry in $FilesToZip) {
-        Write-Host " - $entry"
-    }
-
-    Compress-Archive -Path $FilesToZip -DestinationPath $ZipPath -Force
-
-    if (-not (Test-Path $ZipPath)) {
-        throw "Le zip n'a pas été créé."
-    }
-
-    $ZipInfo = Get-Item $ZipPath
-    $ZipSizeMB = [Math]::Round($ZipInfo.Length / 1MB, 2)
-
-    Write-Ok "Zip créé : $($ZipInfo.FullName)"
-    Write-Ok "Taille zip : $ZipSizeMB MB"
-
-    # Mise à jour manifest avec infos zip
-    $Manifest.zip_size_bytes = $ZipInfo.Length
-    $Manifest.zip_size_mb = $ZipSizeMB
-    $ManifestJson = $Manifest | ConvertTo-Json -Depth 10
-    Set-Content -Path $ManifestPath -Value $ManifestJson -Encoding UTF8
-    Set-Content -Path $ManifestArchivePath -Value $ManifestJson -Encoding UTF8
-
-    Write-Step "UPLOAD DU ZIP"
-
-    scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
-        $ZipPath `
-        "${Remote}:${RemotePath}/"
-
-    Require-Success $LASTEXITCODE "Upload SCP échoué."
-
-    Write-Ok "Upload terminé."
-
-
-Write-Step "DEPLOIEMENT COTE SERVEUR"
-
-$RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
-$RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
-
-$RemoteScript = @"
-set -e
-
-cd "$RemotePath"
-
-echo "== Déploiement serveur =="
-date
-pwd
-
-mkdir -p "_backup"
-mkdir -p "_deploy/manifests"
-
-BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
-
-echo "== Sauvegarde serveur =="
-tar \
-  --exclude='./node_modules' \
-  --exclude='./_backup' \
-  --exclude='./_deploy' \
-  --exclude='./$ZipName' \
-  -czf "\$BACKUP_FILE" \
-  . 2>/dev/null || true
-
-echo "Sauvegarde créée : \$BACKUP_FILE"
-
-echo "== Décompression zip =="
-unzip -o "$ZipName"
-
-echo "== Suppression zip =="
-rm -f "$ZipName"
-"@
 
 if (-not $SkipRemoteNpmCi) {
     $RemoteScript += @"
@@ -376,9 +237,12 @@ ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$($RemoteBackupKeep
 echo "== Déploiement serveur terminé =="
 "@
 
-# écrire le script shell localement en UTF-8 sans BOM
+# écrire le script shell localement en UTF-8 sans BOM + LF Unix
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScript, $Utf8NoBom)
+$RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
+
+
 
 Write-Info "Upload du script distant..."
 scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
