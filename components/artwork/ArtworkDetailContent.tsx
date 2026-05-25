@@ -834,8 +834,10 @@ const fullArtwork = normalizeArtwork({
 
         <div
           style={{
-            position: 'sticky',
+            position: 'fixed',
             top: 72,
+            right: 24,
+            left: 'auto',
             zIndex: 50,
             display: 'flex',
             justifyContent: 'flex-end',
@@ -844,7 +846,6 @@ const fullArtwork = normalizeArtwork({
             marginBottom: 20,
             paddingTop: 8,
             paddingBottom: 10,
-            backgroundColor: 'rgba(0, 96, 57, 0.96)',
             backdropFilter: 'blur(4px)',
             borderBottom: '1px solid rgba(255,255,255,0.12)',
           }}

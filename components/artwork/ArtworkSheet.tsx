@@ -456,11 +456,11 @@ const displayTitle = (() => {
 
 
 
-
 {images.length > 0 && (() => {
-  const mainMaxHeight = '10cm'
-  const thumbnailCount = Math.max(images.length - 1, 0)
-  const rightMaxHeight = thumbnailCount === 1 ? '4cm' : '10cm'
+  const mainMaxHeight = '12cm'
+  const thumbnails = images.slice(1)
+  const thumbnailCount = thumbnails.length
+  const thumbColumns = thumbnailCount > 4 ? 3 : 2
 
   return (
     <div
@@ -479,7 +479,7 @@ const displayTitle = (() => {
         className="artwork-image-wrapper"
         style={{
           flex: '0 0 auto',
-          height: mainMaxHeight,      // ✅ toujours 10cm
+          height: mainMaxHeight,
           maxHeight: mainMaxHeight,
           maxWidth: 420,
           overflow: 'hidden',
@@ -515,25 +515,20 @@ const displayTitle = (() => {
         </a>
       </div>
 
-      {/* ===== Thumbnails (droite) ===== */}
+      {/* ===== Petites images à droite ===== */}
       {thumbnailCount > 0 && (
         <div
           className="artwork-image-thumbnails"
           style={{
             flex: '0 0 auto',
-            width: 220,                   // ✅ même largeur
-            minWidth: 220,
-            height: rightMaxHeight,       // ✅ 5cm si 1 petite image, sinon 9cm
-            maxHeight: rightMaxHeight,
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-            gridAutoRows: '1fr',
+            gridTemplateColumns: `repeat(${thumbColumns}, 5cm)`,
+            gridAutoRows: '5cm',
             gap: 10,
-            overflow: 'hidden',
             alignSelf: 'flex-start',
           }}
         >
-          {images.slice(1).map((image, index) => (
+          {thumbnails.map((image, index) => (
             <a
               key={image.id ?? `${image.url}-${index}`}
               href={image.url ?? ''}
@@ -541,8 +536,8 @@ const displayTitle = (() => {
               rel="noopener noreferrer"
               style={{
                 display: 'block',
-                width: '100%',
-                height: '100%',
+                width: '5cm',
+                height: '5cm',
                 overflow: 'hidden',
                 borderRadius: 4,
               }}
@@ -566,8 +561,6 @@ const displayTitle = (() => {
     </div>
   )
 })()}
-
-
 
 
 
@@ -672,7 +665,7 @@ const displayTitle = (() => {
 
     {artwork.auction_max_hammer && (
         <InfoRowShort
-        label="Suggestion Blondeau"
+        label="Suggestion B."
         value={
           artwork.auction_max_hammer && artwork.auction_max_premium
             ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
@@ -754,7 +747,7 @@ const displayTitle = (() => {
 
 {artwork.date_acquisition && (        
 <InfoRow
-  label="Date acquisition"
+  label="Acquisition on"
   value={formatDate(artwork.date_acquisition ?? null)}
 />
  )}
@@ -782,7 +775,7 @@ const displayTitle = (() => {
 
         {artwork.commission_blondeau && (
         <InfoRowShort
-          label="Commission Blondeau"
+          label="Commission B."
           value={
             artwork.commission_blondeau
               ? `${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(
