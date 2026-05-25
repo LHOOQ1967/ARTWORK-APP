@@ -310,22 +310,23 @@ try {
 
     Write-Ok "Upload terminé."
 
-    Write-Step "DEPLOIEMENT COTE SERVEUR"
 
-    $RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
-    $RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
+Write-Step "DEPLOIEMENT COTE SERVEUR"
 
-    if (Test-Path $RemoteScriptPathLocal) {
-        Remove-Item -Force $RemoteScriptPathLocal
-    }
+$RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
+$RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
 
-    $RemoteScript = @"
+if (Test-Path $RemoteScriptPathLocal) {
+    Remove-Item -Force $RemoteScriptPathLocal
+}
+
+$RemoteScript = @"
 #!/bin/bash
 set -e
 
 cd "$RemotePath"
 
-echo "== Déploiement serveur =="
+echo "== Deployment server =="
 date
 pwd
 
@@ -334,83 +335,83 @@ mkdir -p "_deploy/manifests"
 
 BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
 
-echo "== Sauvegarde serveur =="
-tar \
+echo "== Server backup =="
+tar -czf "`$BACKUP_FILE" \
   --exclude='./node_modules' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
   --exclude='./$ZipName' \
   --exclude='./deploy-remote.sh' \
-  -czf "\$BACKUP_FILE" \
-  . 2>/dev/null || true
+  .
 
-echo "Sauvegarde créée : \$BACKUP_FILE"
+echo "Backup created: `$BACKUP_FILE"
 
-echo "== Décompression zip =="
+echo "== Unzip package =="
 unzip -o "$ZipName"
 
-echo "== Suppression zip =="
+echo "== Remove zip =="
 rm -f "$ZipName"
 "@
 
-    if (-not $SkipRemoteNpmCi) {
-        $RemoteScript += @"
-
-echo "== npm ci côté serveur =="
-npm ci
-"@
-    }
-    else {
-        $RemoteScript += @"
-
-echo "== npm ci côté serveur ignoré =="
-"@
-    }
-
+if (-not $SkipRemoteNpmCi) {
     $RemoteScript += @"
 
-echo "== Vérification BUILD_ID =="
+echo "== npm ci on server =="
+npm ci
+"@
+}
+else {
+    $RemoteScript += @"
+
+echo "== npm ci on server skipped =="
+"@
+}
+
+$RemoteScript += @"
+
+echo "== Check BUILD_ID =="
 if [ -f ".next/BUILD_ID" ]; then
-  echo "BUILD_ID serveur :"
+  echo "Server BUILD_ID:"
   cat ".next/BUILD_ID"
   ls -la ".next/BUILD_ID"
 else
-  echo "ERREUR: .next/BUILD_ID absent"
+  echo "ERROR: .next/BUILD_ID missing"
   exit 1
 fi
 
-echo "== Archivage manifest =="
+echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
   cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_$Timestamp.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
-echo "== Nettoyage anciennes sauvegardes =="
+echo "== Cleanup old backups =="
 ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$($RemoteBackupKeep + 1) | xargs -r rm -f
 
-echo "== Déploiement serveur terminé =="
+echo "== Server deployment finished =="
 "@
 
-    # Ecrire le script shell en UTF-8 sans BOM + fins de ligne Unix (LF)
-    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    $RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
-    [System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
+# UTF-8 sans BOM + fins de ligne Unix LF
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
 
-    Write-Info "Upload du script distant..."
-    scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
-        $RemoteScriptPathLocal `
-        "${Remote}:${RemoteScriptPathServer}"
+Write-Info "Upload du script distant..."
+scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
+    $RemoteScriptPathLocal `
+    "${Remote}:${RemoteScriptPathServer}"
 
-    Require-Success $LASTEXITCODE "Upload du script distant échoué."
+Require-Success $LASTEXITCODE "Upload du script distant échoué."
 
-    Write-Info "Exécution du script distant..."
-    ssh $Remote "cd '$RemotePath' && chmod +x './deploy-remote.sh' && /bin/bash './deploy-remote.sh'; rc=`$?; rm -f './deploy-remote.sh'; exit `$rc"
+Write-Info "Exécution du script distant..."
+ssh $Remote "cd '$RemotePath' && chmod +x './deploy-remote.sh' && /bin/bash './deploy-remote.sh'; rc=`$?; rm -f './deploy-remote.sh'; exit `$rc"
 
-    Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
+Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
 
-    if (Test-Path $RemoteScriptPathLocal) {
-        Remove-Item -Force $RemoteScriptPathLocal
-    }
+if (Test-Path $RemoteScriptPathLocal) {
+    Remove-Item -Force $RemoteScriptPathLocal
+}
+
 
     Write-Step "RESUME"
 
