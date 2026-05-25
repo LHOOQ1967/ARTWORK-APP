@@ -300,9 +300,13 @@ try {
 
     Write-Ok "Upload terminé."
 
-    Write-Step "DEPLOIEMENT COTE SERVEUR"
 
-    $RemoteScript = @"
+Write-Step "DEPLOIEMENT COTE SERVEUR"
+
+$RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
+$RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
+
+$RemoteScript = @"
 set -e
 
 cd "$RemotePath"
@@ -322,36 +326,33 @@ tar \
   --exclude='./_backup' \
   --exclude='./_deploy' \
   --exclude='./$ZipName' \
-  -czf "`$BACKUP_FILE" \
+  -czf "\$BACKUP_FILE" \
   . 2>/dev/null || true
 
-echo "Sauvegarde créée : `$BACKUP_FILE"
+echo "Sauvegarde créée : \$BACKUP_FILE"
 
 echo "== Décompression zip =="
 unzip -o "$ZipName"
 
 echo "== Suppression zip =="
 rm -f "$ZipName"
-
 "@
 
-    if (-not $SkipRemoteNpmCi) {
-        $RemoteScript += @"
+if (-not $SkipRemoteNpmCi) {
+    $RemoteScript += @"
 
 echo "== npm ci côté serveur =="
 npm ci
-
 "@
-    }
-    else {
-        $RemoteScript += @"
+}
+else {
+    $RemoteScript += @"
 
 echo "== npm ci côté serveur ignoré =="
-
 "@
-    }
+}
 
-    $RemoteScript += @"
+$RemoteScript += @"
 
 echo "== Vérification BUILD_ID =="
 if [ -f ".next/BUILD_ID" ]; then
@@ -375,8 +376,27 @@ ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$($RemoteBackupKeep
 echo "== Déploiement serveur terminé =="
 "@
 
-    $RemoteScript | ssh $Remote "bash -s"
-    Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
+# écrire le script shell localement en UTF-8 sans BOM
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScript, $Utf8NoBom)
+
+Write-Info "Upload du script distant..."
+scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
+    $RemoteScriptPathLocal `
+    "${Remote}:${RemoteScriptPathServer}"
+
+Require-Success $LASTEXITCODE "Upload du script distant échoué."
+
+Write-Info "Exécution du script distant..."
+ssh $Remote "chmod +x '$RemoteScriptPathServer' && /bin/bash '$RemoteScriptPathServer'; rc=`$?; rm -f '$RemoteScriptPathServer'; exit `$rc"
+
+Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
+
+# nettoyage local
+if (Test-Path $RemoteScriptPathLocal) {
+    Remove-Item -Force $RemoteScriptPathLocal
+}
+
 
     Write-Step "RESUME"
 
