@@ -346,11 +346,13 @@ tar -czf "`$BACKUP_FILE" \
 
 echo "Backup created: `$BACKUP_FILE"
 
+
 echo "== Unzip package =="
-unzip -o "$ZipName"
+unzip -o "$ZipName" || [ `$? -le 1 ]
 
 echo "== Remove zip =="
 rm -f "$ZipName"
+
 "@
 
 if (-not $SkipRemoteNpmCi) {
