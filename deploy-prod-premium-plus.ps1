@@ -313,44 +313,25 @@ if (Test-Path $RemoteScriptPathLocal) {
     Remove-Item -Force $RemoteScriptPathLocal
 }
 
-$RemoteScript = @"
-#!/bin/bash
-set -e
+== Deployment server ==
+Tue May 26 15:39:37 UTC 2026
+/srv/customer/sites/artmuse.ch
+== Server backup ==
+tar: Cowardly refusing to create an empty archive
+Try 'tar --help' or 'tar --usage' for more information.
 
-cd "$RemotePath"
+ECHEC DU DEPLOIEMENT
+Le dÃ©ploiement SSH a Ã©chouÃ©.
 
-echo "== Deployment server =="
-date
-pwd
-
-mkdir -p "_backup"
-mkdir -p "_deploy/manifests"
-
-BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
-
-echo "== Server backup =="
-
-tar -czf "$BACKUP_FILE" \
-  --exclude='./node_modules' \
-  --exclude='./.next' \
-  --exclude='./_backup' \
-  --exclude='./_deploy' \
-  --exclude='./$ZipName' \
-  --exclude='./deploy-remote.sh' \
-
-  .
-
-echo "Backup created: `$BACKUP_FILE"
-
-
-echo "== Unzip package =="
-unzip -o "$ZipName" || [ `$? -le 1 ]
-
-echo "== Remove zip =="
-rm -f "$ZipName"
-
-"@
-
+Consulte le log : C:\Users\Philippe\artwork-app\deploy-logs\deploy_20260526_173818.log
+Le dÃ©ploiement SSH a Ã©chouÃ©.
+Au caractère C:\Users\Philippe\artwork-app\deploy-prod-premium-plus.ps1:91 : 9
++         throw $ErrorMessage
++         ~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Le dÃ©ploiement SSH a Ã©chouÃ©.:String) [], RuntimeException
+    + FullyQualifiedErrorId : Le dÃ©ploiement SSH a Ã©chouÃ©.
+ 
+PS C:\Users\Philippe\artwork-app> 
 if (-not $SkipRemoteNpmCi) {
     $RemoteScript += @"
 

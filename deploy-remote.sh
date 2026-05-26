@@ -10,15 +10,18 @@ pwd
 mkdir -p "_backup"
 mkdir -p "_deploy/manifests"
 
-BACKUP_FILE="_backup/deploy_backup_20260526_172740.tar.gz"
+BACKUP_FILE="_backup/deploy_backup_20260526_173818.tar.gz"
 
 echo "== Server backup =="
-tar -czf "$BACKUP_FILE" \
+
+tar -czf "" \
   --exclude='./node_modules' \
+  --exclude='./.next' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
   --exclude='./app1.zip' \
   --exclude='./deploy-remote.sh' \
+
   .
 
 echo "Backup created: $BACKUP_FILE"
@@ -44,7 +47,7 @@ fi
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260526_172740.json"
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260526_173818.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
