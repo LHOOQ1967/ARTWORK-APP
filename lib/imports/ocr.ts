@@ -183,7 +183,7 @@ export async function runLabelOcrFromBuffer(
       "Ocp-Apim-Subscription-Key": key,
       "Content-Type": contentType,
     },
-    body: buffer,
+    body: new Uint8Array(buffer),
     cache: "no-store",
   });
 
