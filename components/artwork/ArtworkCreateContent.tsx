@@ -1,11 +1,60 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ArtworkForm, Artist, Contact } from '@/app/(protected)/types/artwork'
 import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
 import { supabase } from '@/lib/supabaseBrowser'
+
+type ArtworkCreateInitialValues = {
+  import_id?: string
+  artist_id?: string
+  artist_name?: string
+  title?: string
+  year?: string | number
+  medium?: string
+  dimensions?: string
+  notes?: string
+  height_cm?: string | number
+  width_cm?: string | number
+  depth_cm?: string | number
+  inventory_number?: string
+  lot?: string
+  status?: string
+}
+
+type ManualImportPrefill = {
+  import_id?: string
+  artist_name?: string | null
+  artist_id?: string | null
+  title?: string | null
+  year?: string | number | null
+  medium?: string | null
+  dimensions?: string | null
+  notes?: string | null
+  height_cm?: string | number | null
+  width_cm?: string | number | null
+  depth_cm?: string | number | null
+  inventory_number?: string | null
+  lot?: string | null
+  source?: string | null
+}
+
+type ArtworkImportRow = {
+  id: string
+  artist_match_id: string | null
+  parsed_data?: Record<string, any> | null
+  confidence?: Record<string, any> | null
+  status?: string
+  image_url?: string | null
+  ocr_text?: string | null
+}
+
+type ArtworkCreateContentProps = {
+  initialValues?: ArtworkCreateInitialValues | null
+  importRow?: ArtworkImportRow | null
+}
 
 const EMPTY_ARTWORK: ArtworkForm = {
   title: '',
@@ -387,7 +436,176 @@ function useDebouncedContactSearch(query: string) {
   return { results, loading }
 }
 
-export default function ArtworkCreateContent() {
+function toNullableText(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  const v = String(value).trim()
+  return v ? v : null
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(String(value).replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
+
+function parseDimensionsText(value: string | null | undefined): {
+  height_cm: number | null
+  width_cm: number | null
+  depth_cm: number | null
+} {
+  if (!value) {
+    return {
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
+    }
+  }
+
+  const cleaned = String(value)
+    .toLowerCase()
+    .replace(/,/g, '.')
+    .replace(/\s*[×x]\s*/g, ' x ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  const match = cleaned.match(
+    /(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)(?:\s*x\s*(\d+(?:\.\d+)?))?\s*cm?/
+  )
+
+  if (!match) {
+    return {
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
+    }
+  }
+
+  const h = Number(match[1])
+  const w = Number(match[2])
+  const d = match[3] ? Number(match[3]) : null
+
+  return {
+    height_cm: Number.isFinite(h) ? h : null,
+    width_cm: Number.isFinite(w) ? w : null,
+    depth_cm: d !== null && Number.isFinite(d) ? d : null,
+  }
+}
+
+function buildDimensionsString(
+  heightCm: number | null,
+  widthCm: number | null,
+  depthCm: number | null
+): string | null {
+  if (heightCm === null || widthCm === null) return null
+  return `${heightCm} x ${widthCm} x ${depthCm ?? 0} cm`
+}
+
+function mergeInitialValuesWithManualPrefill(
+  initialValues: ArtworkCreateInitialValues | null | undefined,
+  manualPrefill: ManualImportPrefill | null
+): ArtworkCreateInitialValues | null {
+  if (!initialValues && !manualPrefill) return null
+
+  const base: ArtworkCreateInitialValues = {
+    ...(initialValues ?? {}),
+  }
+
+  if (!manualPrefill) {
+    return base
+  }
+
+  const merged: ArtworkCreateInitialValues = {
+    ...base,
+  }
+
+  const assignText = (key: keyof ArtworkCreateInitialValues, value: unknown) => {
+    if (value === null || value === undefined) return
+    const str = String(value).trim()
+    if (!str) return
+    ;(merged as any)[key] = str
+  }
+
+  const assignNumberOrString = (
+    key: keyof ArtworkCreateInitialValues,
+    value: unknown
+  ) => {
+    if (value === null || value === undefined || value === '') return
+    ;(merged as any)[key] = value
+  }
+
+  if (manualPrefill.import_id) merged.import_id = manualPrefill.import_id
+  if (manualPrefill.artist_id) merged.artist_id = manualPrefill.artist_id
+
+  assignText('artist_name', manualPrefill.artist_name)
+  assignText('title', manualPrefill.title)
+  assignNumberOrString('year', manualPrefill.year)
+  assignText('medium', manualPrefill.medium)
+  assignText('notes', manualPrefill.notes)
+
+  assignNumberOrString('height_cm', manualPrefill.height_cm)
+  assignNumberOrString('width_cm', manualPrefill.width_cm)
+  assignNumberOrString('depth_cm', manualPrefill.depth_cm)
+
+  assignText('inventory_number', manualPrefill.inventory_number)
+  assignText('lot', manualPrefill.lot ?? manualPrefill.inventory_number)
+
+  const manualDimensions =
+    toNullableText(manualPrefill.dimensions) ??
+    buildDimensionsString(
+      toNullableNumber(manualPrefill.height_cm),
+      toNullableNumber(manualPrefill.width_cm),
+      toNullableNumber(manualPrefill.depth_cm)
+    )
+
+  if (manualDimensions) {
+    merged.dimensions = manualDimensions
+  }
+
+  return merged
+}
+
+function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues): ArtworkForm {
+  const parsedFromDimensions = parseDimensionsText(initialValues.dimensions)
+
+  const heightCm =
+    toNullableNumber(initialValues.height_cm) ?? parsedFromDimensions.height_cm
+
+  const widthCm =
+    toNullableNumber(initialValues.width_cm) ?? parsedFromDimensions.width_cm
+
+  const depthCm =
+    toNullableNumber(initialValues.depth_cm) ?? parsedFromDimensions.depth_cm
+
+  const dimensions =
+    toNullableText(initialValues.dimensions) ??
+    buildDimensionsString(heightCm, widthCm, depthCm)
+
+  return {
+    ...EMPTY_ARTWORK,
+    title: toNullableText(initialValues.title) ?? '',
+    medium: toNullableText(initialValues.medium),
+    year_execution: toNullableNumber(initialValues.year),
+    dimensions,
+    notes: toNullableText(initialValues.notes),
+    artist_id: toNullableText(initialValues.artist_id),
+
+    height_cm: heightCm,
+    width_cm: widthCm,
+    depth_cm: depthCm,
+
+    // utile pour les imports de lots / références
+    lot:
+      toNullableText(initialValues.lot) ??
+      toNullableText(initialValues.inventory_number),
+
+    status: 'Draft',
+  }
+}
+
+export default function ArtworkCreateContent({
+  initialValues = null,
+  importRow = null,
+}: ArtworkCreateContentProps) {
   const router = useRouter()
 
   const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
@@ -398,6 +616,9 @@ export default function ArtworkCreateContent() {
   const [contactOptions, setContactOptions] = useState<Contact[]>([])
   const [artistOptions, setArtistOptions] = useState<Artist[]>([])
 
+  const [manualPrefill, setManualPrefill] = useState<ManualImportPrefill | null>(null)
+  const [manualPrefillLoaded, setManualPrefillLoaded] = useState(false)
+
   // Queries
   const [artistQuery, setArtistQuery] = useState('')
 
@@ -407,6 +628,18 @@ export default function ArtworkCreateContent() {
   const [auctionHouseQuery, setAuctionHouseQuery] = useState('')
   const [buyerQuery, setBuyerQuery] = useState('')
   const [destinationQuery, setDestinationQuery] = useState('')
+
+  // Pour éviter de ré-appliquer le préremplissage plusieurs fois
+  const appliedImportRef = useRef<string | null>(null)
+
+  const currentImportId =
+    initialValues?.import_id ??
+    importRow?.id ??
+    null
+
+  const mergedInitialValues = useMemo(() => {
+    return mergeInitialValuesWithManualPrefill(initialValues, manualPrefill)
+  }, [initialValues, manualPrefill])
 
   // Search hooks
   const { results: artistResults, loading: artistLoading } =
@@ -472,6 +705,32 @@ export default function ArtworkCreateContent() {
     loadArtists()
   }, [])
 
+  // Lire les corrections manuelles depuis sessionStorage
+  useEffect(() => {
+    if (!currentImportId) {
+      setManualPrefill(null)
+      setManualPrefillLoaded(true)
+      return
+    }
+
+    try {
+      const raw = sessionStorage.getItem(`artwork_import_prefill_${currentImportId}`)
+      if (!raw) {
+        setManualPrefill(null)
+        setManualPrefillLoaded(true)
+        return
+      }
+
+      const parsed = JSON.parse(raw) as ManualImportPrefill
+      setManualPrefill(parsed ?? null)
+      setManualPrefillLoaded(true)
+    } catch (error) {
+      console.error('[ARTWORK_CREATE] impossible de lire le prefill manuel', error)
+      setManualPrefill(null)
+      setManualPrefillLoaded(true)
+    }
+  }, [currentImportId])
+
   // Keep searched artists in local options so selected labels stay available
   useEffect(() => {
     if (artistResults.length > 0) {
@@ -501,6 +760,84 @@ export default function ArtworkCreateContent() {
     buyerResults,
     destinationResults,
   ])
+
+  // ✅ Appliquer le préremplissage import + corrections manuelles une seule fois
+  useEffect(() => {
+    if (!manualPrefillLoaded) return
+    if (!mergedInitialValues) return
+
+    const currentApplyKey = JSON.stringify({
+      import_id: mergedInitialValues.import_id ?? '__no_import_id__',
+      manualPrefill,
+    })
+
+    if (appliedImportRef.current === currentApplyKey) return
+
+    const prefilledArtwork = buildArtworkFromInitialValues(mergedInitialValues)
+
+    setArtwork((prev) => ({
+      ...prev,
+      ...prefilledArtwork,
+      // on garde quand même certains defaults utiles du formulaire
+      date_proposition: prev.date_proposition || EMPTY_ARTWORK.date_proposition,
+      priority: prev.priority || EMPTY_ARTWORK.priority,
+      currency: prev.currency || EMPTY_ARTWORK.currency,
+      cost_currency: prev.cost_currency || EMPTY_ARTWORK.cost_currency,
+      auction_currency: prev.auction_currency || EMPTY_ARTWORK.auction_currency,
+      insurance_currency: prev.insurance_currency || EMPTY_ARTWORK.insurance_currency,
+    }))
+
+    // Priorité 1 : nom artiste corrigé manuellement
+    const manualArtistName =
+      manualPrefill?.artist_name ? String(manualPrefill.artist_name) : ''
+
+    // Priorité 2 : initialValues éventuel
+    const initialArtistName =
+      mergedInitialValues.artist_name ? String(mergedInitialValues.artist_name) : ''
+
+    // Priorité 3 : valeur OCR brute / normalisée
+    const artistNameFromImport =
+      importRow?.parsed_data?.normalized?.artist_name ??
+      importRow?.parsed_data?.artist_raw ??
+      ''
+
+    if (!mergedInitialValues.artist_id) {
+      const queryName = manualArtistName || initialArtistName || String(artistNameFromImport || '')
+      if (queryName) {
+        setArtistQuery(queryName)
+      }
+    }
+
+    appliedImportRef.current = currentApplyKey
+  }, [manualPrefillLoaded, mergedInitialValues, manualPrefill, importRow])
+
+  // ✅ S'assurer que l'artiste prérempli est disponible dans artistOptions
+  useEffect(() => {
+    const artistId = artwork.artist_id
+    if (!artistId) return
+
+    const alreadyPresent = artistOptions.some((artist) => artist.id === artistId)
+    if (alreadyPresent) return
+
+    const loadSelectedArtist = async () => {
+      const { data, error } = await supabase
+        .from('artists')
+        .select('id, first_name, last_name')
+        .eq('id', artistId)
+        .single()
+
+      if (error) {
+        console.error('LOAD SELECTED ARTIST FAILED:', error)
+        return
+      }
+
+      if (data) {
+        setArtistOptions((current) => mergeUniqueArtists(current, [data as Artist]))
+      }
+    }
+
+    loadSelectedArtist()
+  }, [artwork.artist_id, artistOptions])
 
   async function saveArtwork() {
     if (!artwork.title || !artwork.title.trim()) {
@@ -587,6 +924,31 @@ export default function ArtworkCreateContent() {
         return
       }
 
+      // ✅ Si l’œuvre provient d’un import d’étiquette, on relie l’import à la nouvelle œuvre
+      if (importRow?.id) {
+        const { error: importUpdateError } = await supabase
+          .from('artwork_imports')
+          .update({
+            artwork_id: data.id,
+            status: 'converted',
+          })
+          .eq('id', importRow.id)
+
+        if (importUpdateError) {
+          console.error('UPDATE ARTWORK_IMPORTS FAILED:', importUpdateError)
+          // on ne bloque pas la navigation pour autant
+        }
+      }
+
+      // ✅ Nettoyage du prefill manuel après création réussie
+      if (currentImportId) {
+        try {
+          sessionStorage.removeItem(`artwork_import_prefill_${currentImportId}`)
+        } catch (error) {
+          console.error('[ARTWORK_CREATE] impossible de supprimer le prefill manuel', error)
+        }
+      }
+
       router.push(`/artworks/print/${data.id}`)
     } catch (err) {
       console.error('UNEXPECTED CREATE ERROR:', err)
@@ -595,6 +957,13 @@ export default function ArtworkCreateContent() {
       setSaving(false)
     }
   }
+
+  const importArtistName =
+    manualPrefill?.artist_name ??
+    initialValues?.artist_name ??
+    importRow?.parsed_data?.normalized?.artist_name ??
+    importRow?.parsed_data?.artist_raw ??
+    null
 
   return (
     <main
@@ -625,6 +994,37 @@ export default function ArtworkCreateContent() {
           Create Artwork
         </h3>
 
+        {importRow && (
+          <div
+            style={{
+              marginBottom: 16,
+              backgroundColor: '#eef6ff',
+              color: '#183247',
+              border: '1px solid #cfe0f3',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: '0.95rem',
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>
+              Prefill from label import
+            </div>
+            <div style={{ lineHeight: 1.45 }}>
+              Import ID: <strong>{importRow.id}</strong>
+              {importArtistName ? (
+                <>
+                  {' '}— Artist detected: <strong>{importArtistName}</strong>
+                </>
+              ) : null}
+              {manualPrefill ? (
+                <>
+                  {' '}— <strong>Manual corrections applied</strong>
+                </>
+              ) : null}
+            </div>
+          </div>
+        )}
+
         {error && (
           <div
             style={{
@@ -641,63 +1041,76 @@ export default function ArtworkCreateContent() {
           </div>
         )}
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 18,
-            flexWrap: 'wrap',
-          }}
-        >
-          {saving && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '0.95rem',
-                color: '#eaf7ef',
-              }}
-            >
-              <Spinner size={16} />
-              <span>Saving artwork…</span>
-            </div>
-          )}
 
-          <button
-            className="edit-button"
-            type="button"
-            onClick={() => router.back()}
-            disabled={saving}
-          >
-            Cancel
-          </button>
+<div
+  style={{
+    position: 'sticky',
+    top: 70,
+    zIndex: 30,
+    backgroundColor: '#006039',
+    paddingTop: 8,
+    paddingBottom: 10,
+    marginBottom: 18,
+  }}
+>
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      gap: 12,
+      flexWrap: 'wrap',
+    }}
+  >
+    {saving && (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: '0.95rem',
+          color: '#eaf7ef',
+        }}
+      >
+        <Spinner size={16} />
+        <span>Saving artwork…</span>
+      </div>
+    )}
 
-          <button
-            className="edit-button"
-            type="button"
-            onClick={saveArtwork}
-            disabled={saving}
-            style={{
-              opacity: saving ? 0.85 : 1,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            {saving ? (
-              <>
-                <Spinner size={14} />
-                <span>Saving…</span>
-              </>
-            ) : (
-              'Save'
-            )}
-          </button>
-        </div>
+    <button
+      className="edit-button"
+      type="button"
+      onClick={() => router.back()}
+      disabled={saving}
+    >
+      Cancel
+    </button>
+
+    <button
+      className="edit-button"
+      type="button"
+      onClick={saveArtwork}
+      disabled={saving}
+      style={{
+        opacity: saving ? 0.85 : 1,
+        cursor: saving ? 'not-allowed' : 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+      }}
+    >
+      {saving ? (
+        <>
+          <Spinner size={14} />
+          <span>Saving…</span>
+        </>
+      ) : (
+        'Save'
+      )}
+    </button>
+  </div>
+</div>
+
 
         <ArtworkFieldsLayout
           artwork={artwork}

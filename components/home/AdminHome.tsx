@@ -41,6 +41,8 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
         }}
       >
 
+
+
         <EntryCardNew
           href="artworks"
           title="All Artworks"
@@ -53,6 +55,11 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
           subtitle="Sorted by date"
         />
 
+        <EntryCardNew
+          href="artworks/import-label"
+          title="Import"
+          subtitle=""
+        />
           <EntryCardNew
           href="artworks/new"
           title="Add artwork"

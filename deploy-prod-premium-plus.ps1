@@ -429,7 +429,7 @@ if (Test-Path $RemoteScriptPathLocal) {
 
     Write-Host ""
     Write-Host "Action éventuelle restante :" -ForegroundColor Cyan
-    Write-Host "Relancer l'application depuis le manager Infomaniak si nécessaire." -ForegroundColor Cyan
+    Write-Host "Relancer l'application depuis le manager Infomaniak si nécessaire. https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard" -ForegroundColor Cyan
     Write-Host ""
 }
 catch {
