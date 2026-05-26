@@ -38,7 +38,6 @@ $GitTagPrefix = "deploy-backup"
 
 # Fichiers/dossiers à inclure dans le zip
 $IncludePaths = @(
-    ".next",
     "app",
     "components",
     "contexts",
@@ -217,21 +216,15 @@ try {
         Write-Warn "npm ci local ignoré (-SkipLocalNpmCi)."
     }
 
-    Write-Info "Suppression de .next..."
-    if (Test-Path ".next") {
-        Remove-Item -Recurse -Force ".next"
-    }
+    
+Write-Step "VERIFICATION SOURCES LOCALES"
 
-    Write-Info "Build production..."
-    cmd /c "set NODE_ENV=production&& npm run build"
-    Require-Success $LASTEXITCODE "Le build production a échoué."
+if (-not (Test-Path "package.json")) {
+    throw "package.json introuvable."
+}
 
-    if (-not (Test-Path ".next\BUILD_ID")) {
-        throw "Le fichier '.next\BUILD_ID' est absent après le build."
-    }
-
-    $LocalBuildId = (Get-Content ".next\BUILD_ID" -ErrorAction Stop | Select-Object -First 1).Trim()
-    Write-Ok "BUILD_ID local : $LocalBuildId"
+Write-Ok "Sources prêtes pour le déploiement."
+$LocalBuildId = "build-on-server"
 
     Write-Step "GENERATION DU MANIFEST"
 
@@ -336,12 +329,15 @@ mkdir -p "_deploy/manifests"
 BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
 
 echo "== Server backup =="
-tar -czf "`$BACKUP_FILE" \
+
+tar -czf "$BACKUP_FILE" \
   --exclude='./node_modules' \
+  --exclude='./.next' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
   --exclude='./$ZipName' \
   --exclude='./deploy-remote.sh' \
+
   .
 
 echo "Backup created: `$BACKUP_FILE"
