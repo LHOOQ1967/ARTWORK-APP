@@ -1,14 +1,14 @@
 ﻿{
-    "deploy_id":  "prod_20260525_180101",
-    "deployed_at_local":  "2026-05-25 18:02:05",
+    "deploy_id":  "prod_20260526_170717",
+    "deployed_at_local":  "2026-05-26 17:08:52",
     "project_path":  "C:\\Users\\Philippe\\artwork-app",
     "environment":  "production",
     "site":  "artmuse.ch",
     "allowed_branch":  "main",
     "current_branch":  "main",
-    "git_commit":  "67b7e9964884dd677da0f9df4f85d8e8e0562e3e",
-    "git_tag":  "deploy-backup-20260525_180101",
-    "build_id":  "Gm2e3Ji1-Jl9NhKfY3Gk1",
+    "git_commit":  "74e7c5296c0b111b870126f816e3fc5e21655cd6",
+    "git_tag":  "deploy-backup-20260526_170717",
+    "build_id":  "Ub11f2ah8ICK-_KqL1xQ8",
     "zip_name":  "app1.zip",
     "remote_host":  "57-111324.ssh.hosting-ik.com",
     "remote_user":  "MbGYYMaq5xi_philippe",
@@ -19,6 +19,6 @@
     "skip_branch_push":  false,
     "skip_tag_push":  false,
     "allow_dirty":  false,
-    "zip_size_bytes":  4104742,
-    "zip_size_mb":  3.91
+    "zip_size_bytes":  4276249,
+    "zip_size_mb":  4.08
 }
