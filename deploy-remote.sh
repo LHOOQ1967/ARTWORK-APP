@@ -12,8 +12,8 @@ mkdir -p "_backup"
 mkdir -p "_deploy/manifests"
 mkdir -p "_deploy/releases"
 
-BACKUP_FILE="_backup/deploy_backup_20260530_092431.tar.gz"
-RELEASE_DIR="_deploy/releases/release_20260530_092431"
+BACKUP_FILE="_backup/deploy_backup_20260530_092946.tar.gz"
+RELEASE_DIR="_deploy/releases/release_20260530_092946"
 
 echo "== Server backup =="
 tar -czf "$BACKUP_FILE" \
@@ -21,12 +21,12 @@ tar -czf "$BACKUP_FILE" \
   --exclude='./.next' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
-  --exclude='./app1_20260530_092431.zip' \
+  --exclude='./app1_20260530_092946.zip' \
   --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
 
 echo "== Inspect zip =="
-ls -lah "app1_20260530_092431.zip" || true
-unzip -t "app1_20260530_092431.zip"
+ls -lah "app1_20260530_092946.zip" || true
+unzip -t "app1_20260530_092946.zip"
 ZIP_TEST_RC=$?
 if [ "$ZIP_TEST_RC" -ne 0 ]; then
   echo "ERROR: zip integrity test failed with code $ZIP_TEST_RC"
@@ -38,7 +38,7 @@ rm -rf "$RELEASE_DIR" 2>/dev/null || true
 mkdir -p "$RELEASE_DIR"
 
 echo "== Unzip into release dir =="
-unzip -oq "app1_20260530_092431.zip" -d "$RELEASE_DIR"
+unzip -oq "app1_20260530_092946.zip" -d "$RELEASE_DIR"
 UNZIP_RC=$?
 if [ "$UNZIP_RC" -ne 0 ]; then
   echo "ERROR: unzip failed with code $UNZIP_RC"
@@ -80,13 +80,13 @@ cp -a "$RELEASE_DIR"/. .
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_092431.json"
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_092946.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
 echo "== Cleanup temp files =="
 rm -rf "$RELEASE_DIR" 2>/dev/null || true
-rm -f "app1_20260530_092431.zip" 2>/dev/null || true
+rm -f "app1_20260530_092946.zip" 2>/dev/null || true
 rm -f "deploy-remote.sh" 2>/dev/null || true
 
 echo "== Cleanup old backups =="
