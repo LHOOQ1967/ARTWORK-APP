@@ -296,56 +296,56 @@ try {
         Write-Host " - $entry"
     }
 
-    
-if (Test-Path $ZipPath) {
-    Remove-Item -Force $ZipPath
-}
+    $tarCmd = Get-Command tar -ErrorAction SilentlyContinue
+    if (-not $tarCmd) {
+        throw "La commande 'tar' est introuvable sur cette machine Windows. Installe/active bsdtar ou adapte la création du ZIP."
+    }
 
-$TempZipDir = Join-Path $ProjectPath "__zip_temp"
-if (Test-Path $TempZipDir) {
+    $TempZipDir = Join-Path $ProjectPath "__zip_temp"
+    if (Test-Path $TempZipDir) {
+        Remove-Item -Recurse -Force $TempZipDir
+    }
+    New-Item -ItemType Directory -Path $TempZipDir | Out-Null
+
+    foreach ($item in $FilesToZip) {
+        Copy-Item -Recurse -Force $item $TempZipDir
+    }
+
+    Push-Location $TempZipDir
+    try {
+        tar -a -c -f $ZipPath *
+        Require-Success $LASTEXITCODE "La création du ZIP via tar a échoué."
+    }
+    finally {
+        Pop-Location
+    }
+
     Remove-Item -Recurse -Force $TempZipDir
-}
-New-Item -ItemType Directory -Path $TempZipDir | Out-Null
 
-# copier les fichiers dans un dossier propre
-foreach ($item in $FilesToZip) {
-    Copy-Item -Recurse -Force $item $TempZipDir
-}
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-# zip via tar (compatible Linux)
-Push-Location $TempZipDir
-tar -a -c -f $ZipPath *
-Pop-Location
+    try {
+        $zipRead = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+        $entryCount = $zipRead.Entries.Count
+        $sampleEntries = $zipRead.Entries | Select-Object -First 10 -ExpandProperty FullName
+        $zipRead.Dispose()
 
-Remove-Item -Recurse -Force $TempZipDir
+        if ($entryCount -eq 0) {
+            throw "Le ZIP est vide."
+        }
 
-
-    
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-
-try {
-    $zipRead = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
-    $entryCount = $zipRead.Entries.Count
-    $sampleEntries = $zipRead.Entries | Select-Object -First 10 -ExpandProperty FullName
-    $zipRead.Dispose()
-
-    if ($entryCount -eq 0) {
-        throw "Le ZIP est vide."
+        Write-Ok "ZIP validé localement : $entryCount entrée(s)."
+        Write-Info "Exemples d'entrées dans le ZIP :"
+        foreach ($entry in $sampleEntries) {
+            Write-Host " - $entry"
+        }
     }
-
-    Write-Ok "ZIP validé localement : $entryCount entrée(s)."
-    Write-Info "Exemples d'entrées dans le ZIP :"
-    foreach ($entry in $sampleEntries) {
-        Write-Host " - $entry"
+    catch {
+        throw "Le ZIP local est invalide : $($_.Exception.Message)"
     }
-}
-catch {
-    throw "Le ZIP local est invalide : $($_.Exception.Message)"
-}
-
 
     if (-not (Test-Path $ZipPath)) {
-        throw "Le zip n'a pas été créé."
+        throw "Le ZIP n'a pas été créé."
     }
 
     $ZipInfo = Get-Item $ZipPath
@@ -365,7 +365,6 @@ catch {
     scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
         $ZipPath `
         "${Remote}:${RemotePath}/"
-
     Require-Success $LASTEXITCODE "Upload SCP échoué."
 
     Write-Ok "Upload terminé."
@@ -374,13 +373,29 @@ catch {
 
     $RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
     $RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
+    $KeepPlusOne = $RemoteBackupKeep + 1
 
     if (Test-Path $RemoteScriptPathLocal) {
         Remove-Item -Force $RemoteScriptPathLocal
     }
 
-
-    $KeepPlusOne = $RemoteBackupKeep + 1
+    $RemoteNpmBlock = if (-not $SkipRemoteNpmCi) {
+@'
+echo "== npm ci dans la release =="
+npm ci
+'@
+    }
+    else {
+@'
+echo "== npm ci serveur ignoré =="
+if [ -d "../node_modules" ]; then
+  cp -a ../node_modules ./node_modules
+else
+  echo "WARNING: node_modules absent dans l'instance courante ; impossible de skip npm ci"
+  exit 1
+fi
+'@
+    }
 
     $RemoteScriptTemplate = @'
 #!/bin/bash
@@ -391,11 +406,14 @@ cd "__REMOTE_PATH__"
 echo "== Deployment server =="
 date
 pwd
+whoami || true
 
 mkdir -p "_backup"
 mkdir -p "_deploy/manifests"
+mkdir -p "_deploy/releases"
 
 BACKUP_FILE="_backup/deploy_backup___TIMESTAMP__.tar.gz"
+RELEASE_DIR="_deploy/releases/release___TIMESTAMP__"
 
 echo "== Server backup =="
 tar -czf "$BACKUP_FILE" \
@@ -406,7 +424,6 @@ tar -czf "$BACKUP_FILE" \
   --exclude='./__ZIP_NAME__' \
   --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
 
-
 echo "== Inspect zip =="
 ls -lah "__ZIP_NAME__" || true
 unzip -t "__ZIP_NAME__"
@@ -416,44 +433,27 @@ if [ "$ZIP_TEST_RC" -ne 0 ]; then
   exit "$ZIP_TEST_RC"
 fi
 
+echo "== Prepare release dir =="
+rm -rf "$RELEASE_DIR" 2>/dev/null || true
+mkdir -p "$RELEASE_DIR"
 
-
-echo "== Unzip package into temp dir =="
-
-rm -rf "_deploy_unpack" 2>/dev/null || true
-mkdir -p "_deploy_unpack"
-
-unzip -oq "__ZIP_NAME__" -d "_deploy_unpack"
+echo "== Unzip into release dir =="
+unzip -oq "__ZIP_NAME__" -d "$RELEASE_DIR"
 UNZIP_RC=$?
 if [ "$UNZIP_RC" -ne 0 ]; then
   echo "ERROR: unzip failed with code $UNZIP_RC"
   exit "$UNZIP_RC"
 fi
 
-echo "== Copy new files safely =="
-cp -R _deploy_unpack/* . 2>/dev/null || true
-cp -R _deploy_unpack/.[!.]* . 2>/dev/null || true
+echo "== Copy env if present =="
+if [ -f ".env.production" ]; then
+  cp -f ".env.production" "$RELEASE_DIR/.env.production"
+fi
 
-echo "== Cleanup temp =="
-rm -rf "_deploy_unpack" 2>/dev/null || true
+echo "== Build release =="
+cd "$RELEASE_DIR"
 
-echo "== Remove old .next =="
-rm -rf ".next" 2>/dev/null || true
-
-
-echo "== Copy new files safely =="
-
-cp -R _deploy_unpack/* . 2>/dev/null || true
-cp -R _deploy_unpack/.[!.]* . 2>/dev/null || true
-
-
-echo "== Remove temp files =="
-rm -rf "_deploy_unpack"
-rm -f "__ZIP_NAME__"
-
-
-echo "== npm ci on server =="
-npm ci
+__REMOTE_NPM_BLOCK__
 
 echo "== Build on server =="
 NODE_ENV=production npm run build
@@ -467,6 +467,15 @@ else
   echo "ERROR: .next/BUILD_ID missing"
   exit 1
 fi
+
+cd "__REMOTE_PATH__"
+
+echo "== Promote release =="
+for item in app components contexts lib public server.js page.tsx package.json package-lock.json next.config.ts next.config.js next-env.d.ts tsconfig.json postcss.config.js postcss.config.mjs eslint.config.js eslint.config.mjs README.md AGENTS deploy-manifest.json .next node_modules; do
+  rm -rf "./$item" 2>/dev/null || true
+done
+
+cp -a "$RELEASE_DIR"/. .
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
@@ -474,69 +483,24 @@ if [ -f "deploy-manifest.json" ]; then
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
+echo "== Cleanup temp files =="
+rm -rf "$RELEASE_DIR" 2>/dev/null || true
+rm -f "__ZIP_NAME__" 2>/dev/null || true
+rm -f "deploy-remote.sh" 2>/dev/null || true
+
 echo "== Cleanup old backups =="
 ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +__KEEP_PLUS_ONE__ | xargs -r rm -f || true
 
 echo "== Server deployment finished =="
 '@
 
+    $RemoteScript = $RemoteScriptTemplate
+    $RemoteScript = $RemoteScript.Replace("__REMOTE_PATH__", $RemotePath)
+    $RemoteScript = $RemoteScript.Replace("__TIMESTAMP__", $Timestamp)
+    $RemoteScript = $RemoteScript.Replace("__ZIP_NAME__", $ZipName)
+    $RemoteScript = $RemoteScript.Replace("__KEEP_PLUS_ONE__", [string]$KeepPlusOne)
+    $RemoteScript = $RemoteScript.Replace("__REMOTE_NPM_BLOCK__", $RemoteNpmBlock)
 
-$RemoteScript = $RemoteScriptTemplate
-$RemoteScript = $RemoteScript.Replace("__REMOTE_PATH__", $RemotePath)
-$RemoteScript = $RemoteScript.Replace("__TIMESTAMP__", $Timestamp)
-$RemoteScript = $RemoteScript.Replace("__ZIP_NAME__", $ZipName)
-$RemoteScript = $RemoteScript.Replace("__KEEP_PLUS_ONE__", [string]$KeepPlusOne)
-
-
-    # UTF-8 sans BOM + fins de ligne Unix LF
-    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    $RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
-    [System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
-
-    if (-not $SkipRemoteNpmCi) {
-        $RemoteScript += @"
-
-echo "== npm ci on server =="
-npm ci
-"@
-    }
-    else {
-        $RemoteScript += @"
-
-echo "== npm ci on server skipped =="
-"@
-    }
-
-    $RemoteScript += @"
-
-echo "== Build on server =="
-NODE_ENV=production npm run build
-
-echo "== Check BUILD_ID =="
-if [ -f ".next/BUILD_ID" ]; then
-  echo "Server BUILD_ID:"
-  cat ".next/BUILD_ID"
-  ls -la ".next/BUILD_ID"
-else
-  echo "ERROR: .next/BUILD_ID missing"
-  exit 1
-fi
-
-echo "== Archive manifest =="
-if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_$Timestamp.json"
-  cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
-fi
-
-echo "== Cleanup old backups =="
-
-ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
-
-
-echo "== Server deployment finished =="
-"@
-
-    # UTF-8 sans BOM + fins de ligne Unix LF
     $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     $RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
     [System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
@@ -545,12 +509,10 @@ echo "== Server deployment finished =="
     scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
         $RemoteScriptPathLocal `
         "${Remote}:${RemoteScriptPathServer}"
-
     Require-Success $LASTEXITCODE "Upload du script distant échoué."
 
     Write-Info "Exécution du script distant..."
-    ssh $Remote "cd '$RemotePath' && chmod +x './deploy-remote.sh' && /bin/bash './deploy-remote.sh'; rc=`$?; rm -f './deploy-remote.sh'; exit `$rc"
-
+    ssh $Remote "/bin/bash '$RemoteScriptPathServer'; rc=\$?; rm -f '$RemoteScriptPathServer'; exit \$rc"
     Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
 
     if (Test-Path $RemoteScriptPathLocal) {
@@ -572,7 +534,7 @@ echo "== Server deployment finished =="
     Write-Host ""
     Write-Host "Action éventuelle restante :" -ForegroundColor Cyan
     Write-Host "Relancer l'application depuis le manager Infomaniak si nécessaire." -ForegroundColor Cyan
-    Write-Host "[Manager Infomaniak](https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard)" -ForegroundColor Cyan
+    Write-Host "Manager Infomaniak : [ouvrir le dashboard](https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard)" -ForegroundColor Cyan
     Write-Host ""
 }
 catch {

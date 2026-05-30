@@ -10,7 +10,7 @@ pwd
 mkdir -p "_backup"
 mkdir -p "_deploy/manifests"
 
-BACKUP_FILE="_backup/deploy_backup_20260530_091135.tar.gz"
+BACKUP_FILE="_backup/deploy_backup_20260530_091740.tar.gz"
 
 echo "== Server backup =="
 tar -czf "$BACKUP_FILE" \
@@ -18,38 +18,53 @@ tar -czf "$BACKUP_FILE" \
   --exclude='./.next' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
-  --exclude='./app1_20260530_091135.zip' \
+  --exclude='./app1_20260530_091740.zip' \
   --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
 
 
 echo "== Inspect zip =="
-ls -lah "app1_20260530_091135.zip" || true
-unzip -t "app1_20260530_091135.zip"
+ls -lah "app1_20260530_091740.zip" || true
+unzip -t "app1_20260530_091740.zip"
 ZIP_TEST_RC=$?
 if [ "$ZIP_TEST_RC" -ne 0 ]; then
   echo "ERROR: zip integrity test failed with code $ZIP_TEST_RC"
   exit "$ZIP_TEST_RC"
 fi
 
+
+
 echo "== Unzip package into temp dir =="
-rm -rf "_deploy_unpack"
+
+rm -rf "_deploy_unpack" 2>/dev/null || true
 mkdir -p "_deploy_unpack"
 
-unzip -oq "app1_20260530_091135.zip" -d "_deploy_unpack"
+unzip -oq "app1_20260530_091740.zip" -d "_deploy_unpack"
 UNZIP_RC=$?
 if [ "$UNZIP_RC" -ne 0 ]; then
   echo "ERROR: unzip failed with code $UNZIP_RC"
   exit "$UNZIP_RC"
 fi
 
-echo "== Replace app files =="
-rm -rf ".next"
+echo "== Copy new files safely =="
+cp -R _deploy_unpack/* . 2>/dev/null || true
+cp -R _deploy_unpack/.[!.]* . 2>/dev/null || true
 
-find "_deploy_unpack" -mindepth 1 -maxdepth 1 -exec cp -R {} . \;
+echo "== Cleanup temp =="
+rm -rf "_deploy_unpack" 2>/dev/null || true
+
+echo "== Remove old .next =="
+rm -rf ".next" 2>/dev/null || true
+
+
+echo "== Copy new files safely =="
+
+cp -R _deploy_unpack/* . 2>/dev/null || true
+cp -R _deploy_unpack/.[!.]* . 2>/dev/null || true
+
 
 echo "== Remove temp files =="
 rm -rf "_deploy_unpack"
-rm -f "app1_20260530_091135.zip"
+rm -f "app1_20260530_091740.zip"
 
 
 echo "== npm ci on server =="
@@ -70,7 +85,7 @@ fi
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_091135.json"
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_091740.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
@@ -95,7 +110,7 @@ fi
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_091135.json"
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_091740.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
