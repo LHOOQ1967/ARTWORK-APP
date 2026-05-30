@@ -513,15 +513,7 @@ if (auctionsError) {
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="m-0 text-[1.8rem] font-bold text-white">{headerTitle}</h2>
-          {!fixedProposedToId && !isViewer && (
-            <SearchSelect
-              label="Proposed to"
-              placeholder="Search contact…"
-              valueId={proposedToIdFilter}
-              onChangeId={setProposedToIdFilter}
-              options={proposedToOptions}
-            />
-          )}
+
         {!isViewer && (
         <Link className="no-print" href="/artworks/new">
           <button className="edit-button">+ New artwork</button>
@@ -532,19 +524,23 @@ if (auctionsError) {
       <section className="no-print" style={filtersBoxStyle}>
         {/* LIGNE 1 */}
         <div style={filtersRowStyle}>
-          <div className="min-w-[240px] flex-[1_1_240px]">
+          <div style={dateBlockStyle}>
             <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">
               From date{" "}
               <span className="text-[12px] font-normal opacity-70">
                 (Bought = acquisition date, Archived = proposed date)
               </span>
               </div>
-              <input
-                type="date"
-                value={fromDateProposed}
-                onChange={e => setFromDateProposed(e.target.value)}
-                style={dateInputStyle}
-              />
+
+<div style={dateWrapperStyle}>
+  <input
+    type="date"
+    value={fromDateProposed}
+    onChange={e => setFromDateProposed(e.target.value)}
+    style={dateInputStyle}
+  />
+</div>
+
           </div>
 
           <SearchSelect
@@ -642,16 +638,22 @@ if (auctionsError) {
 
 
 
+
 const dateInputStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: '100%',
-  boxSizing: 'border-box',   // ✅ clé du fix iPhone
-  padding: '8px 10px',
-  fontSize: 16,               // ✅ évite zoom iOS
+  boxSizing: 'border-box',
+
+  padding: '8px 6px',
+  fontSize: 16,            // ✅ évite zoom iOS
+
   borderRadius: 8,
   border: '1px solid rgba(0,0,0,0.25)',
   backgroundColor: '#fff',
+
+  WebkitAppearance: 'none', // ✅ iOS fix
 }
+
 
 
 
@@ -673,4 +675,19 @@ const filtersRowStyle: React.CSSProperties = {
   gridTemplateColumns: '1fr',
   gap: 12,
 }
+
+
+const dateBlockStyle: React.CSSProperties = {
+  width: '100%',
+  minWidth: 0,            // ✅ CRITIQUE (remplace min-w-240px)
+}
+
+
+
+const dateWrapperStyle: React.CSSProperties = {
+  width: '100%',
+  overflow: 'hidden',     // ✅ empêche le débordement iOS
+  borderRadius: 8,
+}
+
 
