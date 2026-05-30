@@ -10,7 +10,7 @@ pwd
 mkdir -p "_backup"
 mkdir -p "_deploy/manifests"
 
-BACKUP_FILE="_backup/deploy_backup_20260530_090132.tar.gz"
+BACKUP_FILE="_backup/deploy_backup_20260530_090855.tar.gz"
 
 echo "== Server backup =="
 tar -czf "$BACKUP_FILE" \
@@ -18,22 +18,39 @@ tar -czf "$BACKUP_FILE" \
   --exclude='./.next' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
-  --exclude='./app1.zip' \
+  --exclude='./app1_20260530_090855.zip' \
   --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
 
-echo "== Unzip package =="
-UNZIP_RC=0
-unzip -o "app1.zip" || UNZIP_RC=$?
-if [ "$UNZIP_RC" -gt 1 ]; then
+
+echo "== Inspect zip =="
+ls -lah "app1_20260530_090855.zip" || true
+unzip -t "app1_20260530_090855.zip"
+ZIP_TEST_RC=$?
+if [ "$ZIP_TEST_RC" -ne 0 ]; then
+  echo "ERROR: zip integrity test failed with code $ZIP_TEST_RC"
+  exit "$ZIP_TEST_RC"
+fi
+
+echo "== Unzip package into temp dir =="
+rm -rf "_deploy_unpack"
+mkdir -p "_deploy_unpack"
+
+unzip -oq "app1_20260530_090855.zip" -d "_deploy_unpack"
+UNZIP_RC=$?
+if [ "$UNZIP_RC" -ne 0 ]; then
   echo "ERROR: unzip failed with code $UNZIP_RC"
   exit "$UNZIP_RC"
 fi
 
-echo "== Remove zip =="
-rm -f "app1.zip"
-
-echo "== Remove old .next =="
+echo "== Replace app files =="
 rm -rf ".next"
+
+find "_deploy_unpack" -mindepth 1 -maxdepth 1 -exec cp -R {} . \;
+
+echo "== Remove temp files =="
+rm -rf "_deploy_unpack"
+rm -f "app1_20260530_090855.zip"
+
 
 echo "== npm ci on server =="
 npm ci
@@ -53,7 +70,7 @@ fi
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_090132.json"
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_090855.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 
@@ -78,7 +95,7 @@ fi
 
 echo "== Archive manifest =="
 if [ -f "deploy-manifest.json" ]; then
-  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_090132.json"
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest_20260530_090855.json"
   cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
 fi
 

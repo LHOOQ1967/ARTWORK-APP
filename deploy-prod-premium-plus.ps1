@@ -296,7 +296,29 @@ try {
         Write-Host " - $entry"
     }
 
-    Compress-Archive -Path $FilesToZip -DestinationPath $ZipPath -Force
+    
+if (Test-Path $ZipPath) {
+    Remove-Item -Force $ZipPath
+}
+
+$TempZipDir = Join-Path $ProjectPath "__zip_temp"
+if (Test-Path $TempZipDir) {
+    Remove-Item -Recurse -Force $TempZipDir
+}
+New-Item -ItemType Directory -Path $TempZipDir | Out-Null
+
+# copier les fichiers dans un dossier propre
+foreach ($item in $FilesToZip) {
+    Copy-Item -Recurse -Force $item $TempZipDir
+}
+
+# zip via tar (compatible Linux)
+Push-Location $TempZipDir
+tar -a -c -f $ZipPath *
+Pop-Location
+
+Remove-Item -Recurse -Force $TempZipDir
+
 
     
 Add-Type -AssemblyName System.IO.Compression.FileSystem
