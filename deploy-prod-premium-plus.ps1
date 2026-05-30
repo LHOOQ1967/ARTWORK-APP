@@ -414,8 +414,7 @@ fi
 
 echo "== Cleanup old backups =="
 
-BACKUP_KEEP=$RemoteBackupKeep
-ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$((BACKUP_KEEP + 1)) | xargs -r rm -f
+ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
 
 
 echo "== Server deployment finished =="
