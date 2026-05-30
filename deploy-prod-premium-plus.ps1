@@ -511,13 +511,21 @@ echo "== Server deployment finished =="
         "${Remote}:${RemoteScriptPathServer}"
     Require-Success $LASTEXITCODE "Upload du script distant échoué."
 
-    Write-Info "Exécution du script distant..."
-    ssh $Remote "/bin/bash '$RemoteScriptPathServer'; rc=\$?; rm -f '$RemoteScriptPathServer'; exit \$rc"
-    Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
 
-    if (Test-Path $RemoteScriptPathLocal) {
-        Remove-Item -Force $RemoteScriptPathLocal
-    }
+Write-Info "Exécution du script distant..."
+$RemoteExecCmd = "cd $RemotePath && chmod +x $RemoteScriptPathServer && /bin/bash $RemoteScriptPathServer"
+ssh $Remote $RemoteExecCmd
+$RemoteExecExit = $LASTEXITCODE
+
+Write-Info "Nettoyage du script distant..."
+ssh $Remote "rm -f $RemoteScriptPathServer" | Out-Null
+
+Require-Success $RemoteExecExit "Le déploiement SSH a échoué."
+
+if (Test-Path $RemoteScriptPathLocal) {
+    Remove-Item -Force $RemoteScriptPathLocal
+}
+
 
     Write-Step "RESUME"
 
