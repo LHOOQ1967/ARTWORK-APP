@@ -11,13 +11,18 @@ const nextConfig = {
     ],
   },
 
-  // ✅ IMPORTANT : allège le build
   eslint: {
     ignoreDuringBuilds: true,
   },
 
   typescript: {
     ignoreBuildErrors: true,
+  },
+
+  // 🔥 IMPORTANT → empêche génération statique
+  experimental: {
+    workerThreads: false,
+    cpus: 1,
   },
 }
 
