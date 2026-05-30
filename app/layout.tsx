@@ -2,6 +2,8 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'ArtMuse',
   description: 'Blondeau - suivi des propositions',
