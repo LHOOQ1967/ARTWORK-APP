@@ -131,7 +131,7 @@ if (-not (Test-Path $ManifestHistoryDir)) {
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $DeployId = "prod_$Timestamp"
-$ZipName = "${ZipBaseName}.zip"
+$ZipName = "${ZipBaseName}_$Timestamp.zip"
 $ZipPath = Join-Path $ProjectPath $ZipName
 $LogFile = Join-Path $LogsDir "deploy_$Timestamp.log"
 $ManifestPath = Join-Path $ProjectPath "deploy-manifest.json"
@@ -298,6 +298,30 @@ try {
 
     Compress-Archive -Path $FilesToZip -DestinationPath $ZipPath -Force
 
+    
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+try {
+    $zipRead = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+    $entryCount = $zipRead.Entries.Count
+    $sampleEntries = $zipRead.Entries | Select-Object -First 10 -ExpandProperty FullName
+    $zipRead.Dispose()
+
+    if ($entryCount -eq 0) {
+        throw "Le ZIP est vide."
+    }
+
+    Write-Ok "ZIP validé localement : $entryCount entrée(s)."
+    Write-Info "Exemples d'entrées dans le ZIP :"
+    foreach ($entry in $sampleEntries) {
+        Write-Host " - $entry"
+    }
+}
+catch {
+    throw "Le ZIP local est invalide : $($_.Exception.Message)"
+}
+
+
     if (-not (Test-Path $ZipPath)) {
         throw "Le zip n'a pas été créé."
     }
@@ -360,19 +384,36 @@ tar -czf "$BACKUP_FILE" \
   --exclude='./__ZIP_NAME__' \
   --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
 
-echo "== Unzip package =="
-UNZIP_RC=0
-unzip -o "__ZIP_NAME__" || UNZIP_RC=$?
-if [ "$UNZIP_RC" -gt 1 ]; then
+
+echo "== Inspect zip =="
+ls -lah "__ZIP_NAME__" || true
+unzip -t "__ZIP_NAME__"
+ZIP_TEST_RC=$?
+if [ "$ZIP_TEST_RC" -ne 0 ]; then
+  echo "ERROR: zip integrity test failed with code $ZIP_TEST_RC"
+  exit "$ZIP_TEST_RC"
+fi
+
+echo "== Unzip package into temp dir =="
+rm -rf "_deploy_unpack"
+mkdir -p "_deploy_unpack"
+
+unzip -oq "__ZIP_NAME__" -d "_deploy_unpack"
+UNZIP_RC=$?
+if [ "$UNZIP_RC" -ne 0 ]; then
   echo "ERROR: unzip failed with code $UNZIP_RC"
   exit "$UNZIP_RC"
 fi
 
-echo "== Remove zip =="
+echo "== Replace app files =="
+rm -rf ".next"
+
+find "_deploy_unpack" -mindepth 1 -maxdepth 1 -exec cp -R {} . \;
+
+echo "== Remove temp files =="
+rm -rf "_deploy_unpack"
 rm -f "__ZIP_NAME__"
 
-echo "== Remove old .next =="
-rm -rf ".next"
 
 echo "== npm ci on server =="
 npm ci
