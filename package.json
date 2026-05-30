@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
+    "build:prod": "NODE_OPTIONS='--max-old-space-size=512' next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
