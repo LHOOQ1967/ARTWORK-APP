@@ -348,16 +348,16 @@ mkdir -p "_deploy/manifests"
 
 BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
 
+
 echo "== Server backup =="
 
-BACKUP_COUNT=$(find . -mindepth 1 -maxdepth 1 ! -name 'node_modules' ! -name '.next' ! -name '_backup' ! -name '_deploy' ! -name '$ZipName' ! -name 'deploy-remote.sh' | wc -l | tr -d ' ')
-
-if [ "\$BACKUP_COUNT" -gt 0 ]; then
-  tar -czf "\$BACKUP_FILE" --exclude='./node_modules' --exclude='./.next' --exclude='./_backup' --exclude='./_deploy' --exclude='./$ZipName' --exclude='./deploy-remote.sh' .
-  echo "Backup created: \$BACKUP_FILE"
+if [ "$(ls -A | grep -v -E '^node_modules$|^.next$|^_backup$|^_deploy$|^$ZipName$|^deploy-remote.sh$')" ]; then
+  tar -czf "$BACKUP_FILE" --exclude='./node_modules' --exclude='./.next' --exclude='./_backup' --exclude='./_deploy' --exclude='./$ZipName' --exclude='./deploy-remote.sh' .
+  echo "Backup created: $BACKUP_FILE"
 else
   echo "WARNING: nothing to backup, skipping backup creation"
 fi
+
 
 echo "== Unzip package =="
 UNZIP_RC=0
@@ -410,7 +410,10 @@ if [ -f "deploy-manifest.json" ]; then
 fi
 
 echo "== Cleanup old backups =="
-ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$($RemoteBackupKeep + 1) | xargs -r rm -f
+
+BACKUP_KEEP=$RemoteBackupKeep
+ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$((BACKUP_KEEP + 1)) | xargs -r rm -f
+
 
 echo "== Server deployment finished =="
 "@
