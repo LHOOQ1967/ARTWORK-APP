@@ -333,11 +333,14 @@ try {
         Remove-Item -Force $RemoteScriptPathLocal
     }
 
-    $RemoteScript = @"
+
+    $KeepPlusOne = $RemoteBackupKeep + 1
+
+    $RemoteScriptTemplate = @'
 #!/bin/bash
 set -euo pipefail
 
-cd "$RemotePath"
+cd "__REMOTE_PATH__"
 
 echo "== Deployment server =="
 date
@@ -346,36 +349,69 @@ pwd
 mkdir -p "_backup"
 mkdir -p "_deploy/manifests"
 
-BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
-
-
+BACKUP_FILE="_backup/deploy_backup___TIMESTAMP__.tar.gz"
 
 echo "== Server backup =="
-
 tar -czf "$BACKUP_FILE" \
   --exclude='./node_modules' \
   --exclude='./.next' \
   --exclude='./_backup' \
   --exclude='./_deploy' \
-  --exclude='./$ZipName' \
+  --exclude='./__ZIP_NAME__' \
   --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
-
-
 
 echo "== Unzip package =="
 UNZIP_RC=0
-unzip -o "$ZipName" || UNZIP_RC=\$?
-if [ "\$UNZIP_RC" -gt 1 ]; then
-  echo "ERROR: unzip failed with code \$UNZIP_RC"
-  exit "\$UNZIP_RC"
+unzip -o "__ZIP_NAME__" || UNZIP_RC=$?
+if [ "$UNZIP_RC" -gt 1 ]; then
+  echo "ERROR: unzip failed with code $UNZIP_RC"
+  exit "$UNZIP_RC"
 fi
 
 echo "== Remove zip =="
-rm -f "$ZipName"
+rm -f "__ZIP_NAME__"
 
 echo "== Remove old .next =="
 rm -rf ".next"
-"@
+
+echo "== npm ci on server =="
+npm ci
+
+echo "== Build on server =="
+NODE_ENV=production npm run build
+
+echo "== Check BUILD_ID =="
+if [ -f ".next/BUILD_ID" ]; then
+  echo "Server BUILD_ID:"
+  cat ".next/BUILD_ID"
+  ls -la ".next/BUILD_ID"
+else
+  echo "ERROR: .next/BUILD_ID missing"
+  exit 1
+fi
+
+echo "== Archive manifest =="
+if [ -f "deploy-manifest.json" ]; then
+  cp -f "deploy-manifest.json" "_deploy/manifests/deploy_manifest___TIMESTAMP__.json"
+  cp -f "deploy-manifest.json" "_deploy/deploy_manifest_latest.json"
+fi
+
+echo "== Cleanup old backups =="
+ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +__KEEP_PLUS_ONE__ | xargs -r rm -f || true
+
+echo "== Server deployment finished =="
+'@
+
+    $RemoteScript = $RemoteScriptTemplate `
+        .Replace("__REMOTE_PATH__", $RemotePath) `
+        .Replace("__TIMESTAMP__", $Timestamp) `
+        .Replace("__ZIP_NAME__", $ZipName) `
+        .Replace("__KEEP_PLUS_ONE__", [string]$KeepPlusOne)
+
+    # UTF-8 sans BOM + fins de ligne Unix LF
+    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
+    [System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
 
     if (-not $SkipRemoteNpmCi) {
         $RemoteScript += @"

@@ -513,9 +513,19 @@ if (auctionsError) {
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="m-0 text-[1.8rem] font-bold text-white">{headerTitle}</h2>
+          {!fixedProposedToId && !isViewer && (
+            <SearchSelect
+              label="Proposed to"
+              placeholder="Search contact…"
+              valueId={proposedToIdFilter}
+              onChangeId={setProposedToIdFilter}
+              options={proposedToOptions}
+            />
+          )}
+        {!isViewer && (
         <Link className="no-print" href="/artworks/new">
           <button className="edit-button">+ New artwork</button>
-        </Link>
+        </Link>)}
       </div>
 
       {/* Filters */}
