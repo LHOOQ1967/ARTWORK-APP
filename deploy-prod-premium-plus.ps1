@@ -1,13 +1,13 @@
 
 [CmdletBinding()]
-param(
-    [string]$AllowedBranch = "main",
+parammain",param(
     [switch]$AllowDirty,
     [switch]$SkipLocalNpmCi,
     [switch]$SkipRemoteNpmCi,
     [switch]$SkipGitPush,
     [switch]$SkipTagPush,
-    [switch]$SkipBranchPush
+    [switch]$SkipBranchPush,
+    [switch]$SkipLocalBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,13 +37,17 @@ $RemoteBackupKeep = 7
 $GitTagPrefix = "deploy-backup"
 
 # Fichiers/dossiers à inclure dans le zip
+# IMPORTANT :
+# - on exclut volontairement .next
+# - on n'inclut pas .env.production pour préserver celui du serveur
 $IncludePaths = @(
     "app",
     "components",
     "contexts",
     "lib",
     "public",
-    "server",
+    "server.js",
+    "page.tsx",
     "package.json",
     "package-lock.json",
     "next.config.ts",
@@ -53,6 +57,7 @@ $IncludePaths = @(
     "postcss.config.js",
     "postcss.config.mjs",
     "eslint.config.js",
+    "eslint.config.mjs",
     "README.md",
     "AGENTS",
     "deploy-manifest.json"
@@ -205,7 +210,7 @@ try {
         Write-Warn "Tous les push Git sont ignorés (-SkipGitPush)."
     }
 
-    Write-Step "INSTALLATION ET BUILD LOCAL"
+    Write-Step "VALIDATION LOCALE"
 
     if (-not $SkipLocalNpmCi) {
         Write-Info "npm ci local..."
@@ -216,15 +221,30 @@ try {
         Write-Warn "npm ci local ignoré (-SkipLocalNpmCi)."
     }
 
-    
-Write-Step "VERIFICATION SOURCES LOCALES"
+    $LocalBuildId = "build-on-server"
 
-if (-not (Test-Path "package.json")) {
-    throw "package.json introuvable."
-}
+    if (-not $SkipLocalBuild) {
+        Write-Info "Suppression de .next local..."
+        if (Test-Path ".next") {
+            Remove-Item -Recurse -Force ".next"
+        }
 
-Write-Ok "Sources prêtes pour le déploiement."
-$LocalBuildId = "build-on-server"
+        Write-Info "Build production local (validation syntaxique)..."
+        cmd /c "set NODE_ENV=production&& npm run build"
+        Require-Success $LASTEXITCODE "Le build production local a échoué."
+
+        if (Test-Path ".next\BUILD_ID") {
+            $LocalBuildId = (Get-Content ".next\BUILD_ID" -ErrorAction Stop | Select-Object -First 1).Trim()
+            Write-Ok "BUILD_ID local : $LocalBuildId"
+        }
+        else {
+            Write-Warn "'.next\BUILD_ID' absent localement malgré le build. Le build serveur fera foi."
+            $LocalBuildId = "build-on-server"
+        }
+    }
+    else {
+        Write-Warn "Build local ignoré (-SkipLocalBuild)."
+    }
 
     Write-Step "GENERATION DU MANIFEST"
 
@@ -248,6 +268,7 @@ $LocalBuildId = "build-on-server"
         skip_git_push      = [bool]$SkipGitPush
         skip_branch_push   = [bool]$SkipBranchPush
         skip_tag_push      = [bool]$SkipTagPush
+        skip_local_build   = [bool]$SkipLocalBuild
         allow_dirty        = [bool]$AllowDirty
     }
 
@@ -286,7 +307,6 @@ $LocalBuildId = "build-on-server"
     Write-Ok "Zip créé : $($ZipInfo.FullName)"
     Write-Ok "Taille zip : $ZipSizeMB MB"
 
-    # Mise à jour manifest avec infos zip
     $Manifest.zip_size_bytes = $ZipInfo.Length
     $Manifest.zip_size_mb = $ZipSizeMB
     $ManifestJson = $Manifest | ConvertTo-Json -Depth 10
@@ -303,50 +323,80 @@ $LocalBuildId = "build-on-server"
 
     Write-Ok "Upload terminé."
 
+    Write-Step "DEPLOIEMENT COTE SERVEUR"
 
-Write-Step "DEPLOIEMENT COTE SERVEUR"
+    $RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
+    $RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
 
-$RemoteScriptPathLocal = Join-Path $ProjectPath "deploy-remote.sh"
-$RemoteScriptPathServer = "$RemotePath/deploy-remote.sh"
+    if (Test-Path $RemoteScriptPathLocal) {
+        Remove-Item -Force $RemoteScriptPathLocal
+    }
 
-if (Test-Path $RemoteScriptPathLocal) {
-    Remove-Item -Force $RemoteScriptPathLocal
-}
+    $RemoteScript = @"
+#!/bin/bash
+set -euo pipefail
 
-== Deployment server ==
-Tue May 26 15:39:37 UTC 2026
-/srv/customer/sites/artmuse.ch
-== Server backup ==
-tar: Cowardly refusing to create an empty archive
-Try 'tar --help' or 'tar --usage' for more information.
+cd "$RemotePath"
 
-ECHEC DU DEPLOIEMENT
-Le dÃ©ploiement SSH a Ã©chouÃ©.
+echo "== Deployment server =="
+date
+pwd
 
-Consulte le log : C:\Users\Philippe\artwork-app\deploy-logs\deploy_20260526_173818.log
-Le dÃ©ploiement SSH a Ã©chouÃ©.
-Au caractère C:\Users\Philippe\artwork-app\deploy-prod-premium-plus.ps1:91 : 9
-+         throw $ErrorMessage
-+         ~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : OperationStopped: (Le dÃ©ploiement SSH a Ã©chouÃ©.:String) [], RuntimeException
-    + FullyQualifiedErrorId : Le dÃ©ploiement SSH a Ã©chouÃ©.
- 
-PS C:\Users\Philippe\artwork-app> 
-if (-not $SkipRemoteNpmCi) {
-    $RemoteScript += @"
+mkdir -p "_backup"
+mkdir -p "_deploy/manifests"
+
+BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
+
+echo "== Server backup =="
+
+BACKUP_COUNT=\$(find . -mindepth 1 -maxdepth 1 \
+  ! -name 'node_modules' \
+  ! -name '.next' \
+  ! -name '_backup' \
+  ! -name '_deploy' \
+  ! -name '$ZipName' \
+  ! -name 'deploy-remote.sh' | wc -l | tr -d ' ')
+
+if [ "\$BACKUP_COUNT" -gt 0 ]; then
+  tar -czf "\$BACKUP_FILE" --exclude='./node_modules' --exclude='./.next' --exclude='./_backup' --exclude='./_deploy' --exclude='./$ZipName' --exclude='./deploy-remote.sh' .
+  echo "Backup created: \$BACKUP_FILE"
+else
+  echo "WARNING: nothing to backup, skipping backup creation"
+fi
+
+echo "== Unzip package =="
+UNZIP_RC=0
+unzip -o "$ZipName" || UNZIP_RC=\$?
+if [ "\$UNZIP_RC" -gt 1 ]; then
+  echo "ERROR: unzip failed with code \$UNZIP_RC"
+  exit "\$UNZIP_RC"
+fi
+
+echo "== Remove zip =="
+rm -f "$ZipName"
+
+echo "== Remove old .next =="
+rm -rf ".next"
+"@
+
+    if (-not $SkipRemoteNpmCi) {
+        $RemoteScript += @"
 
 echo "== npm ci on server =="
 npm ci
 "@
-}
-else {
-    $RemoteScript += @"
+    }
+    else {
+        $RemoteScript += @"
 
 echo "== npm ci on server skipped =="
 "@
-}
+    }
 
-$RemoteScript += @"
+    $RemoteScript += @"
+
+echo "== Build on server =="
+NODE_ENV=production npm run build
 
 echo "== Check BUILD_ID =="
 if [ -f ".next/BUILD_ID" ]; then
@@ -370,27 +420,26 @@ ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +$($RemoteBackupKeep
 echo "== Server deployment finished =="
 "@
 
-# UTF-8 sans BOM + fins de ligne Unix LF
-$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-$RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
-[System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
+    # UTF-8 sans BOM + fins de ligne Unix LF
+    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $RemoteScriptUnix = $RemoteScript -replace "`r`n", "`n"
+    [System.IO.File]::WriteAllText($RemoteScriptPathLocal, $RemoteScriptUnix, $Utf8NoBom)
 
-Write-Info "Upload du script distant..."
-scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
-    $RemoteScriptPathLocal `
-    "${Remote}:${RemoteScriptPathServer}"
+    Write-Info "Upload du script distant..."
+    scp -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o IPQoS=throughput `
+        $RemoteScriptPathLocal `
+        "${Remote}:${RemoteScriptPathServer}"
 
-Require-Success $LASTEXITCODE "Upload du script distant échoué."
+    Require-Success $LASTEXITCODE "Upload du script distant échoué."
 
-Write-Info "Exécution du script distant..."
-ssh $Remote "cd '$RemotePath' && chmod +x './deploy-remote.sh' && /bin/bash './deploy-remote.sh'; rc=`$?; rm -f './deploy-remote.sh'; exit `$rc"
+    Write-Info "Exécution du script distant..."
+    ssh $Remote "cd '$RemotePath' && chmod +x './deploy-remote.sh' && /bin/bash './deploy-remote.sh'; rc=`$?; rm -f './deploy-remote.sh'; exit `$rc"
 
-Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
+    Require-Success $LASTEXITCODE "Le déploiement SSH a échoué."
 
-if (Test-Path $RemoteScriptPathLocal) {
-    Remove-Item -Force $RemoteScriptPathLocal
-}
-
+    if (Test-Path $RemoteScriptPathLocal) {
+        Remove-Item -Force $RemoteScriptPathLocal
+    }
 
     Write-Step "RESUME"
 
@@ -399,14 +448,15 @@ if (Test-Path $RemoteScriptPathLocal) {
     Write-Host "Branche            : $CurrentBranch" -ForegroundColor Green
     Write-Host "Commit             : $CurrentCommit" -ForegroundColor Green
     Write-Host "Tag sauvegarde Git : $GitTag" -ForegroundColor Green
-    Write-Host "BUILD_ID           : $LocalBuildId" -ForegroundColor Green
+    Write-Host "BUILD_ID local     : $LocalBuildId" -ForegroundColor Green
     Write-Host "Zip                : $ZipName" -ForegroundColor Green
     Write-Host "Manifest           : $ManifestArchivePath" -ForegroundColor Green
     Write-Host "Log                : $LogFile" -ForegroundColor Green
 
     Write-Host ""
     Write-Host "Action éventuelle restante :" -ForegroundColor Cyan
-    Write-Host "Relancer l'application depuis le manager Infomaniak si nécessaire. https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard" -ForegroundColor Cyan
+    Write-Host "Relancer l'application depuis le manager Infomaniak si nécessaire." -ForegroundColor Cyan
+    Write-Host "https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard" -ForegroundColor Cyan
     Write-Host ""
 }
 catch {
