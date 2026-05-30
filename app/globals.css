@@ -16,6 +16,16 @@ html, body {
 }
 
 
+input, select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+
+html {
+  color-scheme: light;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -23,12 +33,7 @@ html, body {
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
 
 /* =========================================================
    Base
@@ -217,6 +222,30 @@ body {
     display: none !important;
   }
 
+
+  /* ✅ forcer largeur normale */
+  .print-comments {
+    display: block !important;
+  }
+
+  .print-row {
+    display: block !important;
+    margin-bottom: 6px;
+  }
+
+  /* ✅ texte normal (empêche verticale) */
+  .print-text {
+    white-space: normal !important;
+    word-break: break-word;
+  }
+
+
+  .artwork-images {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+
   table {
     font-size: 12px;
     border-collapse: collapse;
@@ -228,12 +257,18 @@ body {
   }
 
   /* sauts de page */
-  .artwork-block {
-    break-after: page;
-    page-break-after: always;
-    break-inside: avoid;
-    page-break-inside: avoid;
+
+  .artwork-block + .artwork-block {
+    break-before: page;
+    page-break-before: always;
   }
+
+  
+  .artwork-block {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
 
   /* éviter page blanche finale */
   .artwork-block:last-child,
@@ -242,12 +277,29 @@ body {
     page-break-after: auto !important;
   }
 
+    
+  .artwork-separator {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    height: 0 !important;
+    margin: 0 !important;
+  }
+
+
+  .artwork-block:last-child + .artwork-separator {
+    display: none !important;
+  }
+
+
   /* éviter que les sections ajoutent des espaces inutiles */
   section {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+
   }
 }
 

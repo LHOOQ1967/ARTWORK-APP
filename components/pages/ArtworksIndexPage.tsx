@@ -529,23 +529,22 @@ if (auctionsError) {
       </div>
 
       {/* Filters */}
-      <section className="no-print mb-5 rounded-[14px] border-[3px] border-black/60 bg-[#DCEFE7] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.10)]">
+      <section className="no-print" style={filtersBoxStyle}>
         {/* LIGNE 1 */}
-        <div className="flex flex-wrap gap-4">
+        <div style={filtersRowStyle}>
           <div className="min-w-[240px] flex-[1_1_240px]">
             <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">
               From date{" "}
               <span className="text-[12px] font-normal opacity-70">
                 (Bought = acquisition date, Archived = proposed date)
               </span>
-            </div>
-
-            <input
-              type="date"
-              value={fromDateProposed}
-              onChange={e => setFromDateProposed(e.target.value)}
-              className="w-full rounded-[10px] border border-black/25 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-black/15"
-            />
+              </div>
+              <input
+                type="date"
+                value={fromDateProposed}
+                onChange={e => setFromDateProposed(e.target.value)}
+                style={dateInputStyle}
+              />
           </div>
 
           <SearchSelect
@@ -558,7 +557,7 @@ if (auctionsError) {
         </div>
 
         {/* LIGNE 2 */}
-        <div className="mt-4 flex flex-wrap gap-4">
+        <div style={filtersRowStyle}>
           <SearchSelect
             label="Proposed by"
             placeholder="Search contact…"
@@ -640,3 +639,38 @@ if (auctionsError) {
     </main>
   )
 }
+
+
+
+const dateInputStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '100%',
+  boxSizing: 'border-box',   // ✅ clé du fix iPhone
+  padding: '8px 10px',
+  fontSize: 16,               // ✅ évite zoom iOS
+  borderRadius: 8,
+  border: '1px solid rgba(0,0,0,0.25)',
+  backgroundColor: '#fff',
+}
+
+
+
+
+const filtersBoxStyle: React.CSSProperties = {
+  marginBottom: 20,
+  borderRadius: 14,
+  border: '2px solid rgba(0,0,0,0.5)',
+  backgroundColor: '#DCEFE7',
+  padding: 16,
+  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+  width: '100%',
+  boxSizing: 'border-box',
+}
+
+
+const filtersRowStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr',
+  gap: 12,
+}
+

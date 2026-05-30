@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(protected)/types/artwork'
-
+import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { canEditArtworks } from '@/lib/permissions'
 
@@ -850,7 +850,10 @@ const displayTitle = (() => {
           <p>{artwork.notes}</p>
         </div>
       )}
+<ArtworkViewerComment artworkId={artwork.id} />
+
 </div>
+
 <div className="artwork-separator" />
     </section>
   )
