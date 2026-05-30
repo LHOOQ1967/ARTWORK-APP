@@ -1,6 +1,6 @@
 
 [CmdletBinding()]
-parammain",param(
+param(
     [switch]$AllowDirty,
     [switch]$SkipLocalNpmCi,
     [switch]$SkipRemoteNpmCi,
@@ -25,7 +25,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 # =========================
 # CONFIG PROJET
 # =========================
-$ProjectPath = "C:\Users\Philippe\artwork-app"
+$ProjectPath = "C:\Users\philippe\ARTWORK-APP"
 $RemotePath  = "/srv/customer/sites/artmuse.ch"
 
 $SshUser = "MbGYYMaq5xi_philippe"
@@ -35,6 +35,7 @@ $Remote  = "$SshUser@${SshHost}"
 $ZipBaseName = "app1"
 $RemoteBackupKeep = 7
 $GitTagPrefix = "deploy-backup"
+$AllowedBranch = "main"
 
 # Fichiers/dossiers à inclure dans le zip
 # IMPORTANT :
@@ -349,13 +350,7 @@ BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
 
 echo "== Server backup =="
 
-BACKUP_COUNT=\$(find . -mindepth 1 -maxdepth 1 \
-  ! -name 'node_modules' \
-  ! -name '.next' \
-  ! -name '_backup' \
-  ! -name '_deploy' \
-  ! -name '$ZipName' \
-  ! -name 'deploy-remote.sh' | wc -l | tr -d ' ')
+BACKUP_COUNT=$(find . -mindepth 1 -maxdepth 1 ! -name 'node_modules' ! -name '.next' ! -name '_backup' ! -name '_deploy' ! -name '$ZipName' ! -name 'deploy-remote.sh' | wc -l | tr -d ' ')
 
 if [ "\$BACKUP_COUNT" -gt 0 ]; then
   tar -czf "\$BACKUP_FILE" --exclude='./node_modules' --exclude='./.next' --exclude='./_backup' --exclude='./_deploy' --exclude='./$ZipName' --exclude='./deploy-remote.sh' .
@@ -456,7 +451,7 @@ echo "== Server deployment finished =="
     Write-Host ""
     Write-Host "Action éventuelle restante :" -ForegroundColor Cyan
     Write-Host "Relancer l'application depuis le manager Infomaniak si nécessaire." -ForegroundColor Cyan
-    Write-Host "https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard" -ForegroundColor Cyan
+    Write-Host "[Manager Infomaniak](https://manager.infomaniak.com/v3/hosting/136787/hosting/785241/h3/111324/nodejs/51142/data/dashboard)" -ForegroundColor Cyan
     Write-Host ""
 }
 catch {
