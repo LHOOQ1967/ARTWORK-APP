@@ -148,30 +148,52 @@ export default function ArtworkViewerComments({
     setMyCommentHtml(html)
   }
 
+ 
+
+function debounceSave(html: string) {
+  if (debounceRef.current) {
+    clearTimeout(debounceRef.current)
+  }
+
+  debounceRef.current = setTimeout(() => {
+    save(html)
+  }, 800)
+}
+
   return (
     <div style={{ marginTop: 20 }}>
 
       {/* MY COMMENT */}
 
 
+
 <div style={sectionRowStyle} className="print-comments">
 
+  {/* LABEL */}
   <div style={sectionLabelStyle}>
     My Comment
   </div>
 
-  <div className="print-text">
-
-    {/* en mode print -> affichage propre */}
+  {/* ✅ EDITION (écran uniquement) */}
+  <div className="no-print">
     <div
-      dangerouslySetInnerHTML={{ __html: myCommentHtml }}
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={(e) => {
+        const html = (e.target as HTMLDivElement).innerHTML
+        debounceSave(html)
+      }}
+      style={editorStyle}
     />
+  </div>
 
+  {/* ✅ PRINT / AFFICHAGE */}
+  <div className="print-text">
+    <div dangerouslySetInnerHTML={{ __html: myCommentHtml }} />
   </div>
 
 </div>
-
-
 
       {/* OTHER COMMENTS */}
       <div style={sectionRowStyle}>

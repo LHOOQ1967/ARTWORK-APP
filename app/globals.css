@@ -22,6 +22,10 @@ input, select {
 }
 
 
+.print-text {
+  display: none;   /* ✅ caché à l’écran */
+}
+
 html {
   color-scheme: light;
 }
@@ -206,6 +210,12 @@ body {
     padding: 0 !important;
     background: transparent !important;
   }
+
+
+  .print-text {
+    display: block !important;   /* ✅ visible uniquement à l’impression */
+  }
+
 
   /* conserver les couleurs (si tu imprimes des fonds) */
   * {
