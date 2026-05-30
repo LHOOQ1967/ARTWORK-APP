@@ -522,10 +522,16 @@ if (auctionsError) {
 
       {/* Filters */}
       <section className="no-print" style={filtersBoxStyle}>
-        {/* LIGNE 1 */}
-        <div style={filtersRowStyle}>
+        {/* LIGNE 1 */}        
+        <div
+          style={
+            window.innerWidth > 768
+              ? filtersRowDesktopStyle
+              : filtersRowStyle
+          }
+        >
           <div style={dateBlockStyle}>
-            <div className="mb-1.5 text-[14px] font-bold tracking-[0.02em]">
+            <div style={{ marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}>
               From date{" "}
               <span className="text-[12px] font-normal opacity-70">
                 (Bought = acquisition date, Archived = proposed date)
@@ -675,6 +681,14 @@ const filtersRowStyle: React.CSSProperties = {
   gridTemplateColumns: '1fr',
   gap: 12,
 }
+
+
+const filtersRowDesktopStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 12,
+}
+
 
 
 const dateBlockStyle: React.CSSProperties = {
