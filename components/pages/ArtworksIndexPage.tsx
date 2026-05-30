@@ -509,7 +509,7 @@ if (auctionsError) {
   const headerTitle = fixedProposedToId ? `${baseTitle}` : baseTitle
 
   return (
-    <main className="min-h-screen bg-[#006039] px-3 pb-10 pt-24">
+    <main style={mainStyle}>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="m-0 text-[1.8rem] font-bold text-white">{headerTitle}</h2>
@@ -689,14 +689,10 @@ const filtersRowDesktopStyle: React.CSSProperties = {
   gap: 12,
 }
 
-
-
 const dateBlockStyle: React.CSSProperties = {
   width: '100%',
   minWidth: 0,            // ✅ CRITIQUE (remplace min-w-240px)
 }
-
-
 
 const dateWrapperStyle: React.CSSProperties = {
   width: '100%',
@@ -704,4 +700,15 @@ const dateWrapperStyle: React.CSSProperties = {
   borderRadius: 8,
 }
 
+const mainStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  backgroundColor: '#006039',
+  paddingTop: 90,
+  paddingBottom: 40,
+  paddingLeft: 12,
+  paddingRight: 12,
 
+  boxSizing: 'border-box',      // ✅ CRITIQUE (fix overflow iPhone)
+  width: '100%',
+  overflowX: 'hidden',          // ✅ empêche dépassement
+}
