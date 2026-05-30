@@ -1,10 +1,24 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
   try {
   const supabase = await supabaseServer();
+  
+const admin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
+);
+console.log("ADMIN OK")
+console.log("SERVICE ROLE:", process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 10))
     const formData = await req.formData();
     const file = formData.get("file");
 
@@ -23,13 +37,15 @@ export async function POST(req: NextRequest) {
     }
 
     // 2) créer ligne import
-    const { data: importRow, error: insertError } = await supabase
+
+    const { data: importRow, error: insertError } = await admin
       .from("artwork_imports")
       .insert({
         created_by: user.id,
         status: "pending",
         source_type: "label_photo",
       })
+
       .select("*")
       .single();
 
@@ -44,7 +60,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await admin.storage
       .from("artwork-imports")
       .upload(filePath, buffer, {
         contentType: file.type || "image/jpeg",
@@ -63,11 +79,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = admin.storage
       .from("artwork-imports")
       .getPublicUrl(filePath);
 
-    const { data: updatedImport, error: updateError } = await supabase
+    const { data: updatedImport, error: updateError } = await admin
       .from("artwork_imports")
       .update({
         image_path: filePath,

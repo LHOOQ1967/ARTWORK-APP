@@ -89,8 +89,10 @@ if (pathname.startsWith('/print')) {
   return res
 }
 
+
 export const config = {
   matcher: [
-    '/((?!_next|favicon.ico|assets).*)',
+    '/((?!api|_next|favicon.ico|assets).*)',
   ],
 }
+
