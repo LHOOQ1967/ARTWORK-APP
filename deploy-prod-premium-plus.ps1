@@ -402,11 +402,13 @@ ls -1t _backup/deploy_backup_*.tar.gz 2>/dev/null | tail -n +__KEEP_PLUS_ONE__ |
 echo "== Server deployment finished =="
 '@
 
-    $RemoteScript = $RemoteScriptTemplate `
-        .Replace("__REMOTE_PATH__", $RemotePath) `
-        .Replace("__TIMESTAMP__", $Timestamp) `
-        .Replace("__ZIP_NAME__", $ZipName) `
-        .Replace("__KEEP_PLUS_ONE__", [string]$KeepPlusOne)
+
+$RemoteScript = $RemoteScriptTemplate
+$RemoteScript = $RemoteScript.Replace("__REMOTE_PATH__", $RemotePath)
+$RemoteScript = $RemoteScript.Replace("__TIMESTAMP__", $Timestamp)
+$RemoteScript = $RemoteScript.Replace("__ZIP_NAME__", $ZipName)
+$RemoteScript = $RemoteScript.Replace("__KEEP_PLUS_ONE__", [string]$KeepPlusOne)
+
 
     # UTF-8 sans BOM + fins de ligne Unix LF
     $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
