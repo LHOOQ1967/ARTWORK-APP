@@ -416,8 +416,11 @@ if [ "$ZIP_TEST_RC" -ne 0 ]; then
   exit "$ZIP_TEST_RC"
 fi
 
+
+
 echo "== Unzip package into temp dir =="
-rm -rf "_deploy_unpack"
+
+rm -rf "_deploy_unpack" 2>/dev/null || true
 mkdir -p "_deploy_unpack"
 
 unzip -oq "__ZIP_NAME__" -d "_deploy_unpack"
@@ -427,10 +430,22 @@ if [ "$UNZIP_RC" -ne 0 ]; then
   exit "$UNZIP_RC"
 fi
 
-echo "== Replace app files =="
-rm -rf ".next"
+echo "== Copy new files safely =="
+cp -R _deploy_unpack/* . 2>/dev/null || true
+cp -R _deploy_unpack/.[!.]* . 2>/dev/null || true
 
-find "_deploy_unpack" -mindepth 1 -maxdepth 1 -exec cp -R {} . \;
+echo "== Cleanup temp =="
+rm -rf "_deploy_unpack" 2>/dev/null || true
+
+echo "== Remove old .next =="
+rm -rf ".next" 2>/dev/null || true
+
+
+echo "== Copy new files safely =="
+
+cp -R _deploy_unpack/* . 2>/dev/null || true
+cp -R _deploy_unpack/.[!.]* . 2>/dev/null || true
+
 
 echo "== Remove temp files =="
 rm -rf "_deploy_unpack"

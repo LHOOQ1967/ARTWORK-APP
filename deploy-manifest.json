@@ -1,15 +1,15 @@
 ﻿{
-    "deploy_id":  "prod_20260530_090855",
-    "deployed_at_local":  "2026-05-30 09:10:00",
+    "deploy_id":  "prod_20260530_091135",
+    "deployed_at_local":  "2026-05-30 09:12:43",
     "project_path":  "C:\\Users\\philippe\\ARTWORK-APP",
     "environment":  "production",
     "site":  "artmuse.ch",
     "allowed_branch":  "main",
     "current_branch":  "main",
-    "git_commit":  "8d523a942ba1c49bc558f1cbfc105e7248365319",
-    "git_tag":  "deploy-backup-20260530_090855",
-    "build_id":  "hcKDkSEHMGEdB-N39b4_l",
-    "zip_name":  "app1_20260530_090855.zip",
+    "git_commit":  "e0d913d167347bff175d206a8bf648c440ff882f",
+    "git_tag":  "deploy-backup-20260530_091135",
+    "build_id":  "YnrSEi5HaQMB6YOL2jE8o",
+    "zip_name":  "app1_20260530_091135.zip",
     "remote_host":  "57-111324.ssh.hosting-ik.com",
     "remote_user":  "MbGYYMaq5xi_philippe",
     "remote_path":  "/srv/customer/sites/artmuse.ch",
@@ -20,6 +20,6 @@
     "skip_tag_push":  false,
     "skip_local_build":  false,
     "allow_dirty":  false,
-    "zip_size_bytes":  248889,
-    "zip_size_mb":  0.24
+    "zip_size_bytes":  264147,
+    "zip_size_mb":  0.25
 }
