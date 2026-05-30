@@ -349,14 +349,17 @@ mkdir -p "_deploy/manifests"
 BACKUP_FILE="_backup/deploy_backup_$Timestamp.tar.gz"
 
 
+
 echo "== Server backup =="
 
-if [ "$(ls -A | grep -v -E '^node_modules$|^.next$|^_backup$|^_deploy$|^$ZipName$|^deploy-remote.sh$')" ]; then
-  tar -czf "$BACKUP_FILE" --exclude='./node_modules' --exclude='./.next' --exclude='./_backup' --exclude='./_deploy' --exclude='./$ZipName' --exclude='./deploy-remote.sh' .
-  echo "Backup created: $BACKUP_FILE"
-else
-  echo "WARNING: nothing to backup, skipping backup creation"
-fi
+tar -czf "$BACKUP_FILE" \
+  --exclude='./node_modules' \
+  --exclude='./.next' \
+  --exclude='./_backup' \
+  --exclude='./_deploy' \
+  --exclude='./$ZipName' \
+  --exclude='./deploy-remote.sh' . || echo "WARNING: backup skipped"
+
 
 
 echo "== Unzip package =="
