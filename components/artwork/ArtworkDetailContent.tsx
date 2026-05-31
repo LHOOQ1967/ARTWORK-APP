@@ -377,61 +377,65 @@ const fullArtwork = normalizeArtwork({
       setSaving(true)
       setError(null)
 
-      const payload = {
-        title: artwork.title,
-        medium: artwork.medium,
-        signature: artwork.signature,
-        year_execution: artwork.year_execution,
+      
+const payload = {
+  title: artwork.title,
+  medium: artwork.medium,
+  signature: artwork.signature,
+  year_execution: artwork.year_execution,
 
-        location_contact_id: artwork.location_contact_id,
-        status: artwork.status,
-        priority: artwork.priority,
+  location_contact_id: artwork.location_contact_id,
+  status: artwork.status,
+  priority: artwork.priority,
 
-        asking_price: artwork.asking_price,
-        currency: artwork.currency,
+  asking_price: artwork.asking_price,
+  currency: artwork.currency,
 
-        auctions: artwork.auctions,
-        auction_contact_id: artwork.auction_contact_id,
-        sale_date: artwork.sale_date,
-        sale_time: artwork.sale_time,
-        auction_link: artwork.auction_link,
-        estimate_low: artwork.estimate_low,
-        estimate_high: artwork.estimate_high,
-        auction_max_hammer: artwork.auction_max_hammer,
-        auction_max_premium: artwork.auction_max_premium,
-        auction_currency: artwork.auction_currency,
-        lot: artwork.lot,
-        sold_hammer: artwork.sold_hammer,
-        sold_premium: artwork.sold_premium,
-        underbidder: artwork.underbidder,
-        guarantee: artwork.guarantee,
+  auctions: artwork.auctions,
+  auction_contact_id: artwork.auction_contact_id,
+  sale_date: artwork.sale_date,
+  sale_time: artwork.sale_time,
+  auction_link: artwork.auction_link,
+  estimate_low: artwork.estimate_low,
+  estimate_high: artwork.estimate_high,
+  auction_max_hammer: artwork.auction_max_hammer,
+  auction_max_premium: artwork.auction_max_premium,
+  auction_currency: artwork.auction_currency,
+  lot: artwork.lot,
+  sold_hammer: artwork.sold_hammer,
+  sold_premium: artwork.sold_premium,
+  underbidder: artwork.underbidder,
+  guarantee: artwork.guarantee,
 
-        buyer_contact_id: artwork.buyer_contact_id,
-        date_acquisition: artwork.date_acquisition,
-        cost_amount: artwork.cost_amount,
-        cost_currency: artwork.cost_currency,
-        commission_blondeau: artwork.commission_blondeau,
-        destination_contact_id: artwork.destination_contact_id,
+  // ✅ ACQUISITION
+  acquired: Boolean(artwork.acquired),
+  buyer_contact_id: artwork.buyer_contact_id,
+  date_acquisition: artwork.date_acquisition,
+  cost_amount: artwork.cost_amount,
+  cost_currency: artwork.cost_currency,
+  commission_blondeau: artwork.commission_blondeau,
+  destination_contact_id: artwork.destination_contact_id,
 
-        date_proposition: artwork.date_proposition,
-        proposed_by_id: artwork.proposed_by_id,
+  date_proposition: artwork.date_proposition,
+  proposed_by_id: artwork.proposed_by_id,
 
-        view_date: artwork.view_date,
-        condition: artwork.condition,
-        certificate: artwork.certificate,
-        certificate_location_contact_id: artwork.certificate_location_contact_id,
-        check_seller: artwork.check_seller,
-        notes: artwork.notes,
+  view_date: artwork.view_date,
+  condition: artwork.condition,
+  certificate: artwork.certificate,
+  certificate_location_contact_id: artwork.certificate_location_contact_id,
+  check_seller: artwork.check_seller,
+  notes: artwork.notes,
 
-        artist_id: artwork.artist_id,
+  artist_id: artwork.artist_id,
 
-        insurance_value: artwork.insurance_value,
-        insurance_currency: artwork.insurance_currency,
+  insurance_value: artwork.insurance_value,
+  insurance_currency: artwork.insurance_currency,
 
-        height_cm: artwork.height_cm || null,
-        width_cm: artwork.width_cm || null,
-        depth_cm: artwork.depth_cm || null,
-      }
+  height_cm: artwork.height_cm || null,
+  width_cm: artwork.width_cm || null,
+  depth_cm: artwork.depth_cm || null,
+}
+
 
       const { error } = await supabase
         .from('artworks')

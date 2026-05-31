@@ -281,6 +281,7 @@ auction_max_premium?: number | null
   sold_premium?: number | null
   underbidder?: boolean | null
   guarantee?: boolean | null
+  acquired?: boolean
   date_acquisition: string | null
   cost_amount?: number | null
   cost_currency?: string | null

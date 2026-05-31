@@ -1218,168 +1218,185 @@ export function ArtworkFieldsLayout({
         </EditRow>
       </SectionBlock>
 
-      {/* Acquisition */}
-      <SectionBlock>
-        <h3 style={{ textAlign: 'center', fontSize: '1.3rem' }}>
-          Acquisition
-        </h3>
 
-        <EditRow label="Acquired">
-          <select
-            value={artwork.date_acquisition ? 'yes' : 'no'}
+{/* Acquisition */}
+<SectionBlock>
+  <h3 style={{ textAlign: 'center', fontSize: '1.3rem' }}>
+    Acquisition
+  </h3>
+
+
+<EditRow label="Acquired">
+  <select
+    value={artwork.acquired ? 'yes' : 'no'}
+    onChange={(e) => {
+      const isYes = e.target.value === 'yes'
+      setArtwork((prev) => ({
+        ...prev,
+        acquired: isYes,
+      }))
+    }}
+    style={{ ...editInputStyle, width: 90 }}
+    disabled={!isEditing}
+  >
+    <option value="no">No</option>
+    <option value="yes">Yes</option>
+  </select>
+</EditRow>
+
+
+<EditRow label="Date acquisition">
+  <input
+    type="date"
+    value={artwork.date_acquisition ?? ''}
+    onChange={(e) =>
+      setArtwork((prev) => ({
+        ...prev,
+        date_acquisition: e.target.value || null,
+      }))
+    }
+    style={editInputStyle}
+    disabled={!isEditing}
+  />
+</EditRow>
+
+
+  {artwork.acquired && (
+    <>
+      <EditRow label="Buyer">
+        <AutocompleteSelect<Contact>
+          value={artwork.buyer_contact_id ?? ''}
+          onChange={(value) =>
+            setArtwork((prev) => ({
+              ...prev,
+              buyer_contact_id: value || null,
+            }))
+          }
+          query={buyerQuery}
+          setQuery={setBuyerQuery}
+          results={buyerResults}
+          options={contactOptions}
+          getLabel={contactLabel}
+          placeholder="Search buyer"
+          disabled={!isEditing}
+          isEditing={isEditing}
+          loading={buyerLoading}
+          noResultsText="No buyer found"
+        />
+      </EditRow>
+
+      <EditRow label="Destination">
+        <AutocompleteSelect<Contact>
+          value={artwork.destination_contact_id ?? ''}
+          onChange={(value) =>
+            setArtwork((prev) => ({
+              ...prev,
+              destination_contact_id: value || null,
+            }))
+          }
+          query={destinationQuery}
+          setQuery={setDestinationQuery}
+          results={destinationResults}
+          options={contactOptions}
+          getLabel={contactLabel}
+          placeholder="Search destination"
+          disabled={!isEditing}
+          isEditing={isEditing}
+          loading={destinationLoading}
+          noResultsText="No destination found"
+        />
+      </EditRow>
+
+      <EditRow label="Date acquisition">
+        <input
+          type="date"
+          value={artwork.date_acquisition ?? ''}
+          onChange={(e) =>
+            setArtwork((prev) => ({
+              ...prev,
+              date_acquisition: e.target.value || null,
+            }))
+          }
+          style={editInputStyle}
+          disabled={!isEditing}
+        />
+      </EditRow>
+
+      <EditRow label="Cost">
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="number"
+            value={artwork.cost_amount ?? ''}
             onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                date_acquisition:
-                  e.target.value === 'yes'
-                    ? artwork.date_acquisition ??
-                      new Date().toISOString().slice(0, 10)
-                    : null,
-              })
+              setArtwork((prev) => ({
+                ...prev,
+                cost_amount:
+                  e.target.value === '' ? null : Number(e.target.value),
+              }))
+            }
+            style={{ ...editInputStyle, width: 140 }}
+            disabled={!isEditing}
+          />
+          <select
+            value={artwork.cost_currency ?? ''}
+            onChange={(e) =>
+              setArtwork((prev) => ({
+                ...prev,
+                cost_currency: e.target.value || null,
+              }))
             }
             style={{ ...editInputStyle, width: 90 }}
             disabled={!isEditing}
           >
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
+            <option value="">—</option>
+            {CURRENCY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
-        </EditRow>
+        </div>
+      </EditRow>
 
-        {artwork.date_acquisition && (
-          <>
-            <EditRow label="Buyer">
-              <AutocompleteSelect<Contact>
-                value={artwork.buyer_contact_id ?? ''}
-                onChange={(value) =>
-                  setArtwork({
-                    ...artwork,
-                    buyer_contact_id: value || null,
-                  })
-                }
-                query={buyerQuery}
-                setQuery={setBuyerQuery}
-                results={buyerResults}
-                options={contactOptions}
-                getLabel={contactLabel}
-                placeholder="Search buyer"
-                disabled={!isEditing}
-                isEditing={isEditing}
-                loading={buyerLoading}
-                noResultsText="No buyer found"
-              />
-            </EditRow>
+      <EditRow label="Commission Blondeau">
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="number"
+            value={artwork.commission_blondeau ?? ''}
+            onChange={(e) =>
+              setArtwork((prev) => ({
+                ...prev,
+                commission_blondeau:
+                  e.target.value === '' ? null : Number(e.target.value),
+              }))
+            }
+            style={{ ...editInputStyle, width: 140 }}
+            disabled={!isEditing}
+          />
+          <select
+            value={artwork.cost_currency ?? ''}
+            onChange={(e) =>
+              setArtwork((prev) => ({
+                ...prev,
+                cost_currency: e.target.value || null,
+              }))
+            }
+            style={{ ...editInputStyle, width: 90 }}
+            disabled={!isEditing}
+          >
+            <option value="">—</option>
+            {CURRENCY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      </EditRow>
+    </>
+  )}
+</SectionBlock>
 
-            <EditRow label="Destination">
-              <AutocompleteSelect<Contact>
-                value={artwork.destination_contact_id ?? ''}
-                onChange={(value) =>
-                  setArtwork({
-                    ...artwork,
-                    destination_contact_id: value || null,
-                  })
-                }
-                query={destinationQuery}
-                setQuery={setDestinationQuery}
-                results={destinationResults}
-                options={contactOptions}
-                getLabel={contactLabel}
-                placeholder="Search destination"
-                disabled={!isEditing}
-                isEditing={isEditing}
-                loading={destinationLoading}
-                noResultsText="No destination found"
-              />
-            </EditRow>
-
-            <EditRow label="Date acquisition">
-              <input
-                type="date"
-                value={artwork.date_acquisition ?? ''}
-                onChange={(e) =>
-                  setArtwork({
-                    ...artwork,
-                    date_acquisition: e.target.value || null,
-                  })
-                }
-                style={editInputStyle}
-                disabled={!isEditing}
-              />
-            </EditRow>
-
-            <EditRow label="Cost">
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="number"
-                  value={artwork.cost_amount ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      cost_amount:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 140 }}
-                  disabled={!isEditing}
-                />
-                <select
-                  value={artwork.cost_currency ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      cost_currency: e.target.value || null,
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 90 }}
-                  disabled={!isEditing}
-                >
-                  <option value="">—</option>
-                  {CURRENCY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </EditRow>
-
-            <EditRow label="Commission Blondeau">
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="number"
-                  value={artwork.commission_blondeau ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      commission_blondeau:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 140 }}
-                  disabled={!isEditing}
-                />
-                <select
-                  value={artwork.cost_currency ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      cost_currency: e.target.value || null,
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 90 }}
-                  disabled={!isEditing}
-                >
-                  <option value="">—</option>
-                  {CURRENCY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </EditRow>
-          </>
-        )}
-      </SectionBlock>
 
       {/* Notes */}
       <SectionBlock>

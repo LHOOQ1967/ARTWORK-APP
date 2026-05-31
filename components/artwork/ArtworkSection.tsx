@@ -1198,6 +1198,18 @@ useEffect(() => {
 ])
 
 
+useEffect(() => {
+  // sécurité : si acquired = false → reset champs acquisition
+  if (!artwork.acquired && artwork.date_acquisition) {
+    setArtwork((prev) => ({
+      ...prev,
+      date_acquisition: null,
+    }))
+  }
+}, [artwork.acquired])
+
+
+
 async function handleAddProposal() {
   if (!newProposalContactId) return
 
@@ -2103,28 +2115,29 @@ async function handleAddProposal() {
           Acquisition
         </h3>
 
-        <EditRow label="Acquired">
-          <select
-            value={artwork.date_acquisition ? 'yes' : 'no'}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                date_acquisition:
-                  e.target.value === 'yes'
-                    ? artwork.date_acquisition ??
-                      new Date().toISOString().slice(0, 10)
-                    : null,
-              })
-            }
-            style={{ ...editInputStyle, width: 90 }}
-            disabled={!isEditing}
-          >
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </select>
-        </EditRow>
 
-        {artwork.date_acquisition && (
+
+<EditRow label="Acquired">
+  <select
+    value={artwork.acquired ? 'yes' : 'no'}
+    onChange={(e) => {
+      const isYes = e.target.value === 'yes'
+      setArtwork((prev) => ({
+        ...prev,
+        acquired: isYes,
+      }))
+    }}
+    style={{ ...editInputStyle, width: 90 }}
+    disabled={!isEditing}
+  >
+    <option value="no">No</option>
+    <option value="yes">Yes</option>
+  </select>
+</EditRow>
+
+
+
+        {artwork.acquired && (
           <>
             <EditRow label="Date acquisition">
               <input

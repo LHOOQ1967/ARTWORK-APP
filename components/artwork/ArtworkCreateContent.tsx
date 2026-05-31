@@ -22,6 +22,11 @@ type ArtworkCreateInitialValues = {
   inventory_number?: string
   lot?: string
   status?: string
+  asking_price?: string | number
+  currency?: string
+  estimate_low?: string | number
+  estimate_high?: string | number
+  auction_currency?: string
 }
 
 type ManualImportPrefill = {
@@ -39,6 +44,15 @@ type ManualImportPrefill = {
   inventory_number?: string | null
   lot?: string | null
   source?: string | null
+
+  acquired?: boolean | string | null
+  date_acquisition?: string | null
+
+  asking_price?: string | number | null
+  currency?: string | null
+  estimate_low?: string | number | null
+  estimate_high?: string | number | null
+  auction_currency?: string | null
 }
 
 type ArtworkImportRow = {
@@ -63,6 +77,7 @@ const EMPTY_ARTWORK: ArtworkForm = {
   year_execution: null,
   dimensions: null,
 
+  acquired: false,
   date_acquisition: null,
   cost_amount: null,
   cost_currency: null,
@@ -444,8 +459,22 @@ function toNullableText(value: unknown): string | null {
 
 function toNullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null
-  const n = Number(String(value).replace(',', '.'))
+
+  const normalized = String(value)
+    .replace(/\s/g, '')
+    .replace(/'/g, '')
+    .replace(',', '.')
+
+  const n = Number(normalized)
   return Number.isFinite(n) ? n : null
+}
+
+function toBoolean(value: unknown): boolean {
+  if (value === true) return true
+  if (value === false) return false
+
+  const v = String(value ?? '').trim().toLowerCase()
+  return v === 'true' || v === 'yes' || v === '1'
 }
 
 function parseDimensionsText(value: string | null | undefined): {
@@ -491,13 +520,22 @@ function parseDimensionsText(value: string | null | undefined): {
   }
 }
 
+function formatDimensionValue(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(value).replace(/\.?0+$/, '')
+}
+
 function buildDimensionsString(
   heightCm: number | null,
   widthCm: number | null,
   depthCm: number | null
 ): string | null {
   if (heightCm === null || widthCm === null) return null
-  return `${heightCm} x ${widthCm} x ${depthCm ?? 0} cm`
+
+  const parts = [heightCm, widthCm, depthCm].filter(
+    (v) => v !== null && v !== 0
+  ) as number[]
+
+  return `${parts.map(formatDimensionValue).join(' x ')} cm`
 }
 
 function mergeInitialValuesWithManualPrefill(
@@ -549,6 +587,17 @@ function mergeInitialValuesWithManualPrefill(
   assignText('inventory_number', manualPrefill.inventory_number)
   assignText('lot', manualPrefill.lot ?? manualPrefill.inventory_number)
 
+  if (manualPrefill.acquired !== null && manualPrefill.acquired !== undefined) {
+    ;(merged as any).acquired = manualPrefill.acquired
+  }
+
+  assignText('date_acquisition', manualPrefill.date_acquisition)
+  assignNumberOrString('asking_price', manualPrefill.asking_price)
+  assignText('currency', manualPrefill.currency)
+  assignNumberOrString('estimate_low', manualPrefill.estimate_low)
+  assignNumberOrString('estimate_high', manualPrefill.estimate_high)
+  assignText('auction_currency', manualPrefill.auction_currency)
+
   const manualDimensions =
     toNullableText(manualPrefill.dimensions) ??
     buildDimensionsString(
@@ -580,8 +629,20 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
     toNullableText(initialValues.dimensions) ??
     buildDimensionsString(heightCm, widthCm, depthCm)
 
+  const estimateLow = toNullableNumber(initialValues.estimate_low)
+  const estimateHigh = toNullableNumber(initialValues.estimate_high)
+  const hasEstimate = estimateLow !== null || estimateHigh !== null
+
+  
+  const acquired = toBoolean(initialValues.acquired)
+  const dateAcquisition = toNullableText(initialValues.date_acquisition)
+
   return {
     ...EMPTY_ARTWORK,
+
+    // ======================
+    // CORE
+    // ======================
     title: toNullableText(initialValues.title) ?? '',
     medium: toNullableText(initialValues.medium),
     year_execution: toNullableNumber(initialValues.year),
@@ -593,7 +654,36 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
     width_cm: widthCm,
     depth_cm: depthCm,
 
-    // utile pour les imports de lots / références
+    // ======================
+    // PRIVATE MARKET
+    // ======================
+    asking_price: hasEstimate
+      ? null
+      : toNullableNumber(initialValues.asking_price),
+
+    currency:
+      toNullableText(initialValues.currency) ??
+      EMPTY_ARTWORK.currency,
+
+    // ======================
+    // AUCTION
+    // ======================
+    estimate_low: estimateLow,
+    estimate_high: estimateHigh,
+    auction_currency:
+      toNullableText(initialValues.auction_currency) ?? null,
+
+    auctions: hasEstimate,
+
+    // ======================
+    // ACQUISITION (indépendant)
+    // ======================
+    acquired: acquired,
+    date_acquisition: dateAcquisition,
+
+    // ======================
+    // LOT fallback
+    // ======================
     lot:
       toNullableText(initialValues.lot) ??
       toNullableText(initialValues.inventory_number),
@@ -839,124 +929,129 @@ export default function ArtworkCreateContent({
     loadSelectedArtist()
   }, [artwork.artist_id, artistOptions])
 
-  async function saveArtwork() {
-    if (!artwork.title || !artwork.title.trim()) {
-      setError('Title is required')
+
+async function saveArtwork() {
+  if (!artwork.title || !artwork.title.trim()) {
+    setError('Title is required')
+    return
+  }
+
+  try {
+    setSaving(true)
+    setError(null)
+
+    console.log('[SAVE] artwork.acquired =', artwork.acquired)
+    console.log('[SAVE] artwork.date_acquisition =', artwork.date_acquisition)
+
+    const payload = {
+      title: artwork.title,
+      medium: artwork.medium,
+      signature: artwork.signature,
+      year_execution: artwork.year_execution,
+
+      acquired: artwork.acquired,
+      date_acquisition: artwork.date_acquisition,
+      cost_amount: artwork.cost_amount,
+      cost_currency: artwork.cost_currency,
+      commission_blondeau: artwork.commission_blondeau,
+
+      status: artwork.status,
+      priority: artwork.priority,
+      auctions: artwork.auctions,
+
+      asking_price: artwork.asking_price,
+      currency: artwork.currency,
+
+      artist_id: artwork.artist_id,
+      location_contact_id: artwork.location_contact_id,
+      auction_contact_id: artwork.auction_contact_id,
+      buyer_contact_id: artwork.buyer_contact_id,
+      destination_contact_id: artwork.destination_contact_id,
+      certificate_location_contact_id: artwork.certificate_location_contact_id,
+      proposed_by_id: artwork.proposed_by_id,
+
+      sale_date: artwork.sale_date,
+      sale_time: artwork.sale_time,
+      auction_link: artwork.auction_link,
+      auction_currency: artwork.auction_currency,
+      lot: artwork.lot,
+
+      estimate_low: artwork.estimate_low,
+      estimate_high: artwork.estimate_high,
+      auction_max_hammer: artwork.auction_max_hammer,
+      auction_max_premium: artwork.auction_max_premium,
+
+      sold_hammer: artwork.sold_hammer,
+      sold_premium: artwork.sold_premium,
+      underbidder: artwork.underbidder,
+      guarantee: artwork.guarantee,
+
+      date_proposition: artwork.date_proposition,
+      view_date: artwork.view_date,
+      condition: artwork.condition,
+      notes: artwork.notes,
+      certificate: artwork.certificate,
+      check_seller: artwork.check_seller,
+
+      height_cm: artwork.height_cm,
+      width_cm: artwork.width_cm,
+      depth_cm: artwork.depth_cm,
+
+      insurance_value: artwork.insurance_value,
+      insurance_currency: artwork.insurance_currency,
+    }
+
+    console.log('[SAVE] payload =', payload)
+
+    const { data, error } = await supabase
+      .from('artworks')
+      .insert(payload)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('CREATE ARTWORK FAILED:', error)
+      setError(error.message)
       return
     }
 
-    try {
-      setSaving(true)
-      setError(null)
-
-      const payload = {
-        title: artwork.title,
-        medium: artwork.medium,
-        signature: artwork.signature,
-        year_execution: artwork.year_execution,
-
-        date_acquisition: artwork.date_acquisition,
-        cost_amount: artwork.cost_amount,
-        cost_currency: artwork.cost_currency,
-        commission_blondeau: artwork.commission_blondeau,
-
-        status: artwork.status,
-        priority: artwork.priority,
-        auctions: artwork.auctions,
-
-        asking_price: artwork.asking_price,
-        currency: artwork.currency,
-
-        artist_id: artwork.artist_id,
-        location_contact_id: artwork.location_contact_id,
-        auction_contact_id: artwork.auction_contact_id,
-        buyer_contact_id: artwork.buyer_contact_id,
-        destination_contact_id: artwork.destination_contact_id,
-        certificate_location_contact_id: artwork.certificate_location_contact_id,
-        proposed_by_id: artwork.proposed_by_id,
-
-        sale_date: artwork.sale_date,
-        sale_time: artwork.sale_time,
-        auction_link: artwork.auction_link,
-        auction_currency: artwork.auction_currency,
-        lot: artwork.lot,
-
-        estimate_low: artwork.estimate_low,
-        estimate_high: artwork.estimate_high,
-        auction_max_hammer: artwork.auction_max_hammer,
-        auction_max_premium: artwork.auction_max_premium,
-
-        sold_hammer: artwork.sold_hammer,
-        sold_premium: artwork.sold_premium,
-        underbidder: artwork.underbidder,
-        guarantee: artwork.guarantee,
-
-        date_proposition: artwork.date_proposition,
-        view_date: artwork.view_date,
-        condition: artwork.condition,
-        notes: artwork.notes,
-        certificate: artwork.certificate,
-        check_seller: artwork.check_seller,
-
-        height_cm: artwork.height_cm,
-        width_cm: artwork.width_cm,
-        depth_cm: artwork.depth_cm,
-
-        insurance_value: artwork.insurance_value,
-        insurance_currency: artwork.insurance_currency,
-      }
-
-      const { data, error } = await supabase
-        .from('artworks')
-        .insert(payload)
-        .select()
-        .single()
-
-      if (error) {
-        console.error('CREATE ARTWORK FAILED:', error)
-        setError(error.message)
-        return
-      }
-
-      if (!data?.id) {
-        console.error('NO DATA RETURNED:', data)
-        setError('Artwork not created (no id)')
-        return
-      }
-
-      // ✅ Si l’œuvre provient d’un import d’étiquette, on relie l’import à la nouvelle œuvre
-      if (importRow?.id) {
-        const { error: importUpdateError } = await supabase
-          .from('artwork_imports')
-          .update({
-            artwork_id: data.id,
-            status: 'converted',
-          })
-          .eq('id', importRow.id)
-
-        if (importUpdateError) {
-          console.error('UPDATE ARTWORK_IMPORTS FAILED:', importUpdateError)
-          // on ne bloque pas la navigation pour autant
-        }
-      }
-
-      // ✅ Nettoyage du prefill manuel après création réussie
-      if (currentImportId) {
-        try {
-          sessionStorage.removeItem(`artwork_import_prefill_${currentImportId}`)
-        } catch (error) {
-          console.error('[ARTWORK_CREATE] impossible de supprimer le prefill manuel', error)
-        }
-      }
-
-      router.push(`/artworks/print/${data.id}`)
-    } catch (err) {
-      console.error('UNEXPECTED CREATE ERROR:', err)
-      setError('Unexpected error while creating artwork')
-    } finally {
-      setSaving(false)
+    if (!data?.id) {
+      console.error('NO DATA RETURNED:', data)
+      setError('Artwork not created (no id)')
+      return
     }
+
+    if (importRow?.id) {
+      const { error: importUpdateError } = await supabase
+        .from('artwork_imports')
+        .update({
+          artwork_id: data.id,
+          status: 'converted',
+        })
+        .eq('id', importRow.id)
+
+      if (importUpdateError) {
+        console.error('UPDATE ARTWORK_IMPORTS FAILED:', importUpdateError)
+      }
+    }
+
+    if (currentImportId) {
+      try {
+        sessionStorage.removeItem(`artwork_import_prefill_${currentImportId}`)
+      } catch (error) {
+        console.error('[ARTWORK_CREATE] impossible de supprimer le prefill manuel', error)
+      }
+    }
+
+    router.push(`/artworks/print/${data.id}`)
+  } catch (err) {
+    console.error('UNEXPECTED CREATE ERROR:', err)
+    setError('Unexpected error while creating artwork')
+  } finally {
+    setSaving(false)
   }
+}
+
 
   const importArtistName =
     manualPrefill?.artist_name ??
@@ -1041,76 +1136,74 @@ export default function ArtworkCreateContent({
           </div>
         )}
 
+        <div
+          style={{
+            position: 'sticky',
+            top: 70,
+            zIndex: 30,
+            backgroundColor: '#006039',
+            paddingTop: 8,
+            paddingBottom: 10,
+            marginBottom: 18,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            {saving && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: '0.95rem',
+                  color: '#eaf7ef',
+                }}
+              >
+                <Spinner size={16} />
+                <span>Saving artwork…</span>
+              </div>
+            )}
 
-<div
-  style={{
-    position: 'sticky',
-    top: 70,
-    zIndex: 30,
-    backgroundColor: '#006039',
-    paddingTop: 8,
-    paddingBottom: 10,
-    marginBottom: 18,
-  }}
->
-  <div
-    style={{
-      display: 'flex',
-      justifyContent: 'flex-end',
-      alignItems: 'center',
-      gap: 12,
-      flexWrap: 'wrap',
-    }}
-  >
-    {saving && (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          fontSize: '0.95rem',
-          color: '#eaf7ef',
-        }}
-      >
-        <Spinner size={16} />
-        <span>Saving artwork…</span>
-      </div>
-    )}
+            <button
+              className="edit-button"
+              type="button"
+              onClick={() => router.back()}
+              disabled={saving}
+            >
+              Cancel
+            </button>
 
-    <button
-      className="edit-button"
-      type="button"
-      onClick={() => router.back()}
-      disabled={saving}
-    >
-      Cancel
-    </button>
-
-    <button
-      className="edit-button"
-      type="button"
-      onClick={saveArtwork}
-      disabled={saving}
-      style={{
-        opacity: saving ? 0.85 : 1,
-        cursor: saving ? 'not-allowed' : 'pointer',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-      }}
-    >
-      {saving ? (
-        <>
-          <Spinner size={14} />
-          <span>Saving…</span>
-        </>
-      ) : (
-        'Save'
-      )}
-    </button>
-  </div>
-</div>
-
+            <button
+              className="edit-button"
+              type="button"
+              onClick={saveArtwork}
+              disabled={saving}
+              style={{
+                opacity: saving ? 0.85 : 1,
+                cursor: saving ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {saving ? (
+                <>
+                  <Spinner size={14} />
+                  <span>Saving…</span>
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
+        </div>
 
         <ArtworkFieldsLayout
           artwork={artwork}

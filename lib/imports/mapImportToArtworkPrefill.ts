@@ -6,6 +6,8 @@ export type ArtworkImportRow = {
   confidence?: Record<string, any> | null;
 };
 
+
+
 export type ArtworkPrefill = {
   import_id?: string;
 
@@ -16,17 +18,26 @@ export type ArtworkPrefill = {
   dimensions: string;
   notes: string;
 
-  // dimensions détaillées si tu veux les exploiter séparément
   height_cm: string;
   width_cm: string;
   depth_cm: string;
 
-  // utile si tu as un champ de référence / inventaire
-  inventory_number: string;
+  // ✅ PRIVATE MARKET
+  asking_price: string;
+  currency: string;
 
-  // statut MVP
+  // ✅ AUCTION
+  estimate_low: string;
+  estimate_high: string;
+  auction_currency: string;
+
+  // ✅ fallback lot
+  lot: string;
+
   status: string;
 };
+
+
 
 function toSafeString(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -45,33 +56,43 @@ function numberToString(value: unknown): string {
  * Transforme une ligne artwork_imports en objet de préremplissage
  * compatible avec le formulaire de création d’œuvre.
  */
+
 export function mapImportToArtworkPrefill(importRow: ArtworkImportRow | null | undefined): ArtworkPrefill {
   const normalized = importRow?.parsed_data?.normalized ?? {};
 
   return {
     import_id: importRow?.id ?? "",
 
-    // artiste matché automatiquement
+    // ✅ artiste matché automatiquement
     artist_id: toSafeString(importRow?.artist_match_id),
 
-    // champs principaux
+    // ✅ champs principaux
     title: toSafeString(normalized.title),
     year: numberToString(normalized.year),
     medium: toSafeString(normalized.medium),
     dimensions: toSafeString(normalized.dimensions),
     notes: toSafeString(normalized.notes),
 
-    // dimensions détaillées
+    // ✅ dimensions
     height_cm: numberToString(normalized.height_cm),
     width_cm: numberToString(normalized.width_cm),
     depth_cm: numberToString(normalized.depth_cm),
 
-    // référence / inventory number
-    inventory_number: toSafeString(normalized.inventory_number),
+    // ✅ PRIVATE MARKET
+    asking_price: numberToString(normalized.asking_price),
+    currency: toSafeString(normalized.currency),
 
-    // MVP : nouveau draft à valider
+    // ✅ AUCTION
+    estimate_low: numberToString(normalized.estimate_low),
+    estimate_high: numberToString(normalized.estimate_high),
+    auction_currency: toSafeString(normalized.auction_currency),
+
+    // ✅ fallback lot (on supprime inventory_number)
+    lot: toSafeString(normalized.lot),
+
     status: "draft",
   };
 }
+
 
 export default mapImportToArtworkPrefill;

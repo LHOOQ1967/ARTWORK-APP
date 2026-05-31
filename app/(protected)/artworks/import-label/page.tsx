@@ -39,6 +39,7 @@ type ArtistMatch = {
   score?: number | null;
 } | null;
 
+
 type EditableNormalized = {
   artist_name: string;
   title: string;
@@ -47,7 +48,11 @@ type EditableNormalized = {
   height_cm: string;
   width_cm: string;
   depth_cm: string;
-  inventory_number: string;
+  asking_price: string;
+  currency: string;
+  estimate_low: string;
+  estimate_high: string;
+  auction_currency: string;
   notes: string;
 };
 
@@ -74,6 +79,7 @@ function safeString(value: unknown): string {
   return String(value);
 }
 
+
 function normalizeForEdit(importRow: ArtworkImportRow | null): EditableNormalized {
   const normalized = getNormalized(importRow);
 
@@ -84,15 +90,21 @@ function normalizeForEdit(importRow: ArtworkImportRow | null): EditableNormalize
     medium: safeString(normalized.medium),
     height_cm: safeString(normalized.height_cm),
     width_cm: safeString(normalized.width_cm),
-    depth_cm: safeString(
+    depth_cm:
       normalized.depth_cm === null || normalized.depth_cm === undefined
         ? ""
-        : normalized.depth_cm
-    ),
-    inventory_number: safeString(normalized.inventory_number),
+        : safeString(normalized.depth_cm),
+
+    asking_price: safeString(normalized.asking_price),
+    currency: safeString(normalized.currency),
+    estimate_low: safeString(normalized.estimate_low),
+    estimate_high: safeString(normalized.estimate_high),
+    auction_currency: safeString(normalized.auction_currency),
+
     notes: safeString(normalized.notes),
   };
 }
+
 
 function validateImageFile(file: File): string | null {
   if (!file.type.startsWith("image/")) {
@@ -107,28 +119,43 @@ function validateImageFile(file: File): string | null {
   return null;
 }
 
+
 function buildDimensionsLabel(editable: EditableNormalized): string {
-  const parts = [editable.height_cm, editable.width_cm, editable.depth_cm]
-    .map((v) => String(v ?? "").trim())
-    .filter((v) => v !== "");
+  const h = String(editable.height_cm ?? "").trim();
+  const w = String(editable.width_cm ?? "").trim();
+  const d = String(editable.depth_cm ?? "").trim();
+
+  const parts = [h, w, d].filter((v) => v !== "" && v !== "0");
 
   if (!parts.length) return "";
   return `${parts.join(" x ")} cm`;
 }
 
+
+
 function toNullableNumber(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const normalized = trimmed.replace(",", ".");
+  const normalized = trimmed
+    .replace(/\s/g, "")
+    .replace(/'/g, "")
+    .replace(",", ".");
+
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
+
+
 
 function buildPrefillPayload(importRow: ArtworkImportRow, edited: EditableNormalized) {
   const heightCm = toNullableNumber(edited.height_cm);
   const widthCm = toNullableNumber(edited.width_cm);
   const depthCm = toNullableNumber(edited.depth_cm);
+
+  const dimensionsParts = [heightCm, widthCm, depthCm].filter(
+    (v) => v !== null && v !== 0
+  ) as number[];
 
   return {
     import_id: importRow.id,
@@ -136,18 +163,28 @@ function buildPrefillPayload(importRow: ArtworkImportRow, edited: EditableNormal
     title: edited.title.trim() || null,
     year: toNullableNumber(edited.year),
     medium: edited.medium.trim() || null,
+
     height_cm: heightCm,
     width_cm: widthCm,
     depth_cm: depthCm,
+
     dimensions:
       heightCm !== null && widthCm !== null
-        ? `${heightCm} x ${widthCm} x ${depthCm ?? 0} cm`
+        ? `${dimensionsParts.join(" x ")} cm`
         : null,
-    inventory_number: edited.inventory_number.trim() || null,
+
+    asking_price: toNullableNumber(edited.asking_price),
+    currency: edited.currency.trim() || null,
+
+    estimate_low: toNullableNumber(edited.estimate_low),
+    estimate_high: toNullableNumber(edited.estimate_high),
+    auction_currency: edited.auction_currency.trim() || null,
+
     notes: edited.notes.trim() || null,
     source: "import-label-manual-edit",
   };
 }
+
 
 export default function ImportLabelPage() {
   const router = useRouter();
@@ -157,17 +194,23 @@ export default function ImportLabelPage() {
   const [importRow, setImportRow] = useState<ArtworkImportRow | null>(null);
   const [artistMatch, setArtistMatch] = useState<ArtistMatch>(null);
 
-  const [edited, setEdited] = useState<EditableNormalized>({
-    artist_name: "",
-    title: "",
-    year: "",
-    medium: "",
-    height_cm: "",
-    width_cm: "",
-    depth_cm: "",
-    inventory_number: "",
-    notes: "",
-  });
+
+const [edited, setEdited] = useState<EditableNormalized>({
+  artist_name: "",
+  title: "",
+  year: "",
+  medium: "",
+  height_cm: "",
+  width_cm: "",
+  depth_cm: "",
+  asking_price: "",
+  currency: "",
+  estimate_low: "",
+  estimate_high: "",
+  auction_currency: "",
+  notes: "",
+});
+
 
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -370,24 +413,30 @@ export default function ImportLabelPage() {
     router.push(`/artworks/new?import_id=${encodeURIComponent(importRow.id)}`);
   }
 
-  function handleResetAll() {
-    resetMessages();
-    setSelectedFile(null);
-    setPreviewUrl("");
-    setImportRow(null);
-    setArtistMatch(null);
-    setEdited({
-      artist_name: "",
-      title: "",
-      year: "",
-      medium: "",
-      height_cm: "",
-      width_cm: "",
-      depth_cm: "",
-      inventory_number: "",
-      notes: "",
-    });
-  }
+
+function handleResetAll() {
+  resetMessages();
+  setSelectedFile(null);
+  setPreviewUrl("");
+  setImportRow(null);
+  setArtistMatch(null);
+  setEdited({
+    artist_name: "",
+    title: "",
+    year: "",
+    medium: "",
+    height_cm: "",
+    width_cm: "",
+    depth_cm: "",
+    asking_price: "",
+    currency: "",
+    estimate_low: "",
+    estimate_high: "",
+    auction_currency: "",
+    notes: "",
+  });
+}
+
 
   const canAnalyze = !!importRow?.id && !isUploading && !isAnalyzing;
   const canOpenCreateForm =
@@ -673,13 +722,73 @@ export default function ImportLabelPage() {
                     </div>
                   </div>
 
-                  <EditableFieldRow
-                    label="Référence"
-                    value={edited.inventory_number}
-                    onChange={(value) => handleEditChange("inventory_number", value)}
-                    confidence={importRow.confidence?.inventory_number}
-                    placeholder="Numéro de lot / référence"
-                  />
+
+<EditableFieldRow
+  label="Prix demandé"
+  value={edited.asking_price}
+  onChange={(value) => handleEditChange("asking_price", value)}
+  confidence={importRow.confidence?.asking_price}
+  placeholder="Montant"
+/>
+
+<EditableFieldRow
+  label="Devise prix demandé"
+  value={edited.currency}
+  onChange={(value) => handleEditChange("currency", value)}
+  confidence={importRow.confidence?.currency}
+  placeholder="CHF / EUR / USD / GBP / HKD"
+/>
+
+<div style={styles.resultRow}>
+  <div style={styles.resultHeader}>
+    <span style={styles.resultLabel}>Estimation vente aux enchères</span>
+    <span
+      style={{
+        ...styles.confidenceBadge,
+        color: confidenceColor(importRow.confidence?.estimate_low),
+        borderColor: confidenceColor(importRow.confidence?.estimate_low),
+      }}
+    >
+      {formatConfidence(importRow.confidence?.estimate_low)}
+    </span>
+  </div>
+
+  <div style={styles.dimensionsGrid}>
+    <div>
+      <label style={styles.miniLabel}>Bas</label>
+      <input
+        type="text"
+        value={edited.estimate_low}
+        onChange={(e) => handleEditChange("estimate_low", e.target.value)}
+        style={styles.textInput}
+        placeholder="Estimate low"
+      />
+    </div>
+
+    <div>
+      <label style={styles.miniLabel}>Haut</label>
+      <input
+        type="text"
+        value={edited.estimate_high}
+        onChange={(e) => handleEditChange("estimate_high", e.target.value)}
+        style={styles.textInput}
+        placeholder="Estimate high"
+      />
+    </div>
+
+    <div>
+      <label style={styles.miniLabel}>Devise</label>
+      <input
+        type="text"
+        value={edited.auction_currency}
+        onChange={(e) => handleEditChange("auction_currency", e.target.value)}
+        style={styles.textInput}
+        placeholder="CHF / EUR / USD / GBP / HKD"
+      />
+    </div>
+  </div>
+</div>
+
 
                   <EditableFieldRow
                     label="Notes"
@@ -710,6 +819,21 @@ export default function ImportLabelPage() {
                     </div>
                     <div style={styles.matchLine}>
                       <strong>Dimensions :</strong> {safeString(normalized.dimensions) || "—"}
+                    </div>
+                    <div style={styles.matchLine}>
+                      <strong>Prix demandé :</strong> {safeString(normalized.asking_price) || "—"}
+                    </div>
+                    <div style={styles.matchLine}>
+                      <strong>Devise :</strong> {safeString(normalized.currency) || "—"}
+                    </div>
+                    <div style={styles.matchLine}>
+                      <strong>Estimate low :</strong> {safeString(normalized.estimate_low) || "—"}
+                    </div>
+                    <div style={styles.matchLine}>
+                      <strong>Estimate high :</strong> {safeString(normalized.estimate_high) || "—"}
+                    </div>
+                    <div style={styles.matchLine}>
+                      <strong>Devise enchères :</strong> {safeString(normalized.auction_currency) || "—"}
                     </div>
                   </div>
 
