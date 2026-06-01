@@ -555,43 +555,63 @@ const payload = {
     })
   }
 
-  async function addDocument() {
-    if (!artwork?.id || !newDocUrl.trim()) return
 
-    const position =
-      (artwork.documents ?? []).filter((d) => d.document_type === newDocType)
-        .length + 1
-
-    const { data, error } = await supabase
-      .from('documents')
-      .insert({
-        artwork_id: artwork.id,
-        document_type: newDocType,
-        label: newDocLabel || null,
-        url: newDocUrl,
-        position,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('ADD DOCUMENT FAILED:', error)
-      alert('Failed to add document')
-      return
-    }
-
-    setArtwork((prev) =>
-      prev
-        ? {
-            ...prev,
-            documents: [...(prev.documents ?? []), data],
-          }
-        : prev
-    )
-
-    setNewDocLabel('')
-    setNewDocUrl('')
+const addDocument = async () => {
+  if (!artwork?.id) {
+    console.error('ADD DOCUMENT ABORT: missing artwork.id')
+    alert('Missing artwork id')
+    return
   }
+
+  const label = newDocLabel.trim()
+  const url = newDocUrl.trim()
+
+  if (!label || !url) {
+    alert('Please provide both label and URL')
+    return
+  }
+
+  const payload = {
+    artwork_id: artwork.id,
+    document_type: 'link', // ✅ à adapter si besoin
+    label,
+    url,
+  }
+
+  
+  const { data, error } = await supabase
+    .from('documents')
+    .insert(payload)
+    .select()
+
+  
+
+  if (error) {
+    console.error('ADD DOCUMENT FAILED raw:', error)
+    console.error('ADD DOCUMENT FAILED message:', error.message)
+    console.error('ADD DOCUMENT FAILED details:', error.details)
+    console.error('ADD DOCUMENT FAILED hint:', error.hint)
+    console.error('ADD DOCUMENT FAILED code:', error.code)
+    console.error('ADD DOCUMENT FAILED json:', JSON.stringify(error, null, 2))
+
+    alert(
+      `Failed to add document\n\n` +
+      `message: ${error.message ?? 'n/a'}\n` +
+      `details: ${error.details ?? 'n/a'}\n` +
+      `hint: ${error.hint ?? 'n/a'}\n` +
+      `code: ${error.code ?? 'n/a'}`
+    )
+    return
+  }
+
+  // optionnel : reset formulaire
+  setNewDocLabel('')
+  setNewDocUrl('')
+
+  // optionnel : refresh local si nécessaire
+  console.log('ADD DOCUMENT SUCCESS:', data)
+}
+
 
   async function deleteArtwork() {
     if (!artwork?.id || deleting || saving) return
