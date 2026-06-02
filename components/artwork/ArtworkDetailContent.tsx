@@ -159,8 +159,7 @@ export default function ArtworkDetailContent({
 
   const [newDocLabel, setNewDocLabel] = useState('')
   const [newDocUrl, setNewDocUrl] = useState('')
-  const [newDocType] = useState<'image' | 'onedrive'>('onedrive')
-
+  
   const [isAddingProposal, setIsAddingProposal] = useState(false)
 
   useEffect(() => {
@@ -556,7 +555,11 @@ const payload = {
   }
 
 
-const addDocument = async () => {
+
+
+const addDocument = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+  e?.preventDefault?.()
+
   if (!artwork?.id) {
     console.error('ADD DOCUMENT ABORT: missing artwork.id')
     alert('Missing artwork id')
@@ -571,20 +574,27 @@ const addDocument = async () => {
     return
   }
 
+  const nextPosition =
+    (artworkDocuments?.reduce((max, doc) => {
+      const p = typeof doc.position === 'number' ? doc.position : -1
+      return Math.max(max, p)
+    }, -1) ?? -1) + 1
+
   const payload = {
     artwork_id: artwork.id,
-    document_type: 'link', // ✅ à adapter si besoin
+    document_type: 'link',
     label,
     url,
+    position: nextPosition,
   }
 
-  
+  console.log('ADD DOCUMENT payload:', payload)
+
   const { data, error } = await supabase
     .from('documents')
-    .insert(payload)
+    .insert([payload])
     .select()
-
-  
+    .single()
 
   if (error) {
     console.error('ADD DOCUMENT FAILED raw:', error)
@@ -592,25 +602,33 @@ const addDocument = async () => {
     console.error('ADD DOCUMENT FAILED details:', error.details)
     console.error('ADD DOCUMENT FAILED hint:', error.hint)
     console.error('ADD DOCUMENT FAILED code:', error.code)
-    console.error('ADD DOCUMENT FAILED json:', JSON.stringify(error, null, 2))
 
     alert(
       `Failed to add document\n\n` +
-      `message: ${error.message ?? 'n/a'}\n` +
-      `details: ${error.details ?? 'n/a'}\n` +
-      `hint: ${error.hint ?? 'n/a'}\n` +
-      `code: ${error.code ?? 'n/a'}`
+        `message: ${error.message ?? 'n/a'}\n` +
+        `details: ${error.details ?? 'n/a'}\n` +
+        `hint: ${error.hint ?? 'n/a'}\n` +
+        `code: ${error.code ?? 'n/a'}`
     )
     return
   }
 
-  // optionnel : reset formulaire
+  console.log('ADD DOCUMENT SUCCESS:', data)
+
+  setArtwork((prev) => {
+    if (!prev) return prev
+
+    return {
+      ...prev,
+      documents: [...(prev.documents ?? []), data],
+    }
+  })
+
   setNewDocLabel('')
   setNewDocUrl('')
-
-  // optionnel : refresh local si nécessaire
-  console.log('ADD DOCUMENT SUCCESS:', data)
 }
+
+
 
 
   async function deleteArtwork() {
@@ -734,62 +752,66 @@ const addDocument = async () => {
     }
   }
 
-  async function handleDocumentsDragEnd(event: DragEndEvent) {
-    const activeId = String(event.active?.id ?? '')
-    const overId = String(event.over?.id ?? '')
 
-    if (!overId || activeId === overId || !artwork) return
+async function handleDocumentsDragEnd(event: DragEndEvent) {
+  const activeId = String(event.active?.id ?? '')
+  const overId = String(event.over?.id ?? '')
 
-    const currentDocs =
-      (artwork.documents ?? [])
-        .filter((d) => d.document_type === 'onedrive')
-        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) ?? []
+  if (!overId || activeId === overId || !artwork) return
 
-    const oldIndex = currentDocs.findIndex((doc) => doc.id === activeId)
-    const newIndex = currentDocs.findIndex((doc) => doc.id === overId)
-
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = arrayMove(currentDocs, oldIndex, newIndex)
-
-    const updatedDocs: ArtworkDocument[] = reordered.map((doc, index) => ({
-      ...doc,
-      artwork_id: artwork.id,
-      position: index + 1,
-    }))
-
-    const otherDocs = (artwork.documents ?? []).filter(
-      (d) => d.document_type !== 'onedrive'
-    )
-
-    const updatedDocuments = [...otherDocs, ...updatedDocs]
-
-    setArtwork((prev) => {
-      if (!prev) return prev
-
-      return {
-        ...prev,
-        documents: updatedDocuments.map((d, index) => ({
-          ...d,
-          artwork_id: prev.id,
-          position: d.position ?? index + 1,
-        })),
-      }
-    })
-
-    try {
-      await Promise.all(
-        updatedDocs.map((doc) =>
-          supabase
-            .from('documents')
-            .update({ position: doc.position })
-            .eq('id', doc.id)
-        )
+  const currentDocs =
+    (artwork.documents ?? [])
+      .filter(
+        (d) => d.document_type === 'onedrive' || d.document_type === 'link'
       )
-    } catch (err) {
-      console.error('REORDER DOCUMENTS ERROR:', err)
+      .sort((a, b) => {
+        const pa = typeof a.position === 'number' ? a.position : 9999
+        const pb = typeof b.position === 'number' ? b.position : 9999
+        return pa - pb
+      }) ?? []
+
+  const oldIndex = currentDocs.findIndex((doc) => doc.id === activeId)
+  const newIndex = currentDocs.findIndex((doc) => doc.id === overId)
+
+  if (oldIndex === -1 || newIndex === -1) return
+
+  const reordered = arrayMove(currentDocs, oldIndex, newIndex)
+
+  const updatedDocs: ArtworkDocument[] = reordered.map((doc, index) => ({
+    ...doc,
+    artwork_id: artwork.id,
+    position: index + 1,
+  }))
+
+  const otherDocs = (artwork.documents ?? []).filter(
+    (d) => d.document_type !== 'onedrive' && d.document_type !== 'link'
+  )
+
+  const updatedDocuments = [...otherDocs, ...updatedDocs]
+
+  setArtwork((prev) => {
+    if (!prev) return prev
+
+    return {
+      ...prev,
+      documents: updatedDocuments,
     }
+  })
+
+  try {
+    await Promise.all(
+      updatedDocs.map((doc) =>
+        supabase
+          .from('documents')
+          .update({ position: doc.position })
+          .eq('id', doc.id)
+      )
+    )
+  } catch (err) {
+    console.error('REORDER DOCUMENTS ERROR:', err)
   }
+}
+
 
   const images = useMemo(
     () =>
@@ -799,13 +821,23 @@ const addDocument = async () => {
     [artwork]
   )
 
-  const onedriveDocuments = useMemo(
-    () =>
-      ((artwork?.documents ?? []) as ArtworkDocument[])
-        .filter((d) => d.document_type === 'onedrive')
-        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
-    [artwork]
-  )
+
+const artworkDocuments = useMemo(
+  () =>
+    ((artwork?.documents ?? []) as ArtworkDocument[])
+      .filter(
+        (d) => d.document_type === 'onedrive' || d.document_type === 'link'
+      )
+      .sort((a, b) => {
+        const pa = typeof a.position === 'number' ? a.position : 9999
+        const pb = typeof b.position === 'number' ? b.position : 9999
+        return pa - pb
+      }),
+  [artwork]
+)
+
+
+
 
   const editInputStyle: React.CSSProperties = {
     width: '100%',
@@ -1027,7 +1059,7 @@ const addDocument = async () => {
           removeProposal={removeProposal}
         />
 
-        {(onedriveDocuments.length > 0 || isEditing) && (
+        {(artworkDocuments.length > 0 || isEditing) && (
           <section
             style={{
               marginTop: 40,
@@ -1074,20 +1106,22 @@ const addDocument = async () => {
                     style={{ ...editInputStyle, flex: 2 }}
                   />
 
-                  <button className="edit-button" onClick={addDocument}>
-                    Add
-                  </button>
+
+<button type="button" className="edit-button" onClick={addDocument}>
+  Add
+</button>
+
                 </div>
               </div>
             )}
 
-            {onedriveDocuments.length > 0 && (
+            {artworkDocuments.length > 0 && (
               <DndContext
                 collisionDetection={closestCenter}
                 onDragEnd={handleDocumentsDragEnd}
               >
                 <SortableContext
-                  items={onedriveDocuments.map((d) => d.id)}
+                  items={artworkDocuments.map((d) => d.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div
@@ -1097,7 +1131,7 @@ const addDocument = async () => {
                       gap: 8,
                     }}
                   >
-                    {onedriveDocuments.map((doc) => (
+                    {artworkDocuments.map((doc) => (
                       <SortableDocument
                         key={doc.id}
                         document={doc}
