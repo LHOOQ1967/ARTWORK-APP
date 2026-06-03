@@ -146,9 +146,7 @@ export function AuditProposedAtShortcut() {
       textDecoration: 'underline',
       textUnderlineOffset: 2,
     }}
-    target="_blank"
-    rel="noreferrer"
-    title="Ouvrir l'œuvre dans un nouvel onglet"
+    title="Ouvrir l'œuvre"
   >
     {artwork.title || '—'}
   </Link>
