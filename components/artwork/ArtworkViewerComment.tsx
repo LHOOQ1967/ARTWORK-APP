@@ -137,9 +137,16 @@ export default function ArtworkViewerComments({
     return () => clearTimeout(debounceRef.current)
   }, [myCommentHtml, userId])
 
-  const others = useMemo(() => {
-    return comments.filter((c) => c.user_id !== userId)
-  }, [comments, userId])
+
+const others = useMemo(() => {
+  return comments.filter(
+    (c) =>
+      c.user_id !== userId &&
+      c.comment &&
+      !isHtmlEffectivelyEmpty(c.comment)
+  )
+}, [comments, userId])
+
 
   function applyFormat(command: 'bold' | 'underline') {
     editorRef.current?.focus()
@@ -180,10 +187,13 @@ function debounceSave(html: string) {
       ref={editorRef}
       contentEditable
       suppressContentEditableWarning
-      onInput={(e) => {
-        const html = (e.target as HTMLDivElement).innerHTML
-        debounceSave(html)
-      }}
+
+onInput={(e) => {
+  const html = (e.target as HTMLDivElement).innerHTML
+  setMyCommentHtml(html)
+  debounceSave(html)
+}}
+
       style={editorStyle}
     />
   </div>
@@ -196,37 +206,33 @@ function debounceSave(html: string) {
 </div>
 
       {/* OTHER COMMENTS */}
-      <div style={sectionRowStyle}>
-        <div style={sectionLabelStyle}>Other Comments</div>
 
-        <div>
-          {others.length === 0 ? (
-            <div style={emptyStyle}>Aucun commentaire.</div>
-          ) : (
-            <div>
-              {others.map((c) => (
-                <div key={c.id} style={commentRowStyle}>
-                  <div style={nameStyle}>
-                    {c.profile?.email || 'Utilisateur'}
-                  </div>
+{/* OTHER COMMENTS */}
+{others.length > 0 && (
+  <div style={sectionRowStyle}>
+    <div style={sectionLabelStyle}>Other Comments</div>
 
-                  <div
-                    style={commentHtmlStyle}
-                    dangerouslySetInnerHTML={{ __html: c.comment }}
-                  />
+    <div>
+      {others.map((c) => (
+        <div key={c.id} style={commentRowStyle}>
+          <div style={nameStyle}>
+            {c.profile?.email || 'Utilisateur'}
+          </div>
 
-                  <div style={dateStyle}>
-                    {formatDate(c.updated_at)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div
+            style={commentHtmlStyle}
+            dangerouslySetInnerHTML={{ __html: c.comment }}
+          />
+
+          <div style={dateStyle}>
+            {formatDate(c.updated_at)}
+          </div>
         </div>
-      </div>
+      ))}
     </div>
-  )
-}
+  </div>
+)}
+
 
 const sectionRowStyle: React.CSSProperties = {
   display: 'grid',
