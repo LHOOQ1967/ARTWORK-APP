@@ -27,17 +27,29 @@ function isHtmlEffectivelyEmpty(html: string) {
   return text.length === 0
 }
 
+type ViewerComment = {
+  id: string
+  artwork_id: string
+  user_id: string
+  comment: string
+  updated_at: string
+  profile?: {
+    id: string
+    email: string
+  } | null
+}
+
 export default function ArtworkViewerComments({
   artworkId,
 }: {
   artworkId: string
 }) {
-  const [comments, setComments] = useState<any[]>([])
+  const [comments, setComments] = useState<ViewerComment[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [myCommentHtml, setMyCommentHtml] = useState('')
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle')
 
-  const debounceRef = useRef<any>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -66,18 +78,24 @@ export default function ArtworkViewerComments({
 
     const userIds = [...new Set((commentsData ?? []).map((c: any) => c.user_id))]
 
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .in('id', userIds)
+    let profiles: { id: string; email: string }[] = []
 
-    if (profilesError) {
-      console.error('Erreur chargement profils:', profilesError)
+    if (userIds.length > 0) {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .in('id', userIds)
+
+      if (profilesError) {
+        console.error('Erreur chargement profils:', profilesError)
+      } else {
+        profiles = profilesData ?? []
+      }
     }
 
-    const merged = (commentsData ?? []).map((c: any) => ({
+    const merged: ViewerComment[] = (commentsData ?? []).map((c: any) => ({
       ...c,
-      profile: profiles?.find((p) => p.id === c.user_id),
+      profile: profiles.find((p) => p.id === c.user_id) ?? null,
     }))
 
     setComments(merged)
@@ -123,116 +141,86 @@ export default function ArtworkViewerComments({
     load()
   }
 
-  useEffect(() => {
-    if (!userId) return
-
+  function debounceSave(html: string) {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current)
     }
 
     debounceRef.current = setTimeout(() => {
-      save(myCommentHtml)
+      save(html)
     }, 800)
-
-    return () => clearTimeout(debounceRef.current)
-  }, [myCommentHtml, userId])
-
-
-const others = useMemo(() => {
-  return comments.filter(
-    (c) =>
-      c.user_id !== userId &&
-      c.comment &&
-      !isHtmlEffectivelyEmpty(c.comment)
-  )
-}, [comments, userId])
-
-
-  function applyFormat(command: 'bold' | 'underline') {
-    editorRef.current?.focus()
-    document.execCommand(command)
-    const html = editorRef.current?.innerHTML || ''
-    setMyCommentHtml(html)
   }
 
- 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [])
 
-function debounceSave(html: string) {
-  if (debounceRef.current) {
-    clearTimeout(debounceRef.current)
-  }
-
-  debounceRef.current = setTimeout(() => {
-    save(html)
-  }, 800)
-}
+  const others = useMemo(() => {
+    return comments.filter(
+      (c) =>
+        c.user_id !== userId &&
+        !!c.comment &&
+        !isHtmlEffectivelyEmpty(c.comment)
+    )
+  }, [comments, userId])
 
   return (
     <div style={{ marginTop: 20 }}>
-
       {/* MY COMMENT */}
+      <div style={sectionRowStyle} className="print-comments">
+        <div style={sectionLabelStyle}>My Comment</div>
 
-
-
-<div style={sectionRowStyle} className="print-comments">
-
-  {/* LABEL */}
-  <div style={sectionLabelStyle}>
-    My Comment
-  </div>
-
-  {/* ✅ EDITION (écran uniquement) */}
-  <div className="no-print">
-    <div
-      ref={editorRef}
-      contentEditable
-      suppressContentEditableWarning
-
-onInput={(e) => {
-  const html = (e.target as HTMLDivElement).innerHTML
-  setMyCommentHtml(html)
-  debounceSave(html)
-}}
-
-      style={editorStyle}
-    />
-  </div>
-
-  {/* ✅ PRINT / AFFICHAGE */}
-  <div className="print-text">
-    <div dangerouslySetInnerHTML={{ __html: myCommentHtml }} />
-  </div>
-
-</div>
-
-      {/* OTHER COMMENTS */}
-
-{/* OTHER COMMENTS */}
-{others.length > 0 && (
-  <div style={sectionRowStyle}>
-    <div style={sectionLabelStyle}>Other Comments</div>
-
-    <div>
-      {others.map((c) => (
-        <div key={c.id} style={commentRowStyle}>
-          <div style={nameStyle}>
-            {c.profile?.email || 'Utilisateur'}
-          </div>
-
+        <div className="no-print">
           <div
-            style={commentHtmlStyle}
-            dangerouslySetInnerHTML={{ __html: c.comment }}
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={(e) => {
+              const html = (e.target as HTMLDivElement).innerHTML
+              setMyCommentHtml(html)
+              debounceSave(html)
+            }}
+            style={editorStyle}
           />
-
-          <div style={dateStyle}>
-            {formatDate(c.updated_at)}
+          <div style={savingInlineStyle}>
+            {savingState === 'saving' && 'Saving...'}
+            {savingState === 'saved' && 'Saved'}
           </div>
         </div>
-      ))}
-    </div>
-  </div>
-)}
 
+        <div className="print-text">
+          <div dangerouslySetInnerHTML={{ __html: myCommentHtml }} />
+        </div>
+      </div>
+
+      {/* OTHER COMMENTS */}
+      {others.length > 0 && (
+        <div style={sectionRowStyle}>
+          <div style={sectionLabelStyle}>Other Comments</div>
+
+          <div>
+            {others.map((c) => (
+              <div key={c.id} style={commentRowStyle}>
+                <div style={nameStyle}>{c.profile?.email || 'Utilisateur'}</div>
+
+                <div
+                  style={commentHtmlStyle}
+                  dangerouslySetInnerHTML={{ __html: c.comment }}
+                />
+
+                <div style={dateStyle}>{formatDate(c.updated_at)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const sectionRowStyle: React.CSSProperties = {
   display: 'grid',
@@ -243,41 +231,19 @@ const sectionRowStyle: React.CSSProperties = {
 }
 
 const sectionLabelStyle: React.CSSProperties = {
-  fontWeight: 700,   // ✅ en gras comme Notes
+  fontWeight: 700,
   fontSize: '16px',
   lineHeight: '34px',
 }
 
-const toolbarStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-  marginBottom: '6px',
-}
-
-const toolbarButtonStyle: React.CSSProperties = {
-  width: '30px',
-  height: '30px',
-  border: '1px solid #ccc',
-  borderRadius: '4px',
-  background: '#fff',
-  cursor: 'pointer',
-}
-
-const savingInfoStyle: React.CSSProperties = {
-  fontSize: '13px',
-  color: '#666',
-  marginLeft: '8px',
-}
-
 const editorStyle: React.CSSProperties = {
-  minHeight: '38px',              // ✅ une ligne par défaut
+  minHeight: '38px',
   padding: '8px 10px',
   border: '1px solid #ccc',
   borderRadius: '4px',
   fontSize: '14px',
   lineHeight: 1.4,
-  whiteSpace: 'pre-wrap',         // ✅ retours de ligne respectés
+  whiteSpace: 'pre-wrap',
   overflowWrap: 'break-word',
   outline: 'none',
 }
@@ -299,7 +265,7 @@ const nameStyle: React.CSSProperties = {
 const commentHtmlStyle: React.CSSProperties = {
   fontSize: '14px',
   lineHeight: 1.4,
-  whiteSpace: 'pre-wrap',         // ✅ garde les retours de ligne
+  whiteSpace: 'pre-wrap',
   overflowWrap: 'break-word',
 }
 
@@ -310,34 +276,8 @@ const dateStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-const emptyStyle: React.CSSProperties = {
-  color: '#777',
-  fontSize: '14px',
-}
-
-
-const inlineEditorWrapper: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '32px 32px 1fr 80px',
-  alignItems: 'center',
-  gap: '6px',
-}
-
-
-
-const editorInlineStyle: React.CSSProperties = {
-  minHeight: '32px',          // ✅ une ligne au départ
-  padding: '6px 8px',
-  border: '1px solid #ccc',
-  borderRadius: '4px',
-  fontSize: '14px',
-  lineHeight: 1.4,
-  whiteSpace: 'pre-wrap',     // ✅ retours à la ligne
-  overflowWrap: 'break-word',
-  outline: 'none',
-}
-
 const savingInlineStyle: React.CSSProperties = {
   fontSize: '12px',
   color: '#666',
+  marginTop: '6px',
 }
