@@ -473,30 +473,40 @@ export default function ArtworkListUpdated({ artworks }: Props) {
               >
                 <td style={{ ...td, width: 80 }}>
                   {(() => {
-                    const images = Array.isArray(a.images) ? a.images : []
-                    return images.length > 0 && images[0]?.url ? (
-                      <img
-                        src={images[0].url ?? ''}
-                        alt=""
-                        style={{
-                          width: 60,
-                          height: 60,
-                          objectFit: 'cover',
-                          borderRadius: 4,
-                          display: 'block',
-                        }}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: 60,
-                          height: 60,
-                          backgroundColor: '#eee',
-                          borderRadius: 4,
-                        }}
-                      />
-                    )
+
+const images = Array.isArray(a.images) ? a.images : []
+
+const mainImage = images
+  .slice()
+  .sort((a, b) => {
+    const pa = typeof a.position === 'number' ? a.position : 9999
+    const pb = typeof b.position === 'number' ? b.position : 9999
+    return pa - pb
+  })[0]
+
+return mainImage?.url ? (
+  <img
+    src={mainImage.url ?? ''}
+    alt=""
+    style={{
+      width: 60,
+      height: 60,
+      objectFit: 'cover',
+      borderRadius: 4,
+      display: 'block',
+    }}
+    loading="lazy"
+  />
+) : (
+  <div
+    style={{
+      width: 60,
+      height: 60,
+      backgroundColor: '#eee',
+      borderRadius: 4,
+    }}
+  />
+)
                   })()}
                 </td>
 
