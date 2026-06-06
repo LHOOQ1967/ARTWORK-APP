@@ -207,10 +207,13 @@ const thumbnailRows = Math.max(1, Math.ceil(thumbnailCount / 2))
 const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
 
   
-  const onedriveDocuments =
-    artwork.documents?.filter(
-      (d: ArtworkDocument) => d.document_type === 'onedrive'
-    ) || []
+
+const artworkDocuments =
+  artwork.documents?.filter(
+    (d: ArtworkDocument) =>
+      d.document_type === 'onedrive' || d.document_type === 'link'
+  ) || []
+
 
 const { role } = useSessionProfile()
 
@@ -813,12 +816,12 @@ const displayTitle = (() => {
 )}
 
 
-{onedriveDocuments.length > 0 && (
+{artworkDocuments.length > 0 && (
   <InfoRow
     label="Links"
     value={
       <>
-        {onedriveDocuments.map((doc: ArtworkDocument, index: number) => (
+        {artworkDocuments.map((doc: ArtworkDocument, index: number) => (
           <span key={doc.id}>
             <a
               href={doc.url ?? undefined}
@@ -834,7 +837,7 @@ const displayTitle = (() => {
             </a>
 
             {/* Séparateur sauf après le dernier */}
-            {index < onedriveDocuments.length - 1 && ' / '}
+            {index < artworkDocuments.length - 1 && ' / '}
           </span>
         ))}
       </>
