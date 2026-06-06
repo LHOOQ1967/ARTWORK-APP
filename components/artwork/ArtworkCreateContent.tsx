@@ -940,9 +940,6 @@ async function saveArtwork() {
     setSaving(true)
     setError(null)
 
-    console.log('[SAVE] artwork.acquired =', artwork.acquired)
-    console.log('[SAVE] artwork.date_acquisition =', artwork.date_acquisition)
-
     const payload = {
       title: artwork.title,
       medium: artwork.medium,
@@ -1001,7 +998,6 @@ async function saveArtwork() {
       insurance_currency: artwork.insurance_currency,
     }
 
-    console.log('[SAVE] payload =', payload)
 
     const { data, error } = await supabase
       .from('artworks')

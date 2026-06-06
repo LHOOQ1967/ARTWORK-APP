@@ -1307,20 +1307,7 @@ export function ArtworkFieldsLayout({
         />
       </EditRow>
 
-      <EditRow label="Date acquisition">
-        <input
-          type="date"
-          value={artwork.date_acquisition ?? ''}
-          onChange={(e) =>
-            setArtwork((prev) => ({
-              ...prev,
-              date_acquisition: e.target.value || null,
-            }))
-          }
-          style={editInputStyle}
-          disabled={!isEditing}
-        />
-      </EditRow>
+
 
       <EditRow label="Cost">
         <div style={{ display: 'flex', gap: 8 }}>
