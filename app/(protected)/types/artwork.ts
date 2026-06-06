@@ -1,5 +1,198 @@
 
-// src/types/artwork.ts
+/* =========================================
+   BASE TYPES
+========================================= */
+
+export type Contact = {
+  id: string
+  company_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+
+  email?: string | null
+  telephone?: string | null
+  city?: string | null
+  role?: string | null
+  notes?: string | null
+}
+
+export type Artist = {
+  id: string
+  first_name?: string | null
+  last_name?: string | null
+
+  year_of_birth?: number | null
+  year_of_death?: number | null
+
+  place_of_birth?: string | null
+  place_of_death?: string | null
+
+  notes?: string | null
+}
+
+export type ArtworkDocument = {
+  id: string
+  artwork_id: string
+  document_type: 'image' | 'onedrive' | 'link'
+  label?: string | null
+  url: string
+  position?: number | null
+  created_at?: string | null
+}
+
+export type ArtworkProposal = {
+  id: string
+  contact_id?: string | null
+  proposed_at?: string | null
+
+  contact_label?: string
+
+  contact?: Contact | null
+  proposedTo?: Contact | null
+}
+
+
+/* =========================================
+   CORE TYPE (SOURCE OF TRUTH FRONTEND)
+========================================= */
+
+
+export type ArtworkFull = {
+  id: string
+
+  /* ---------- identité ---------- */
+  title?: string | null
+  medium?: string | null
+  signature?: string | null
+  year_execution?: number | null
+
+  height_cm?: number | null
+  width_cm?: number | null
+  depth_cm?: number | null
+
+  /* ---------- statut ---------- */
+  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
+  priority?: 'Information' | 'Medium' | 'High'
+  acquired?: boolean | null
+
+  /* ---------- dates ---------- */
+  date_proposition?: string | null
+  view_date?: string | null
+  date_acquisition?: string | null
+
+  /* ---------- informations ---------- */
+  condition?: string | null
+  notes?: string | null
+
+  /* ---------- pricing ---------- */
+  currency?: string | null
+  asking_price?: number | null
+
+  cost_amount?: number | null
+  cost_currency?: string | null
+  commission_blondeau?: number | null
+
+  insurance_value?: number | null
+  insurance_currency?: string | null
+
+  /* ---------- auction ---------- */
+  auctions?: boolean | null
+
+  sale_date?: string | null
+  sale_time?: string | null
+  auction_link?: string | null
+  lot?: string | null
+
+  estimate_low?: number | null
+  estimate_high?: number | null
+  auction_currency?: string | null
+
+  guarantee?: boolean | null
+
+  auction_max_hammer?: number | null
+  auction_max_premium?: number | null
+
+  sold_hammer?: number | null
+  sold_premium?: number | null
+  underbidder?: boolean | null
+
+  /* ---------- ✅ NEW : rapport héritier ---------- */
+  rapport_heritier?: boolean | null
+  rapport_heritier_document_id?: string | null
+  rapport_heritier_document?: ArtworkDocument | null
+
+  /* ---------- relations ---------- */
+  artist?: Artist | null
+
+  proposedBy?: Contact | null
+  buyer?: Contact | null
+  location?: Contact | null
+  destination?: Contact | null
+  certificateLocation?: Contact | null
+  auctionContact?: Contact | null
+
+  /* ---------- arrays ---------- */
+  proposals?: ArtworkProposal[] | null
+  documents?: ArtworkDocument[] | null
+  images?: ArtworkDocument[] | null
+
+  /* ---------- computed / logs ---------- */
+  proposed_by_name?: string | null
+  buyer_id?: string | null
+
+  last_changed_at?: string | null
+  changed_fields?: string[] | null
+  changed_diff?: any
+
+  /* ---------- legacy ---------- */
+  certificate?: boolean | null
+  certificate_location?: string | null
+  location_of_work?: string | null
+  check_seller?: boolean | null
+
+  updated_at?: string | null
+}
+
+
+
+/* =========================================
+   DERIVED TYPES (UTILISATION UI)
+========================================= */
+
+/* ✅ PRINT = FULL */
+export type ArtworkPrint = ArtworkFull
+
+
+/* ✅ LIST (léger, performant) */
+export type ArtworkListItem = Pick<
+  ArtworkFull,
+  | 'id'
+  | 'title'
+  | 'artist'
+  | 'status'
+  | 'priority'
+  | 'date_proposition'
+  | 'asking_price'
+  | 'currency'
+  | 'sale_date'
+  | 'estimate_low'
+  | 'estimate_high'
+  | 'auction_currency'
+  | 'auction_max_hammer'
+  | 'auction_max_premium'
+  | 'lot'
+  | 'date_acquisition'
+  | 'cost_amount'
+  | 'cost_currency'
+  | 'commission_blondeau'
+  | 'updated_at'
+  | 'images'
+>
+
+
+/* =========================================
+   FORM TYPE (INPUT / EDIT)
+========================================= */
 
 export type ArtworkForm = {
   id?: string
@@ -8,7 +201,6 @@ export type ArtworkForm = {
   medium: string | null
   signature: string | null
   year_execution: number | null
-  dimensions?: string | null
 
   status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
   priority: 'Information' | 'Medium' | 'High'
@@ -35,7 +227,7 @@ export type ArtworkForm = {
   estimate_low: number | null
   estimate_high: number | null
   auction_max_hammer?: number | null
-  auction_max_premium?: number | null 
+  auction_max_premium?: number | null
 
   sold_hammer: number | null
   sold_premium: number | null
@@ -46,7 +238,6 @@ export type ArtworkForm = {
   condition: string | null
   notes: string | null
   certificate: boolean
-  check_seller?: boolean | null
 
   date_acquisition: string | null
   cost_amount: number | null
@@ -59,329 +250,8 @@ export type ArtworkForm = {
   width_cm: number | null
   depth_cm: number | null
 
+rapport_heritier: boolean
+rapport_heritier_document_id: string | null
+
   acquired?: boolean
-
-  documents: unknown[]
-  artwork_proposals?: unknown[]
-  updated_at?: string | null
 }
-
-
-export type Artwork = {
-  id: string
-
-  // Identité
-  title: string | null
-  artist_id: string | null
-
-  // Statut & canal
-  status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
-  auctions: boolean
-
-  priority: 'Information' | 'Medium' | 'High' | null
-
-  // Dates CLÉS
-  date_proposition: string | null
-  sale_date: string | null
-  sale_time?: string | null
-  view_date: string | null
-
-  // Market
-  asking_price: number | null
-  currency: string | null
-
-  // Auction
-  auction_link: string | null
-  auction_currency: string | null
-  estimate_low: number | null
-  estimate_high: number | null
-  auction_max_hammer?: number | null
-  auction_max_premium?: number | null
-  lot?: string | null
-
-  // Result
-  sold_hammer: number | null
-  sold_premium: number | null
-
-  // Cost
-  date_acquisition: string | null
-  cost_amount: number | null
-  cost_currency: string | null
-  commission_blondeau?: number | null
-  updated_at?: string | null
-
-  // Meta
-  notes: string | null
-  condition: string | null
-  certificate: boolean
-
-  // Relations (optionnelles selon le SELECT)
-  artist?: {
-    id: string
-    first_name: string
-    last_name: string
-  } | null
-
-  documents?: {
-    id: string
-    document_type: 'image' | 'onedrive'
-    url: string
-    position?: number
-  }[]
-
-  artwork_proposals?: unknown[]
-}
-
-
-export type ArtworkBase = ArtworkForm | ArtworkWithRelations
-
-
-
-
-export type ArtworkListItem = {
-  id: string
-
-  title?: string | null
-
-  artist?: {
-    first_name?: string | null
-    last_name?: string | null
-  } | null
-
-  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived' | null
-  priority?: 'High' | 'Medium' | 'Information' | null
-
-  // ✅ MARKET
-  date_proposition?: string | null
-  asking_price?: number | null
-  currency?: string | null
-
-  // ✅ AUCTION (pour les vues mixed si besoin)
-  sale_date?: string | null
-  estimate_low?: number | null
-  estimate_high?: number | null
-  auction_currency?: string | null
-  auction_max_hammer?: number | null
-  auction_max_premium?: number | null
-  lot?: string | null
-
-  date_acquisition: string | null
-  cost_amount?: number | null
-  cost_currency?: string | null
-  commission_blondeau?: number | null
-  updated_at?: string | null
-
-  documents?: {
-    id: string
-    document_type: 'image' | 'onedrive'
-    url?: string | null
-  }[]
-  
-  // ✅ Champs artiste au niveau racine
-  first_name?: string | null
-  last_name?: string | null
-
-  // ✅ Images JSON
-  images?: {
-    id?: string
-    url: string
-    position?: number
-  }[] | null
-}
-
-  
-
-
-
-
-export type ArtworkDocument = {
-  id: string
-  artwork_id: string
-  document_type: 'image' | 'onedrive'
-  label?: string | null
-  url: string                // ✅ obligatoire
-  position: number
-}
-
-
-
-export type ArtworkProposal = {
-  id: string
-  proposed_at: string | null
-  contact: Contact
-}
-
-
-export type Contact = {
-  id: string
-
-  company_name?: string | null
-  first_name?: string | null
-  last_name?: string | null
-
-  email?: string | null
-  telephone?: string | null
-  city?: string | null
-  role?: string | null
-
-  notes?: string | null
-}
-
-
-export type Artist = {
-  id: string
-  first_name?: string | null
-  last_name?: string | null
-
-  year_of_birth?: number | null
-  year_of_death?: number | null
-
-  place_of_birth?: string | null
-  place_of_death?: string | null
-
-  notes?: string | null
-}
-
-
-export type ArtworkWithRelations = Artwork & {
-  
-id: string
-
-  title?: string | null
-  medium?: string | null        // ✅ AJOUTER
-  signature?: string | null
-  year_execution?: number | null
-
-  // relations
-  documents: ArtworkDocument[]
-  artwork_proposals?: ArtworkProposal[]
-
-  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
-  priority?: 'Information' | 'Medium' | 'High'
-
-  asking_price?: number | null
-  currency?: string | null
-
-  auction_contact_id?: string | null
-  location_contact_id?: string | null
-  buyer_contact_id?: string | null
-  destination_contact_id?: string | null
-
-
-  auction_currency?: string | null
-  sale_date?: string | null
-  sale_time?: string | null
-
-  estimate_low?: number | null
-  estimate_high?: number | null
-  lot?: string | null
-auction_max_hammer?: number | null
-auction_max_premium?: number | null
-  sold_hammer?: number | null
-  sold_premium?: number | null
-  underbidder?: boolean | null
-  guarantee?: boolean | null
-  acquired?: boolean
-  date_acquisition: string | null
-  cost_amount?: number | null
-  cost_currency?: string | null
-  commission_blondeau?: number | null
-  updated_at?: string | null
-
-  insurance_value?: number | null
-  insurance_currency?: string | null
-
-  height_cm?: number | null
-  width_cm?: number | null
-  depth_cm?: number | null
-
-  certificate?: boolean | null
-  certificate_location_contact_id?: string | null
-  check_seller?: boolean | null
-
-  notes?: string | null
-
-  artist?: Artist | null
-  auction_house?: Contact | null
-  proposedBy?: Contact | null
-  proposed_by_id?: string | null 
-  location?: Contact | null
-  destination?: Contact | null
-  destination_contact?: Contact | null
-  certificateLocation?: Contact | null
-  buyer?: Contact | null
-  auctionContact?: Contact | null
-
-}
- 
-
-export type ArtworkPrint = {
-  id: string
-
-  title?: string | null
-  medium?: string | null
-  signature?: string | null
-  year_execution?: number | null
-
-  height_cm?: number | null
-  width_cm?: number | null
-  depth_cm?: number | null
-
-  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
-  priority?: 'Information' | 'Medium' | 'High'
-
-  date_proposition?: string | null
-  view_date?: string | null
-  condition?: string | null
-  notes?: string | null
-
-  currency?: string | null
-  asking_price?: number | null
-
-  auctions?: boolean | null
-  auction_link?: string | null
-  sale_date?: string | null
-  sale_time?: string | null
-  estimate_low?: number | null
-  estimate_high?: number | null
-  auction_currency?: string | null
-    lot?: string | null
-  auction_max_hammer?: number | null
-  auction_max_premium?: number | null
-  
-
-  sold_hammer?: number | null
-  sold_premium?: number | null
-  underbidder?: boolean | null
-  guarantee?: boolean | null
-
-  date_acquisition: string | null
-  cost_amount?: number | null
-  cost_currency?: string | null
-  commission_blondeau?: number | null
-  insurance_value?: number | null
-  insurance_currency?: string | null
-
-  artist?: Artist | null
-  proposedBy?: Contact | null
-  buyer?: Contact | null
-  location?: Contact | null
-  destination?: Contact | null
-  certificate?: boolean | null
-  certificateLocation?: Contact | null
-
-  updated_at?: string | null
-
-  documents?: ArtworkDocument[]
-  
-  proposals?: {
-    contact_id: string
-    contact_label?: string
-  }[] | null
-
-
-}
-
-
-
-

@@ -29,10 +29,10 @@ const STATUS_STYLES: Record<
     color: 'black',
     label: 'Viewed',
   }, 
-    Negociation: {
+    Negotiation: {
     bg: 'white',
     color: 'black',
-    label: 'Negociation',
+    label: 'Negotiation',
   }, 
 Bought: {
     bg: '#006039',
@@ -208,11 +208,19 @@ const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
 
   
 
+
 const artworkDocuments =
-  artwork.documents?.filter(
-    (d: ArtworkDocument) =>
-      d.document_type === 'onedrive' || d.document_type === 'link'
-  ) || []
+  (artwork.documents ?? [])
+    .filter(
+      (d: ArtworkDocument) =>
+        d.document_type === 'onedrive' || d.document_type === 'link'
+    )
+    .sort((a, b) => {
+      const pa = typeof a.position === 'number' ? a.position : 9999
+      const pb = typeof b.position === 'number' ? b.position : 9999
+      return pa - pb
+    })
+
 
 
 const { role } = useSessionProfile()
@@ -814,6 +822,35 @@ const displayTitle = (() => {
     }
   />
 )}
+
+
+
+{(artwork.rapport_heritier === true || artwork.acquired === true) && (
+  <InfoRowShort
+    label="Rapport H."
+    value={
+      artwork.rapport_heritier === false ? (
+        'No'
+      ) : artwork.rapport_heritier_document ? (
+        <a
+          href={artwork.rapport_heritier_document.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: '#007a5e',
+            textDecoration: 'underline',
+          }}
+        >
+          {artwork.rapport_heritier_document.label || 'Open document'}
+        </a>
+      ) : (
+        'Yes'
+      )
+    }
+  />
+)}
+
+
 
 
 {artworkDocuments.length > 0 && (

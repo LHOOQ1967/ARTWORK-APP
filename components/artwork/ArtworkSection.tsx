@@ -1036,6 +1036,8 @@ const [newProposedAt, setNewProposedAt] = useState(
 
   const [newProposalContactId, setNewProposalContactId] = useState('')
 
+  const [rapportHeritierDocQuery, setRapportHeritierDocQuery] = useState('')
+
   // Search hooks
   const { results: artistResults, loading: artistLoading } =
     useDebouncedArtistSearch(artistQuery)
@@ -1369,11 +1371,19 @@ async function handleAddProposal() {
                 >
                   <span>{contactLabel(p.contact)}</span>
 
-                  {p.proposed_at && (
-                    <span style={{ fontSize: 12 }}>
-                      ({new Date(p.proposed_at).toLocaleDateString('fr-CH')})
-                    </span>
-                  )}
+
+
+{(p.proposed_at || artwork.date_proposition) && (
+  <span style={{ fontSize: 12 }}>
+    (
+    {new Date(
+      p.proposed_at ?? artwork.date_proposition!
+    ).toLocaleDateString('fr-CH')}
+    )
+  </span>
+)}
+
+
 
                   {isEditing && (
                     <button
@@ -2320,6 +2330,62 @@ async function handleAddProposal() {
                 noResultsText="No destination found"
               />
             </EditRow>
+            
+{/* ✅ Rapport Héritier */}
+<EditRow label="Rapport Héritier">
+  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+    <select
+      value={artwork.rapport_heritier ? 'yes' : 'no'}
+      onChange={(e) =>
+        setArtwork({
+          ...artwork,
+          rapport_heritier: e.target.value === 'yes',
+          // reset doc si désactivé
+          ...(e.target.value === 'no'
+            ? {
+                rapport_heritier_document_id: null,
+                rapport_heritier_document: null,
+              }
+            : {}),
+        })
+      }
+      style={{ ...editInputStyle, width: 90 }}
+      disabled={!isEditing}
+    >
+      <option value="no">No</option>
+      <option value="yes">Yes</option>
+    </select>
+
+    {artwork.rapport_heritier && (
+      <div style={{ flex: 1 }}>
+        <AutocompleteSelect<Contact>
+          value={artwork.rapport_heritier_document_id ?? ''}
+          onChange={(value) => {
+            const selected =
+              (artwork.documents ?? []).find((d) => d.id === value) || null
+
+            setArtwork({
+              ...artwork,
+              rapport_heritier_document_id: value || null,
+              rapport_heritier_document: selected,
+            })
+          }}
+          query={rapportHeritierDocQuery}
+          setQuery={setRapportHeritierDocQuery}
+          options={(artwork.documents ?? []).filter(
+            (d) => d.document_type === 'onedrive' || d.document_type === 'link'
+          )}
+          getLabel={(d) =>
+            d.label || safeHostname(d.url) || 'Document'
+          }
+          placeholder="Select OneDrive document"
+          disabled={!isEditing}
+          isEditing={isEditing}
+        />
+      </div>
+    )}
+  </div>
+</EditRow>
           </>
         )}
       </SectionBlock>

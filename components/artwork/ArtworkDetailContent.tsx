@@ -334,6 +334,12 @@ useEffect(() => {
         })) ?? []
 
 
+
+const documents = (documentsRes.data ?? []) as ArtworkDocument[]
+
+const rapportHeritierDocument =
+  documents.find((d) => d.id === artworkRow.rapport_heritier_document_id) ?? null
+
 const fullArtwork = normalizeArtwork({
   ...artworkRow,
   artist: artistRes.data ?? null,
@@ -343,9 +349,13 @@ const fullArtwork = normalizeArtwork({
   destination: destinationRes.data ?? null,
   certificateLocation: certificateLocationRes.data ?? null,
   auction_house: auctionHouseRes.data ?? null,
-  documents: documentsRes.data ?? [],
+  documents,
+  rapport_heritier: artworkRow.rapport_heritier ?? false,
+  rapport_heritier_document_id: artworkRow.rapport_heritier_document_id ?? null,
+  rapport_heritier_document: rapportHeritierDocument,
   artwork_proposals: normalizedProposals,
 })
+
 
 
       setArtwork(fullArtwork)
@@ -414,6 +424,10 @@ const payload = {
   cost_currency: artwork.cost_currency,
   commission_blondeau: artwork.commission_blondeau,
   destination_contact_id: artwork.destination_contact_id,
+  
+  rapport_heritier: artwork.rapport_heritier ?? false,
+  rapport_heritier_document_id: artwork.rapport_heritier_document_id ?? null,
+
 
   date_proposition: artwork.date_proposition,
   proposed_by_id: artwork.proposed_by_id,
