@@ -178,6 +178,21 @@ function getDefaultSort(mode: 'market' | 'auction' | 'bought', section: 'active'
   return { key: 'date' as const, dir: 'desc' as const }
 }
 
+
+function getMainImage(artwork: ArtworkListItem) {
+  const images =
+    (artwork.images ?? [])
+      .filter((d) => d.document_type === 'image')
+      .sort((a, b) => {
+        const pa = typeof a.position === 'number' ? a.position : 9999
+        const pb = typeof b.position === 'number' ? b.position : 9999
+        return pa - pb
+      })
+
+  return images[0] ?? null
+}
+
+
 export default function ArtworkList({
   artworks,
   mode = 'market',
@@ -545,27 +560,50 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}
               >
                 {/* 1) Image */}
-                <td style={{ ...td, width: 80 }}>
-                  {(() => {
-                    const images = Array.isArray((a as any).images) ? (a as any).images : []
-                    return images.length > 0 && images[0]?.url ? (
-                      <img
-                        src={images[0].url}
-                        alt=""
-                        style={{
-                          width: 60,
-                          height: 60,
-                          objectFit: 'cover',
-                          borderRadius: 4,
-                          display: 'block',
-                        }}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div style={{ width: 60, height: 60, backgroundColor: '#eee', borderRadius: 4 }} />
-                    )
-                  })()}
-                </td>
+
+<td style={{ ...td, width: 80 }}>
+  {(() => {
+    const images = Array.isArray((a as any).images)
+      ? (a as any).images
+      : []
+
+    const sortedImages = images
+      .filter((d) => d.document_type === 'image')
+      .slice() // évite mutation
+      .sort((a, b) => {
+        const pa = typeof a.position === 'number' ? a.position : 9999
+        const pb = typeof b.position === 'number' ? b.position : 9999
+        return pa - pb
+      })
+
+    const mainImage = sortedImages[0]
+
+    return mainImage?.url ? (
+      <img
+        src={mainImage.url}
+        alt=""
+        style={{
+          width: 60,
+          height: 60,
+          objectFit: 'cover',
+          borderRadius: 4,
+          display: 'block',
+        }}
+        loading="lazy"
+      />
+    ) : (
+      <div
+        style={{
+          width: 60,
+          height: 60,
+          backgroundColor: '#eee',
+          borderRadius: 4,
+        }}
+      />
+    )
+  })()}
+</td>
+
 
                 {/* 2) Date / Proposed by */}
                 <td style={{ ...td, width: 100 }}>
