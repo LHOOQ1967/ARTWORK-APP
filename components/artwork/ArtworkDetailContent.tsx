@@ -423,6 +423,7 @@ const payload = {
   cost_amount: artwork.cost_amount,
   cost_currency: artwork.cost_currency,
   commission_blondeau: artwork.commission_blondeau,
+  purchase_cost: artwork.purchase_cost,
   destination_contact_id: artwork.destination_contact_id,
   
   rapport_heritier: artwork.rapport_heritier ?? false,

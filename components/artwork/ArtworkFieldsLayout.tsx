@@ -1380,6 +1380,41 @@ export function ArtworkFieldsLayout({
           </select>
         </div>
       </EditRow>
+            <EditRow label="Purchase Cost">
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="number"
+            value={artwork.purchase_cost ?? ''}
+            onChange={(e) =>
+              setArtwork((prev) => ({
+                ...prev,
+                purchase_cost:
+                  e.target.value === '' ? null : Number(e.target.value),
+              }))
+            }
+            style={{ ...editInputStyle, width: 140 }}
+            disabled={!isEditing}
+          />
+          <select
+            value={artwork.cost_currency ?? ''}
+            onChange={(e) =>
+              setArtwork((prev) => ({
+                ...prev,
+                cost_currency: e.target.value || null,
+              }))
+            }
+            style={{ ...editInputStyle, width: 90 }}
+            disabled={!isEditing}
+          >
+            <option value="">—</option>
+            {CURRENCY_OPTIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      </EditRow>
     </>
   )}
 </SectionBlock>

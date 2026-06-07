@@ -243,6 +243,7 @@ export type ArtworkForm = {
   cost_amount: number | null
   cost_currency: string | null
   commission_blondeau?: number | null
+  purchase_cost: number | null
   insurance_value: number | null
   insurance_currency: string | null
 

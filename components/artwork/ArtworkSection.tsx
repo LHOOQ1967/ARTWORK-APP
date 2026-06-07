@@ -2266,6 +2266,34 @@ async function handleAddProposal() {
               </div>
             </EditRow>
 
+
+<EditRow label="Purchase Cost">
+  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    
+    {/* ✅ Devise fixe */}
+    <div style={{ ...editInputStyle, width: 90, background: '#f5f5f5' }}>
+      EUR
+    </div>
+
+    {/* ✅ Montant */}
+    <input
+      type="number"
+      placeholder="Amount"
+      value={artwork.purchase_cost ?? ''}
+      onChange={(e) =>
+        setArtwork({
+          ...artwork,
+          purchase_cost:
+            e.target.value === '' ? null : Number(e.target.value),
+        })
+      }
+      style={{ ...editInputStyle, width: 140 }}
+      disabled={!isEditing}
+    />
+  </div>
+</EditRow>
+
+
             <EditRow label="Insurance">
               <div style={{ display: 'flex', gap: 8 }}>
                 <select
