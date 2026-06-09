@@ -86,7 +86,7 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
         />
 
           <EntryCardFlorac
-          href="Market"
+          href="market"
           title="Market"
           subtitle="Fairs and auctions"
         />

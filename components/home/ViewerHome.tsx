@@ -85,7 +85,7 @@ return (
       }}
     >
       <EntryCardNew
-        href="/market"
+        href="market"
         title="Market"
         subtitle="Fairs and auctions"
       />

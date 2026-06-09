@@ -7,9 +7,10 @@ import { supabase } from '@/lib/supabaseBrowser';
 type ProfileRole = 'Administrator' | 'Editor' | 'Viewer' | null;
 
 type MarketCategory = 'Foire' | 'Ventes aux enchères' | 'Autre';
-type MarketCategoryFilter = 'Tous' | MarketCategory;
+
 type MarketItemType = 'web_link' | 'document';
-type ItemSortMode = 'label_asc' | 'created_asc' | 'auction_datetime_asc';
+type ItemSortMode = 'label_asc' | 'created_desc' | 'auction_datetime_asc';
+
 
 type MarketSection = {
   id: string;
@@ -144,6 +145,7 @@ function sortSections(a: SectionWithItems, b: SectionWithItems) {
 }
 
 
+
 function sortItems(
   items: MarketSectionItemView[],
   mode: ItemSortMode,
@@ -163,21 +165,23 @@ function sortItems(
       if (aValue < bValue) return -1;
       if (aValue > bValue) return 1;
 
-      if (a.created_at < b.created_at) return -1;
-      if (a.created_at > b.created_at) return 1;
+      // en cas d'égalité sur la date de vente, on met les plus récents d'abord
+      if (a.created_at > b.created_at) return -1;
+      if (a.created_at < b.created_at) return 1;
 
       return a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' });
     }
 
-    // creation order = ordre réel de création (ancien -> récent)
-    if (a.created_at < b.created_at) return -1;
-    if (a.created_at > b.created_at) return 1;
+    // mode = created_desc => plus récent au plus ancien
+    if (a.created_at > b.created_at) return -1;
+    if (a.created_at < b.created_at) return 1;
 
     return a.label.localeCompare(b.label, 'fr', { sensitivity: 'base' });
   });
 
   return copy;
 }
+
 
 
 function makeEditState(item: MarketSectionItemView): EditState {
@@ -224,11 +228,7 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 600,
     lineHeight: 1.2,
   },
-  subtitle: {
-    margin: '6px 0 0 0',
-    color: 'white',
-    fontSize: '14px',
-  },
+
   pillRow: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -276,13 +276,7 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
     overflow: 'hidden',
   },
-    cardFilter: {
-    border: '1px solid #cbd5e1',
-    borderRadius: '12px',
-    backgroundColor: '#DCEFE7',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-    overflow: 'hidden',
-  },
+
   cardHeader: {
     borderBottom: '1px solid #e2e8f0',
     padding: '18px 20px 14px',
@@ -301,12 +295,7 @@ const styles: Record<string, CSSProperties> = {
   cardBody: {
     padding: '16px 20px',
   },
-  filterGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) 220px 260px auto',
-    gap: '16px',
-    alignItems: 'end',
-  },
+
   formGridTwo: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
@@ -345,27 +334,6 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: 'border-box',
     minHeight: '110px',
     resize: 'vertical',
-  },
-  searchContainer: {
-    position: 'relative',
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: '12px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    color: '#94a3b8',
-    fontSize: '14px',
-    pointerEvents: 'none',
-  },
-  inputWithIcon: {
-    paddingLeft: '34px',
-  },
-  buttonRow: {
-    display: 'flex',
-    gap: '8px',
-    alignItems: 'center',
-    flexWrap: 'wrap',
   },
   buttonPrimary: {
     display: 'inline-flex',
@@ -542,9 +510,7 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
     alignItems: 'center',
   },
-  sixteendown: {
-    marginTop: '16px',
-  },
+
   formStack: {
     display: 'flex',
     flexDirection: 'column',
@@ -561,21 +527,34 @@ const styles: Record<string, CSSProperties> = {
     color: '#64748b',
     fontSize: '13px',
   },
-  
 sectionActions: {
   display: 'flex',
   alignItems: 'center',
+  justifyContent: 'flex-end',
   gap: '8px',
   flexWrap: 'wrap',
+  marginLeft: 'auto',
 },
-sortSelect: {
-  minWidth: '220px',
-  maxWidth: '260px',
+sortButtonsContainer: {
+  display: 'flex',
+  gap: '6px',
 },
-inlineLabel: {
-  marginBottom: 0,
-  whiteSpace: 'nowrap',
+
+sortButton: {
+  padding: '4px 10px',
+  fontSize: '12px',
+  border: '1px solid #ccc',
+  borderRadius: '4px',
+  background: '#f7f7f7',
+  cursor: 'pointer',
 },
+
+sortButtonActive: {
+  background: '#0b66c3',
+  color: '#fff',
+  border: '1px solid #0b66c3',
+},
+
 
 };
 
@@ -604,10 +583,10 @@ export default function MarketPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [sections, setSections] = useState<SectionWithItems[]>([]);
-  const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<MarketCategoryFilter>('Tous');
-  const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSortMode>>({});
+
+const [sections, setSections] = useState<SectionWithItems[]>([]);
+const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSortMode>>({});
+
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
@@ -639,11 +618,15 @@ export default function MarketPage() {
   const canEdit = role === 'Administrator' || role === 'Editor';
 
   
+
+
 function getDefaultSortMode(section: MarketSection): ItemSortMode {
   return section.category === 'Ventes aux enchères'
     ? 'auction_datetime_asc'
-    : 'created_asc';
+    : 'created_desc';
 }
+
+
 
 function getSectionSortMode(section: MarketSection): ItemSortMode {
   return sectionSortModes[section.id] ?? getDefaultSortMode(section);
@@ -766,43 +749,14 @@ setSectionSortModes((prev) => {
     void loadData();
   }, []);
 
-  const filteredSections = useMemo(() => {
-    const q = query.trim().toLowerCase();
 
-    return sections
-      .filter((section) => {
-        if (categoryFilter !== 'Tous' && section.category !== categoryFilter) {
-          return false;
-        }
+const displaySections = useMemo(() => {
+  return sections.map((section) => ({
+    ...section,
+    items: sortItems(section.items, getSectionSortMode(section), section.category),
+  }));
+}, [sections, sectionSortModes]);
 
-        if (!q) return true;
-
-        const haystack = [
-          section.title,
-          section.category,
-          section.notes ?? '',
-          ...section.items.flatMap((item) => [
-            item.label,
-            item.notes ?? '',
-            item.web_url ?? '',
-            item.document_url ?? '',
-            item.document_type ?? '',
-            item.auction_house ?? '',
-            item.auction_datetime ?? '',
-          ]),
-        ]
-          .join(' ')
-          .toLowerCase();
-
-        return haystack.includes(q);
-      })
-
-.map((section) => ({
-  ...section,
-  items: sortItems(section.items, getSectionSortMode(section), section.category),
-}));
-
-  }, [sections, query, categoryFilter, sectionSortModes]);
 
   function toggleSection(sectionId: string) {
     setExpandedSections((prev) => ({
@@ -811,21 +765,6 @@ setSectionSortModes((prev) => {
     }));
   }
 
-  function expandAll() {
-    const next: Record<string, boolean> = {};
-    filteredSections.forEach((section) => {
-      next[section.id] = true;
-    });
-    setExpandedSections((prev) => ({ ...prev, ...next }));
-  }
-
-  function collapseAll() {
-    const next: Record<string, boolean> = {};
-    filteredSections.forEach((section) => {
-      next[section.id] = false;
-    });
-    setExpandedSections((prev) => ({ ...prev, ...next }));
-  }
 
   function startInlineEdit(item: MarketSectionItemView) {
     setEditingItemId(item.id);
@@ -1160,12 +1099,18 @@ setSectionSortModes((prev) => {
     gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
   };
 
-  const filterResponsiveStyle: CSSProperties = {
-    ...styles.filterGrid,
-    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-  };
 
   return (
+        <main
+      style={{
+        paddingTop: 10,
+        paddingLeft: 10,
+        paddingRight: 10,
+        paddingBottom: 10,
+        minHeight: "100vh",
+        background: "#006039",
+      }}
+    >
     <div style={styles.page}>
       <div style={styles.pageInner}>
         <div style={styles.topBar}>
@@ -1176,57 +1121,14 @@ setSectionSortModes((prev) => {
 
           <div style={styles.pillRow}>
             <span style={styles.pill}>Role : {role ?? '—'}</span>
-            <span style={styles.pill}>{filteredSections.length} sections</span>
+            <span style={styles.pill}>{displaySections.length} sections</span>
           </div>
         </div>
 
         {message ? <div style={styles.alertSuccess}>{message}</div> : null}
         {errorMessage ? <div style={styles.alertError}>{errorMessage}</div> : null}
 
-        <div style={styles.cardFilter}>
-          
 
-          <div style={{ ...styles.cardBody, ...filterResponsiveStyle }}>
-            <div>
-              <label htmlFor="market-search" style={styles.label}>Search Items</label>
-              <div style={styles.searchContainer}>
-                <span style={styles.searchIcon}>🔎</span>
-                <input
-                  id="market-search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search for fairs, auctions, galleries, catalogues..."
-                  style={{ ...styles.input, ...styles.inputWithIcon }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label style={styles.label}>Category</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as MarketCategoryFilter)}
-                style={styles.input}
-              >
-                <option value="Tous">All</option>
-                <option value="Foire">Fairs</option>
-                <option value="Ventes aux enchères">Auctions</option>
-                <option value="Autre">Other</option>
-              </select>
-            </div>
-
-
-
-            <div style={styles.buttonRow}>
-              <button type="button" onClick={expandAll} style={getButtonStyle('secondary')}>
-                Expand All
-              </button>
-              <button type="button" onClick={collapseAll} style={getButtonStyle('secondary')}>
-                Collapse All
-              </button>
-            </div>
-          </div>
-        </div>
 
 
 <div style={styles.sectionList}>
@@ -1234,12 +1136,12 @@ setSectionSortModes((prev) => {
     <div style={styles.card}>
       <div style={styles.cardBody}>Loading…</div>
     </div>
-  ) : filteredSections.length === 0 ? (
+  ) : displaySections.length === 0 ? (
     <div style={styles.card}>
       <div style={styles.cardBody}>No sections found for this filter.</div>
     </div>
   ) : (
-    filteredSections.map((section) => {
+    displaySections.map((section) => {
       const isExpanded = expandedSections[section.id] ?? true;
 
       return (
@@ -1274,45 +1176,85 @@ setSectionSortModes((prev) => {
               </div>
 
               <div style={styles.sectionActions}>
-                <label
-                  htmlFor={`sort-${section.id}`}
-                  style={{ ...styles.label, ...styles.inlineLabel }}
-                >
-                  Sort
-                </label>
 
-                <select
-                  id={`sort-${section.id}`}
-                  value={getSectionSortMode(section)}
-                  onChange={(e) =>
-                    setSectionSortModes((prev) => ({
-                      ...prev,
-                      [section.id]: e.target.value as ItemSortMode,
-                    }))
-                  }
-                  style={{ ...styles.input, ...styles.sortSelect }}
-                >
-                  <option value="label_asc">Alphabetical</option>
-                  <option value="created_asc">Creation order</option>
-                  {section.category === 'Ventes aux enchères' ? (
-                    <option value="auction_datetime_asc">Auction date</option>
-                  ) : null}
-                </select>
 
-                {canEdit ? (
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteSection(section.id)}
-                    disabled={saving}
-                    style={getButtonStyle('danger', saving)}
-                  >
-                    <span>🗑</span>
-                    <span>Delete Section</span>
-                  </button>
-                ) : null}
+
+
+  <div style={styles.sortButtonsContainer}>
+    {section.category === 'Ventes aux enchères' && (
+      <button
+        type="button"
+        onClick={() =>
+          setSectionSortModes((prev) => ({
+            ...prev,
+            [section.id]: 'auction_datetime_asc',
+          }))
+        }
+        style={{
+          ...styles.sortButton,
+          ...(getSectionSortMode(section) === 'auction_datetime_asc'
+            ? styles.sortButtonActive
+            : {}),
+        }}
+      >
+        Sale Date
+      </button>
+    )}
+
+    <button
+      type="button"
+      onClick={() =>
+        setSectionSortModes((prev) => ({
+          ...prev,
+          [section.id]: 'label_asc',
+        }))
+      }
+      style={{
+        ...styles.sortButton,
+        ...(getSectionSortMode(section) === 'label_asc'
+          ? styles.sortButtonActive
+          : {}),
+      }}
+    >
+      Alpha
+    </button>
+
+    <button
+      type="button"
+      onClick={() =>
+        setSectionSortModes((prev) => ({
+          ...prev,
+          [section.id]: 'created_desc',
+        }))
+      }
+      style={{
+        ...styles.sortButton,
+        ...(getSectionSortMode(section) === 'created_desc'
+          ? styles.sortButtonActive
+          : {}),
+      }}
+    >
+      Création
+    </button>
+  </div>
+
+  {canEdit ? (
+    <button
+      type="button"
+      onClick={() => handleDeleteSection(section.id)}
+      disabled={saving}
+      style={getButtonStyle('danger', saving)}
+    >
+      <span>🗑</span>
+      <span>Section</span>
+    </button>
+  ) : null}
+</div>
+
+
               </div>
             </div>
-          </div>
+
 
           {isExpanded ? (
             <div style={styles.cardBody}>
@@ -1337,7 +1279,7 @@ setSectionSortModes((prev) => {
                                 ) : null}
                                 {item.auction_datetime ? (
                                   <span style={styles.pillAuction}>
-                                    Date: {formatAuctionDateTimeLocal(item.auction_datetime)}
+                                     {formatAuctionDateTimeLocal(item.auction_datetime)}
                                   </span>
                                 ) : null}
                               </div>
@@ -1377,7 +1319,7 @@ setSectionSortModes((prev) => {
                                     disabled={saving}
                                     style={getButtonStyle('secondary', saving)}
                                   >
-                                    ✏️ Edit
+                                    ✏️ 
                                   </button>
 
                                   <button
@@ -1386,7 +1328,7 @@ setSectionSortModes((prev) => {
                                     disabled={saving}
                                     style={getButtonStyle('danger', saving)}
                                   >
-                                    🗑 Delete
+                                    🗑 
                                   </button>
                                 </>
                               ) : null}
@@ -1767,7 +1709,7 @@ setSectionSortModes((prev) => {
                       onChange={(e) =>
                         setItemForm((prev) => ({ ...prev, auctionHouse: e.target.value }))
                       }
-                      placeholder="Christie’s, Sotheby’s, Phillips..."
+                      placeholder="Auction House"
                       style={styles.input}
                     />
                   </div>
@@ -1833,5 +1775,6 @@ setSectionSortModes((prev) => {
         ) : null}
       </div>
     </div>
+    </main>
   );
 }

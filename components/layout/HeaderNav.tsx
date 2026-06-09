@@ -92,15 +92,15 @@ export default function HeaderNav() {
           </Link>
         )}
 
-        {!loading && isLoggedIn && canEdit && (
+
           <Link
-            href="/artworks/new"
+            href="market"
             prefetch={false}
-            style={navLink(isActive('/artworks/new'))}
+            style={navLink(isActive('market'))}
           >
-            Add
+            Market
           </Link>
-        )}
+
 
         {!loading && isLoggedIn && canEdit && (
           <Link
