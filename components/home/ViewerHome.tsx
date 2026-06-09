@@ -84,7 +84,11 @@ return (
         marginTop: 40,
       }}
     >
-
+      <EntryCardNew
+        href="/market"
+        title="Market"
+        subtitle="Fairs and auctions"
+      />
       <EntryCardNew
         href="https://buyerspremium.blondeau.ch/calculate.php"
         title="Buyers Premium"

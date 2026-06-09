@@ -72,18 +72,31 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
           subtitle="Artists & Contacts"
         />
 
+
+        <EntryCardNew
+          href="inventory"
+          title="Inventory"
+          subtitle="Florac Works"
+        />
+
         <EntryCardNew
           href="artworks/updated"
           title="Updated"
           subtitle="All artworks sorted by date updated"
         />
 
-        <EntryCardNew
+          <EntryCardFlorac
+          href="Market"
+          title="Market"
+          subtitle="Fairs and auctions"
+        />
+
+        <EntryCardFlorac
           href="https://buyerspremium.blondeau.ch/calculate.php"
           title="Buyers Premium"
           subtitle="Calculator"
         />
-        <EntryCardNew
+        <EntryCardFlorac
           href="https://buyerspremium.blondeau.ch/auction_time.php"
           title="Auction Time"
           subtitle="Calculator"

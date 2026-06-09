@@ -112,16 +112,6 @@ export default function HeaderNav() {
           </Link>
         )}
 
-                {!loading && isLoggedIn && canEdit && (
-          <Link
-            href="/inventory"
-            prefetch={false}
-            style={navLink(isActive('/inventory'))}
-          >
-            Inventory
-          </Link>
-        )}
-
 
       </nav>
 
