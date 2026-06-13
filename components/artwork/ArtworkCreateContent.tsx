@@ -14,6 +14,7 @@ type ArtworkCreateInitialValues = {
   title?: string
   year?: string | number
   medium?: string
+  signature?: string
   dimensions?: string
   notes?: string
   height_cm?: string | number
@@ -36,6 +37,7 @@ type ManualImportPrefill = {
   title?: string | null
   year?: string | number | null
   medium?: string | null
+  signature?: string | null
   dimensions?: string | null
   notes?: string | null
   height_cm?: string | number | null
@@ -578,6 +580,7 @@ function mergeInitialValuesWithManualPrefill(
   assignText('title', manualPrefill.title)
   assignNumberOrString('year', manualPrefill.year)
   assignText('medium', manualPrefill.medium)
+  assignText('signature', manualPrefill.signature)
   assignText('notes', manualPrefill.notes)
 
   assignNumberOrString('height_cm', manualPrefill.height_cm)
@@ -645,6 +648,7 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
     // ======================
     title: toNullableText(initialValues.title) ?? '',
     medium: toNullableText(initialValues.medium),
+    signature: toNullableText(initialValues.signature),
     year_execution: toNullableNumber(initialValues.year),
     dimensions,
     notes: toNullableText(initialValues.notes),
@@ -865,17 +869,21 @@ export default function ArtworkCreateContent({
 
     const prefilledArtwork = buildArtworkFromInitialValues(mergedInitialValues)
 
-    setArtwork((prev) => ({
-      ...prev,
-      ...prefilledArtwork,
-      // on garde quand même certains defaults utiles du formulaire
-      date_proposition: prev.date_proposition || EMPTY_ARTWORK.date_proposition,
-      priority: prev.priority || EMPTY_ARTWORK.priority,
-      currency: prev.currency || EMPTY_ARTWORK.currency,
-      cost_currency: prev.cost_currency || EMPTY_ARTWORK.cost_currency,
-      auction_currency: prev.auction_currency || EMPTY_ARTWORK.auction_currency,
-      insurance_currency: prev.insurance_currency || EMPTY_ARTWORK.insurance_currency,
-    }))
+
+
+setArtwork((prev) => ({
+  ...prev,
+  ...prefilledArtwork,
+
+  // on garde certains defaults utiles seulement s'ils ne sont pas déjà définis
+  date_proposition: prev.date_proposition || EMPTY_ARTWORK.date_proposition,
+  priority: prev.priority || EMPTY_ARTWORK.priority,
+
+  cost_currency: prev.cost_currency ?? EMPTY_ARTWORK.cost_currency,
+  insurance_currency: prev.insurance_currency ?? EMPTY_ARTWORK.insurance_currency,
+}))
+
+
 
     // Priorité 1 : nom artiste corrigé manuellement
     const manualArtistName =

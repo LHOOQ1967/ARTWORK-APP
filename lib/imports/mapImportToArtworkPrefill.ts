@@ -15,6 +15,7 @@ export type ArtworkPrefill = {
   title: string;
   year: string;
   medium: string;
+  signature: string;
   dimensions: string;
   notes: string;
 
@@ -70,6 +71,7 @@ export function mapImportToArtworkPrefill(importRow: ArtworkImportRow | null | u
     title: toSafeString(normalized.title),
     year: numberToString(normalized.year),
     medium: toSafeString(normalized.medium),
+    signature: toSafeString(normalized.signature),
     dimensions: toSafeString(normalized.dimensions),
     notes: toSafeString(normalized.notes),
 

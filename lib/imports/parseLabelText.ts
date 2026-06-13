@@ -1,11 +1,14 @@
 
 // lib/imports/parseLabelText.ts
 
+
 type ParsedDataNormalized = {
   artist_name: string | null;
   title: string | null;
   year: number | null;
   medium: string | null;
+  signature: string | null;
+
   height_cm: number | null;
   width_cm: number | null;
   depth_cm: number | null;
@@ -21,11 +24,14 @@ type ParsedDataNormalized = {
   notes: string | null;
 };
 
+
+
 type ParsedDataRaw = {
   artist_raw: string | null;
   title_raw: string | null;
   year_raw: string | null;
   medium_raw: string | null;
+  signature_raw: string | null;
   dimensions_raw: string | null;
 
   asking_price_raw: string | null;
@@ -35,11 +41,14 @@ type ParsedDataRaw = {
   normalized: ParsedDataNormalized;
 };
 
+
+
 type ParsedConfidence = {
   artist_name: number;
   title: number;
   year: number;
   medium: number;
+  signature: number;
   dimensions: number;
 
   asking_price: number;
@@ -51,6 +60,7 @@ type ParsedConfidence = {
 
   notes: number;
 };
+
 
 export type ParsedLabelResult = {
   parsedData: ParsedDataRaw;
@@ -212,11 +222,14 @@ function isSignatureLine(line: string): boolean {
   );
 }
 
+
 function isEditionLine(line: string): boolean {
-  return /\b(edition|ed\.?|artist'?s proof|a\/p|e\.a\.|hc|hors commerce|numbered)\b/i.test(
-    line
+  return (
+    /\b(edition|ed\.?|artist'?s proof|a\/p|ap|e\.a\.|ea|hc|hors commerce|numbered)\b/i.test(line) ||
+    /\b\d{1,4}\s*\/\s*\d{1,4}\b/.test(line)
   );
 }
+
 
 function isExecutedLine(line: string): boolean {
   return /\b(executed|painted|created|conceived|made|produced|dated)\b/i.test(line);
@@ -455,6 +468,123 @@ function trimZeros(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value).replace(/\.?0+$/, "");
 }
 
+
+function cleanupSignatureOrEditionLine(line: string): string {
+  return line
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s*;\s*/g, "; ")
+    .trim()
+    .replace(/[.;,\s]+$/g, "")
+    .trim();
+}
+
+function extractStandaloneEditionToken(line: string): string | null {
+  const clean = normalizeLine(line);
+
+  const fraction = clean.match(/\b\d{1,4}\s*\/\s*\d{1,4}\b/);
+  if (fraction) {
+    return fraction[0].replace(/\s+/g, "");
+  }
+
+  if (/\bartist'?s proof\b/i.test(clean)) return "Artist's proof";
+  if (/\bhors commerce\b/i.test(clean)) return "HC";
+  if (/\be\.?\s*a\.?\b/i.test(clean)) return "EA";
+  if (/\ba\s*\/\s*p\b/i.test(clean) || /\bap\b/i.test(clean)) return "AP";
+  if (/\bhc\b/i.test(clean)) return "HC";
+
+  return null;
+}
+
+function mergeSignatureAndEdition(
+  signatureLine: string | null,
+  editionLine: string | null
+): string | null {
+  const parts: string[] = [];
+
+  const sig = signatureLine ? cleanupSignatureOrEditionLine(signatureLine) : "";
+  const edi = editionLine ? cleanupSignatureOrEditionLine(editionLine) : "";
+
+  if (sig) parts.push(sig);
+  if (edi) {
+    const normalizedEdi = extractStandaloneEditionToken(edi) ?? edi;
+    if (!parts.some((p) => p.toLowerCase() === normalizedEdi.toLowerCase())) {
+      parts.push(normalizedEdi);
+    }
+  }
+
+  if (!parts.length) return null;
+  return parts.join(", ");
+}
+
+function extractSignatureAndEdition(lines: string[], usedIndexes: Set<number>): {
+  signature: string | null;
+  signature_raw: string | null;
+  confidence: number;
+  consumedIndexes: number[];
+} {
+  const collectedSignatureLines: string[] = [];
+  const collectedEditionLines: string[] = [];
+  const consumedIndexes: number[] = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (usedIndexes.has(i)) continue;
+
+    const line = lines[i];
+    const clean = normalizeLine(line);
+
+    const signatureMatch = isSignatureLine(clean);
+    const editionMatch = isEditionLine(clean);
+
+    if (!signatureMatch && !editionMatch) continue;
+
+    if (isHardNoise(clean)) continue;
+    if (isPriceLine(clean)) continue;
+    if (isDimensionsLine(clean)) continue;
+    if (isArtistBioLine(clean)) continue;
+    if (isDateOnlyLine(clean)) continue;
+
+    if (signatureMatch) collectedSignatureLines.push(line);
+    if (editionMatch) collectedEditionLines.push(line);
+
+    consumedIndexes.push(i);
+  }
+
+  let signaturePart: string | null = null;
+  let editionPart: string | null = null;
+
+  if (collectedSignatureLines.length) {
+    signaturePart = collectedSignatureLines
+      .map((line) => cleanupSignatureOrEditionLine(line))
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  if (collectedEditionLines.length) {
+    const normalizedEditionValues = collectedEditionLines
+      .map((line) => extractStandaloneEditionToken(line) ?? cleanupSignatureOrEditionLine(line))
+      .filter(Boolean);
+
+    const uniq = Array.from(new Set(normalizedEditionValues.map((v) => v.trim())));
+    editionPart = uniq.length ? uniq.join(" | ") : null;
+  }
+
+  const merged = mergeSignatureAndEdition(signaturePart, editionPart);
+
+  let confidence = 0;
+  if (signaturePart && editionPart) confidence = 0.92;
+  else if (signaturePart) confidence = 0.88;
+  else if (editionPart) confidence = 0.84;
+
+  return {
+    signature: merged,
+    signature_raw: merged,
+    confidence,
+    consumedIndexes,
+  };
+}
+
+
 function buildCandidates(lines: string[]): CandidateLine[] {
   return lines.map((line, index) => ({
     index,
@@ -663,6 +793,24 @@ export function parseLabelText(inputText: string): ParsedLabelResult {
   let medium: string | null = null;
   let mediumConfidence = 0;
 
+  
+  // 4) signature + édition => un seul champ signature
+  let signatureRaw: string | null = null;
+  let signature: string | null = null;
+  let signatureConfidence = 0;
+
+  const signatureResult = extractSignatureAndEdition(lines, usedIndexes);
+  if (signatureResult.signature) {
+    signature = signatureResult.signature;
+    signatureRaw = signatureResult.signature_raw;
+    signatureConfidence = signatureResult.confidence;
+
+    for (const idx of signatureResult.consumedIndexes) {
+      usedIndexes.add(idx);
+    }
+  }
+
+
   for (const c of candidates) {
     if (usedIndexes.has(c.index)) continue;
     if (!isMediumLine(c.clean)) continue;
@@ -798,12 +946,15 @@ export function parseLabelText(inputText: string): ParsedLabelResult {
     titleConfidence = 0;
   }
 
+
   const parsedData: ParsedDataRaw = {
     artist_raw: artistRaw,
     title_raw: titleRaw,
     year_raw: yearRaw,
     medium_raw: mediumRaw,
+    signature_raw: signatureRaw,
     dimensions_raw: dimensionsRaw,
+
 
     asking_price_raw: priceResult.asking_price_raw,
     estimate_raw: priceResult.estimate_raw,
@@ -814,6 +965,7 @@ export function parseLabelText(inputText: string): ParsedLabelResult {
       title,
       year,
       medium,
+      signature,
       height_cm,
       width_cm,
       depth_cm,
@@ -835,6 +987,7 @@ export function parseLabelText(inputText: string): ParsedLabelResult {
     title: titleConfidence,
     year: yearConfidence,
     medium: mediumConfidence,
+    signature: signatureConfidence,
     dimensions: dimensionsConfidence,
 
     asking_price: priceResult.confidence.asking_price,

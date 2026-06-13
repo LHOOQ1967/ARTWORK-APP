@@ -26,58 +26,86 @@ export default function ArtworkNewPage() {
   const [importRow, setImportRow] = useState<ArtworkImportRow | null>(null)
   const [errorMessage, setErrorMessage] = useState<string>('')
 
-  useEffect(() => {
-    let cancelled = false
 
-    async function loadImport() {
-      if (!importId) {
-        if (!cancelled) {
-          setInitialValues(null)
-          setImportRow(null)
-          setLoading(false)
-        }
-        return
+useEffect(() => {
+  let cancelled = false
+
+  async function loadImport() {
+    if (!importId) {
+      if (!cancelled) {
+        setInitialValues(null)
+        setImportRow(null)
+        setLoading(false)
       }
-
-      try {
-        setLoading(true)
-        setErrorMessage('')
-
-        const { data, error } = await supabase
-          .from('artwork_imports')
-          .select('*')
-          .eq('id', importId)
-          .single()
-
-        if (error) {
-          throw new Error(error.message || "Impossible de charger l'import.")
-        }
-
-        if (!cancelled && data) {
-          setImportRow(data)
-          setInitialValues(mapImportToArtworkPrefill(data))
-        }
-      } catch (error: any) {
-        if (!cancelled) {
-          setErrorMessage(
-            error?.message || "Erreur inattendue lors du chargement de l’import."
-          )
-          setInitialValues(null)
-          setImportRow(null)
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
+      return
     }
 
-    loadImport()
+    try {
+      setLoading(true)
+      setErrorMessage('')
 
-    return () => {
-      cancelled = true
+      // ✅ 1. charger import DB
+      const { data, error } = await supabase
+        .from('artwork_imports')
+        .select('*')
+        .eq('id', importId)
+        .single()
+
+      if (error) {
+        throw new Error(error.message || "Impossible de charger l'import.")
+      }
+
+      if (!cancelled && data) {
+        setImportRow(data)
+
+        // ✅ 2. essayer sessionStorage (PRIORITAIRE)
+        const storageKey = `artwork_import_prefill_${importId}`
+        const raw = sessionStorage.getItem(storageKey)
+
+        if (raw) {
+          try {
+            const prefillFromSession = JSON.parse(raw)
+
+            console.log("[ARTWORK NEW] prefill from session =", prefillFromSession)
+
+            setInitialValues(prefillFromSession)
+            sessionStorage.removeItem(storageKey)
+            return
+          } catch (e) {
+            console.error("[ARTWORK NEW] invalid session prefill", e)
+          }
+        }
+
+        // ✅ 3. fallback DB
+        const mapped = mapImportToArtworkPrefill(data)
+
+        console.log("[ARTWORK NEW] prefill from DB =", mapped)
+
+        setInitialValues(mapped)
+      }
+
+    } catch (error: any) {
+      if (!cancelled) {
+        setErrorMessage(
+          error?.message || "Erreur inattendue lors du chargement de l’import."
+        )
+        setInitialValues(null)
+        setImportRow(null)
+      }
+    } finally {
+      if (!cancelled) {
+        setLoading(false)
+      }
     }
-  }, [importId])
+  }
+
+  loadImport()
+
+  return () => {
+    cancelled = true
+  }
+}, [importId])
+
 
   if (loading) {
     return (     <main

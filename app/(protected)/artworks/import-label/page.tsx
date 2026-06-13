@@ -45,6 +45,7 @@ type EditableNormalized = {
   title: string;
   year: string;
   medium: string;
+  signature: string;
   height_cm: string;
   width_cm: string;
   depth_cm: string;
@@ -163,6 +164,7 @@ function buildPrefillPayload(importRow: ArtworkImportRow, edited: EditableNormal
     title: edited.title.trim() || null,
     year: toNullableNumber(edited.year),
     medium: edited.medium.trim() || null,
+    signature: edited.signature.trim() || null,
 
     height_cm: heightCm,
     width_cm: widthCm,
@@ -200,6 +202,7 @@ const [edited, setEdited] = useState<EditableNormalized>({
   title: "",
   year: "",
   medium: "",
+  signature: "",
   height_cm: "",
   width_cm: "",
   depth_cm: "",
@@ -666,6 +669,15 @@ function handleResetAll() {
                     confidence={importRow.confidence?.medium}
                     placeholder="Technique / medium"
                   />
+                  
+<EditableFieldRow
+  label="Signature / édition"
+  value={edited.signature}
+  onChange={(value) => handleEditChange("signature", value)}
+  confidence={importRow.confidence?.signature}
+  placeholder="Signed lower right, 3/10"
+ />
+
 
                   <div style={styles.resultRow}>
                     <div style={styles.resultHeader}>
@@ -817,6 +829,11 @@ function handleResetAll() {
                     <div style={styles.matchLine}>
                       <strong>Medium :</strong> {safeString(normalized.medium) || "—"}
                     </div>
+                    
+<div style={styles.matchLine}>
+  <strong>Signature / édition :</strong> {safeString(normalized.signature) || "—"}
+</div>
+
                     <div style={styles.matchLine}>
                       <strong>Dimensions :</strong> {safeString(normalized.dimensions) || "—"}
                     </div>
