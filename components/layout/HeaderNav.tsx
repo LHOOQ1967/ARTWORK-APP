@@ -54,11 +54,11 @@ export default function HeaderNav() {
 
         {isLoggedIn && (
           <Link
-            href="/artworks"
+            href="/artworks/active"
             prefetch={false}
             style={navLink(isActive('/artworks'))}
           >
-            Artworks
+            Proposals
           </Link>
         )}
 

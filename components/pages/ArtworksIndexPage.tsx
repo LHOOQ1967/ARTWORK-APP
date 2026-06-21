@@ -13,6 +13,7 @@ import SearchSelect from '@/components/ui/SearchSelect'
 type Props = {
   title?: string
   fixedProposedToId?: string
+  forcedStatus?: 'Bought' | 'Archived' | 'Active' 
 }
 
 type ContactRow = {
@@ -25,6 +26,12 @@ type ContactRow = {
 
 type ArtistRow = { id: string; last_name: string | null }
 type ProposalLinkRow = { artwork_id: string; contact_id: string }
+
+
+type EditableArtworkField = 'status' | 'priority'
+
+type EditableArtworkValue = string | boolean | null
+
 
 const chunk = <T,>(arr: T[], size: number) => {
   const out: T[][] = []
@@ -51,13 +58,43 @@ type ArtworkAll = ArtworkListItem & {
   sale_date?: string | null
 }
 
-export default function ArtworksIndexPage({ title, fixedProposedToId }: Props) {
+
+export default function ArtworksIndexPage({
+  title,
+  fixedProposedToId,
+  forcedStatus,   // ✅ AJOUT ICI
+}: Props)
+ {
   const [artworks, setArtworks] = useState<ArtworkAll[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const { role } = useSessionProfile()
-  const isViewer = typeof role === 'string' && role.toLowerCase() === 'viewer'
+const [savingInlineKey, setSavingInlineKey] = useState<string | null>(null)
+const [inlineEditError, setInlineEditError] = useState<string | null>(null)
+const statusOptions = useMemo(() => {
+  const baseStatuses = [
+    'Draft',
+    'Viewed',
+    'Negotiation',
+    'Bought',
+    'Archived',
+  ]
+
+  const existingStatuses = artworks
+    .map(a => a.status)
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+
+  return Array.from(new Set([...baseStatuses, ...existingStatuses]))
+}, [artworks])
+
+const { role } = useSessionProfile()
+
+const normalizedRole = typeof role === 'string' ? role.toLowerCase() : ''
+
+const isViewer = normalizedRole === 'viewer'
+
+const canEditStatusPriority =
+  normalizedRole === 'administrator' || normalizedRole === 'editor'
 
   const marketSource = role ? resolveSource('artworks', role) : null
   const auctionsSource = role ? resolveSource('auctions', role) : null
@@ -150,6 +187,19 @@ export default function ArtworksIndexPage({ title, fixedProposedToId }: Props) {
     return s ? s : ''
   }
 
+
+const applyForcedStatusFilter = (query: any) => {
+  if (!forcedStatus) return query
+
+  if (forcedStatus === 'Active') {
+    // Inclut les status null + tous les status sauf Bought / Archived
+    return query.or('status.is.null,status.not.in.(Bought,Archived)')
+  }
+
+  return query.eq('status', forcedStatus)
+}
+
+
   // Charger le nom du contact fixé
   useEffect(() => {
     const loadFixedName = async () => {
@@ -197,7 +247,14 @@ let baseArtworks: any[] = []
 
 if (marketSource === auctionsSource) {
   // ✅ Une seule vue fusionnée : on charge UNE SEULE FOIS
-  const { data, error } = await supabase.from(marketSource).select('*')
+
+let query = supabase
+  .from(marketSource)
+  .select('*')
+
+query = applyForcedStatusFilter(query)
+
+const { data, error } = await query
 
   if (error) {
     console.error(error)
@@ -214,11 +271,26 @@ if (marketSource === auctionsSource) {
   }))
 } else {
   // ✅ Ancienne logique : deux sources distinctes
-  const [{ data: marketData, error: marketError }, { data: auctionsData, error: auctionsError }] =
-    await Promise.all([
-      supabase.from(marketSource).select('*'),
-      supabase.from(auctionsSource).select('*'),
-    ])
+
+let marketQuery = supabase
+  .from(marketSource)
+  .select('*')
+
+let auctionsQuery = supabase
+  .from(auctionsSource)
+  .select('*')
+
+marketQuery = applyForcedStatusFilter(marketQuery)
+auctionsQuery = applyForcedStatusFilter(auctionsQuery)
+
+const [
+  { data: marketData, error: marketError },
+  { data: auctionsData, error: auctionsError },
+] = await Promise.all([
+  marketQuery,
+  auctionsQuery,
+])
+
 
 
 if (marketError) {
@@ -386,8 +458,7 @@ if (auctionsError) {
     }
 
     load()
-  }, [marketSource, auctionsSource, isViewer, fixedProposedToId])
-
+}, [marketSource, auctionsSource, isViewer, fixedProposedToId, forcedStatus])
   // Options filtres
   const artistOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -433,19 +504,39 @@ if (auctionsError) {
   }, [fixedProposedToId])
 
   // Filtrage global
-  const globallyFiltered = useMemo(() => {
-    return artworks.filter(a => {
-      if (artistIdFilter !== 'all' && a.artist_id !== artistIdFilter) return false
-      if (proposedByIdFilter !== 'all' && a.proposed_by_id !== proposedByIdFilter) return false
 
-      if (!isViewer && proposedToIdFilter !== 'all') {
-        const ids = (Array.isArray(a.proposals) ? a.proposals : []).map(p => p.contact_id)
-        if (!ids.includes(proposedToIdFilter)) return false
-      }
+const globallyFiltered = useMemo(() => {
+  return artworks.filter(a => {
+    // ✅ FORCE STATUS
 
-      return true
-    })
-  }, [artworks, artistIdFilter, proposedByIdFilter, proposedToIdFilter, isViewer])
+
+if (forcedStatus) {
+  if (forcedStatus === 'Active') {
+    if (['Bought', 'Archived'].includes(a.status ?? '')) return false
+  } else {
+    if (a.status !== forcedStatus) return false
+  }
+}
+
+
+    if (artistIdFilter !== 'all' && a.artist_id !== artistIdFilter) return false
+    if (proposedByIdFilter !== 'all' && a.proposed_by_id !== proposedByIdFilter) return false
+
+    if (!isViewer && proposedToIdFilter !== 'all') {
+      const ids = (Array.isArray(a.proposals) ? a.proposals : []).map(p => p.contact_id)
+      if (!ids.includes(proposedToIdFilter)) return false
+    }
+
+    return true
+  })
+}, [
+  artworks,
+  forcedStatus,     // ✅ important
+  artistIdFilter,
+  proposedByIdFilter,
+  proposedToIdFilter,
+  isViewer,
+])
 
   // Active vs Non-active
   const activeAll = useMemo(() => {
@@ -491,6 +582,17 @@ if (auctionsError) {
     () => archivedAll.filter(a => !!(a as any).auctions),
     [archivedAll]
   )
+  
+const marketGroups = useMemo(
+  () => groupByPriority(primaryMarket),
+  [primaryMarket]
+)
+
+const auctionGroups = useMemo(
+  () => groupByPriority(auctions),
+  [auctions]
+)
+
 
   const totalDisplayed = activeAll.length + nonActiveFiltered.length
 
@@ -507,6 +609,108 @@ if (auctionsError) {
 
   const baseTitle = title ?? 'Artworks — Private market & Auctions'
   const headerTitle = fixedProposedToId ? `${baseTitle}` : baseTitle
+
+
+
+const handleUpdateArtworkField = async (
+  artworkId: string,
+  field: EditableArtworkField,
+  value: EditableArtworkValue
+) => {
+  if (!canEditStatusPriority) return
+
+  setInlineEditError(null)
+  setSavingInlineKey(`${artworkId}:${field}`)
+
+  try {
+    const payload =
+      field === 'status'
+        ? { status: value === '' ? null : value }
+        : { priority: value }
+
+    const { error } = await supabase
+      .from('artworks')
+      .update(payload)
+      .eq('id', artworkId)
+
+    if (error) {
+      console.error('Failed to update artwork field', error)
+      setInlineEditError(
+        error.message || 'Failed to update artwork'
+      )
+      return
+    }
+
+    setArtworks(prev =>
+      prev.map(a =>
+        a.id === artworkId
+          ? {
+              ...a,
+              ...payload,
+            }
+          : a
+      )
+    )
+  } catch (e) {
+    console.error(e)
+    setInlineEditError('Network error while updating artwork')
+  } finally {
+    setSavingInlineKey(null)
+  }
+}
+
+
+
+function groupByPriority(list: ArtworkAll[]) {
+  const groups: Record<string, ArtworkAll[]> = {
+    High: [],
+    Medium: [],
+    Information: [],
+    Other: [],
+  }
+
+  for (const a of list) {
+    const key = (a.priority ?? '').toString().trim()
+
+    if (key === 'High') groups.High.push(a)
+    else if (key === 'Medium') groups.Medium.push(a)
+    else if (key === 'Information') groups.Information.push(a)
+    else groups.Other.push(a)
+  }
+
+  return groups
+}
+
+
+
+const buildPrintUrl = ({
+  market,
+  priority,
+  status,
+}: {
+  market: 'private' | 'auction'
+  priority?: string
+  status: 'active' | 'bought' | 'archived'
+}) => {
+  const params = new URLSearchParams()
+
+  params.set('market', market)
+  params.set('status', status)
+  params.set('sort', 'date')
+  params.set('dir', 'desc')
+
+  if (priority && priority !== 'Other') {
+    params.set('priority', priority)
+  } else {
+    params.set('priority', 'all')
+  }
+
+  return `/artworks/print?${params.toString()}`
+}
+
+
+
+
 
   return (
     <main style={mainStyle}>
@@ -592,52 +796,295 @@ if (auctionsError) {
         </div>
       </section>
 
-      {/* Primary market (active) */}
-      <section>
-        <h2 className="text-[1.6rem] font-bold text-white">Private market ({primaryMarket.length})</h2>
-        <ArtworkList artworks={primaryMarket} mode="market" />
-      </section>
 
-      {/* Auctions (active) */}
-      <section className="mt-8 border-t-2 border-white/30 pt-6">
-        <h2 className="text-[1.6rem] font-bold text-white">Auctions ({auctions.length})</h2>
-        <ArtworkList artworks={auctions} mode="auction" section="active" />
-      </section>
+{inlineEditError && (
+  <div
+    className="no-print"
+    style={{
+      marginBottom: 16,
+      padding: '10px 12px',
+      borderRadius: 10,
+      backgroundColor: '#fff3f3',
+      color: '#9b1c1c',
+      fontWeight: 600,
+      border: '1px solid rgba(155, 28, 28, 0.25)',
+    }}
+  >
+    {inlineEditError}
+  </div>
+)}
+
+      {/* Primary market (active) */}
+
+
+{primaryMarket.length > 0 && (
+  <section>
+
+
+
+<div style={centeredHeaderRowStyle}>
+  <h2 style={centeredTitleStyle}>
+    Private market ({primaryMarket.length})
+  </h2>
+
+  {primaryMarket.length > 0 && (
+    <a
+      href={buildPrintUrl({ market: 'private', priority: 'all' })}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={printLinkStyle}
+    >
+      All factsheets
+    </a>
+  )}
+</div>
+
+
+  {(['High', 'Medium', 'Information', 'Other'] as const).map(priority => {
+    const list = marketGroups[priority]
+    if (!list.length) return null
+
+    return (
+      <div key={priority} style={{ marginTop: 16 }}>
+        <div style={subSectionHeaderRowStyle}>
+
+<h3 style={subSectionTitle}>
+  Private market — {priority} ({list.length})
+</h3>
+
+
+          <Link
+            href={buildPrintUrl({
+              market: 'private',
+              priority,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={printLinkStyle}
+          >
+            Factsheets
+          </Link>
+        </div>
+
+        <ArtworkList
+          artworks={list}
+          mode="market"
+          canEditStatusPriority={canEditStatusPriority}
+          statusOptions={statusOptions}
+          savingInlineKey={savingInlineKey}
+          onUpdateArtworkField={handleUpdateArtworkField}
+        />
+      </div>
+    )
+  })}
+</section>
+)}
+
+
+
+
+{/* ✅ AUCTIONS */}
+
+{auctions.length > 0 && (
+  <section className="mt-8 border-t-2 border-white/30 pt-6">
+
+  {/* ✅ TITRE + BOUTON CENTRÉS ENSEMBLE */}
+  <div style={centeredHeaderRowStyle}>
+    <h2 style={centeredTitleStyle}>
+      Auctions ({auctions.length})
+    </h2>
+
+    {auctions.length > 0 && (
+      <a
+        href={buildPrintUrl({ market: 'auction', priority: 'all' })}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={printLinkStyle}
+      >
+        All factsheets
+      </a>
+    )}
+  </div>
+
+
+  {/* ✅ PRIORITY */}
+  {(['High', 'Medium', 'Information', 'Other'] as const).map(priority => {
+    const list = auctionGroups[priority]
+    if (!list.length) return null
+
+    return (
+      <div key={priority} style={{ marginTop: 16 }}>
+
+        <div style={subSectionHeaderRowStyle}>
+          <h3 style={subSectionTitle}>
+            Auctions — {priority} ({list.length})
+          </h3>
+
+          <Link
+            href={buildPrintUrl({
+              market: 'auction',
+              priority,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={printLinkStyle}
+          >
+            Factsheets
+          </Link>
+        </div>
+
+        <ArtworkList
+          artworks={list}
+          mode="auction"
+          section="active"
+          canEditStatusPriority={canEditStatusPriority}
+          statusOptions={statusOptions}
+          savingInlineKey={savingInlineKey}
+          onUpdateArtworkField={handleUpdateArtworkField}
+        />
+
+      </div>
+    )
+  })}
+
+</section>
+)}
+
+
+
+
 
       {/* Bought (fusionné) */}
-      {boughtSorted.length > 0 && (
-        <section className="mt-8 border-t-2 border-white/30 pt-6">
-          <h2 className="text-[1.6rem] font-bold text-white">Bought ({boughtSorted.length})</h2>
-          <ArtworkList artworks={boughtSorted} mode="bought"  />
-        </section>
-      )}
+
+{boughtSorted.length > 0 && (
+  <section className="mt-8 border-t-2 border-white/30 pt-6">
+
+    <div style={centeredHeaderRowStyle}>
+      <h2 style={centeredTitleStyle}>
+        Bought ({boughtSorted.length})
+      </h2>
+
+      <Link
+        href={buildPrintUrl({
+          market: 'private',
+          status: 'bought',
+          priority: 'all',
+        })}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={printLinkStyle}
+      >
+        All factsheets
+      </Link>
+    </div>
+
+    <ArtworkList
+      artworks={boughtSorted}
+      mode="bought"
+      canEditStatusPriority={canEditStatusPriority}
+      statusOptions={statusOptions}
+      savingInlineKey={savingInlineKey}
+      onUpdateArtworkField={handleUpdateArtworkField}
+    />
+
+  </section>
+)}
+
 
       {/* Archived (séparés) */}
-      {(archivedMarket.length > 0 || archivedAuctions.length > 0) && (
-        <section className="mt-8 border-t-2 border-white/30 pt-6">
-          <h2 className="text-[1.6rem] font-bold text-white">
-            Archived ({archivedMarket.length + archivedAuctions.length})
-          </h2>
 
-          {archivedMarket.length > 0 && (
-            <div className="mt-3">
-              <h3 className="text-[1.2rem] font-semibold text-white/95">
-                Private market ({archivedMarket.length})
-              </h3>
-              <ArtworkList artworks={archivedMarket} mode="market" />
-            </div>
-          )}
+{(archivedMarket.length > 0 || archivedAuctions.length > 0) && (
+  <section className="mt-8 border-t-2 border-white/30 pt-6">
 
-          {archivedAuctions.length > 0 && (
-            <div className="mt-5">
-              <h3 className="text-[1.2rem] font-semibold text-white/95">
-                Auctions ({archivedAuctions.length})
-              </h3>
-              <ArtworkList artworks={archivedAuctions} mode="auction" section="archived" />
-            </div>
-          )}
-        </section>
-      )}
+    <div style={centeredHeaderRowStyle}>
+      <h2 style={centeredTitleStyle}>
+        Archived ({archivedMarket.length + archivedAuctions.length})
+      </h2>
+
+      <Link
+        href={buildPrintUrl({
+          market: 'private',
+          status: 'archived',
+          priority: 'all',
+        })}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={printLinkStyle}
+      >
+        All factsheets
+      </Link>
+    </div>
+
+    {/* ✅ PRIVATE MARKET */}
+    {archivedMarket.length > 0 && (
+      <div style={{ marginTop: 12 }}>
+        <div style={subSectionHeaderRowStyle}>
+          <h3 style={subSectionTitle}>
+            Private market ({archivedMarket.length})
+          </h3>
+
+          <Link
+            href={buildPrintUrl({
+              market: 'private',
+              status: 'archived',
+              priority: 'all',
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={printLinkStyle}
+          >
+            Factsheets
+          </Link>
+        </div>
+
+        <ArtworkList
+          artworks={archivedMarket}
+          mode="market"
+          canEditStatusPriority={canEditStatusPriority}
+          statusOptions={statusOptions}
+          savingInlineKey={savingInlineKey}
+          onUpdateArtworkField={handleUpdateArtworkField}
+        />
+      </div>
+    )}
+
+    {/* ✅ AUCTIONS */}
+    {archivedAuctions.length > 0 && (
+      <div style={{ marginTop: 16 }}>
+        <div style={subSectionHeaderRowStyle}>
+          <h3 style={subSectionTitle}>
+            Auctions ({archivedAuctions.length})
+          </h3>
+
+          <Link
+            href={buildPrintUrl({
+              market: 'auction',
+              status: 'archived',
+              priority: 'all',
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={printLinkStyle}
+          >
+            Factsheets
+          </Link>
+        </div>
+
+        <ArtworkList
+          artworks={archivedAuctions}
+          mode="auction"
+          section="archived"
+          canEditStatusPriority={canEditStatusPriority}
+          statusOptions={statusOptions}
+          savingInlineKey={savingInlineKey}
+          onUpdateArtworkField={handleUpdateArtworkField}
+        />
+      </div>
+    )}
+
+  </section>
+)}
+
     </main>
   )
 }
@@ -711,4 +1158,70 @@ const mainStyle: React.CSSProperties = {
   boxSizing: 'border-box',      // ✅ CRITIQUE (fix overflow iPhone)
   width: '100%',
   overflowX: 'hidden',          // ✅ empêche dépassement
+}
+
+
+const subSectionTitle: React.CSSProperties = {
+  fontSize: '1.1rem',
+  fontWeight: 700,
+  color: 'white',
+  marginBottom: 6,
+  opacity: 0.95,
+}
+
+
+const printButtonStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: '0.8rem',
+  borderRadius: 6,
+  border: '1px solid rgba(0,0,0,0.25)',
+  backgroundColor: '#fff',
+  cursor: 'pointer',
+}
+
+
+const printLinkStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  borderRadius: 8,
+  border: '1px solid rgba(255,255,255,0.7)',
+  backgroundColor: 'white',
+  fontSize: '0.8rem',
+  fontWeight: 700,
+  color: '#006039',
+  textDecoration: 'none',
+  cursor: 'pointer',
+}
+
+
+const sectionHeaderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  marginBottom: 8,
+}
+
+const subSectionHeaderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  marginBottom: 6,
+}
+
+
+const centeredHeaderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',  // ✅ centre le bloc entier
+  alignItems: 'center',
+  gap: 12,                   // ✅ espace entre texte et bouton
+  textAlign: 'center',
+  marginBottom: 10,
+}
+
+
+const centeredTitleStyle: React.CSSProperties = {
+  fontSize: '1.6rem',
+  fontWeight: 700,
+  color: 'white',
+  margin: 0,
 }

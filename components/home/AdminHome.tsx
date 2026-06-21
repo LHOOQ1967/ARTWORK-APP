@@ -41,7 +41,25 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
         }}
       >
 
+        <EntryCardNew
+          href="artworks/active"
+          title="Active Proposals"
+          subtitle="Sorted by priority"
+        />
 
+
+
+                <EntryCardNew
+          href="artworks/bought"
+          title="Collection"
+          subtitle="Sorted by acquisition date"
+        />
+
+                  <EntryCardNew
+          href="artworks/archived"
+          title="Archived Proposals"
+          subtitle="Sorted by date proposed"
+        />
 
         <EntryCardNew
           href="artworks"

@@ -75,19 +75,26 @@ const cell3Lines: React.CSSProperties = {
   minWidth: 0,
 }
 
+
 const mainLine: React.CSSProperties = {
   color: '#111',
+  fontSize: '1.1rem',      // ✅ AJOUT ICI
+  fontWeight: 600,
+  lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
 
 const secondLine: React.CSSProperties = {
-  color: '#666',
+  color: '#111',
+  fontSize: '1.05rem',     // ✅ AJOUT ICI
+  lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
+
 
 const thirdLine: React.CSSProperties = {
   color: '#006039',
@@ -336,7 +343,7 @@ export default function ArtworkListUpdated({ artworks }: Props) {
               title="Sort by updated date"
             >
               Updated{getHeaderArrow('updated_at')}
-              <div style={{ fontWeight: 500, color: '#666', marginTop: 4 }}>
+              <div style={{ fontWeight: 500, color: '#111', marginTop: 4 }}>
                 Proposed by / Changed fields
               </div>
             </th>
@@ -399,7 +406,7 @@ export default function ArtworkListUpdated({ artworks }: Props) {
                 style={{
                   fontSize: '0.75rem',
                   fontWeight: 500,
-                  color: '#666',
+                  color: '#111',
                   marginTop: 4,
                   textAlign: 'right',
                   display: 'flex',

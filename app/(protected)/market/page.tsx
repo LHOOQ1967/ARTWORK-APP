@@ -133,16 +133,19 @@ function getItemTypeLabel(item: MarketSectionItemView) {
   return item.item_type === 'document' ? 'PDF / OneDrive' : 'Lien web';
 }
 
-function sortSections(a: SectionWithItems, b: SectionWithItems) {
-  const aDate = a.start_date ?? '9999-12-31';
-  const bDate = b.start_date ?? '9999-12-31';
 
-  if (aDate < bDate) return -1;
-  if (aDate > bDate) return 1;
+function sortSections(a: SectionWithItems, b: SectionWithItems) {
+  const aDate = a.start_date ?? '0000-01-01';
+  const bDate = b.start_date ?? '0000-01-01';
+
+  if (aDate > bDate) return -1;
+  if (aDate < bDate) return 1;
 
   if (a.position !== b.position) return a.position - b.position;
+
   return a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' });
 }
+
 
 
 
@@ -579,6 +582,7 @@ function getButtonStyle(kind: 'primary' | 'secondary' | 'danger', disabled = fal
 }
 
 export default function MarketPage() {
+    console.log('✅ MarketPage rendered');
   const [role, setRole] = useState<ProfileRole>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -662,6 +666,8 @@ function getSectionSortMode(section: MarketSection): ItemSortMode {
     setLoading(true);
     setErrorMessage(null);
 
+    
+
     const currentRole = await loadRole();
     setRole(currentRole);
 
@@ -670,7 +676,7 @@ function getSectionSortMode(section: MarketSection): ItemSortMode {
         supabase
           .from('market_sections')
           .select('*')
-          .order('start_date', { ascending: true, nullsFirst: false })
+          .order('start_date', { ascending: false, nullsFirst: false })
           .order('position', { ascending: true })
           .order('created_at', { ascending: true }),
         supabase.from('v_market_section_items').select('*'),
@@ -689,6 +695,12 @@ function getSectionSortMode(section: MarketSection): ItemSortMode {
       setLoading(false);
       return;
     }
+    
+console.log('sectionsData', sectionsData);
+console.log('sectionsError', sectionsError);
+console.log('itemsData', itemsData);
+console.log('itemsError', itemsError);
+
 
     const sectionMap = new Map<string, SectionWithItems>();
 
@@ -848,7 +860,7 @@ const displaySections = useMemo(() => {
     await loadData();
   }
 
-  async function handleCreateSection(e: React.FormEvent) {
+  async function handleCreateSection(e: React.HTMLFormEElement) {
     e.preventDefault();
     if (!canEdit) return;
 
@@ -893,7 +905,8 @@ const displaySections = useMemo(() => {
     await loadData();
   }
 
-  async function handleCreateItem(e: React.FormEvent) {
+    async function handleCreateItem(e: React.HTMLFormElement) {
+
     e.preventDefault();
     if (!canEdit) return;
 

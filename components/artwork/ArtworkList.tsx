@@ -4,12 +4,23 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
+import { useSessionProfile } from '@/contexts/SessionContext'
 
 type ArtworkListProps = {
   artworks: ArtworkListItem[]
   mode?: 'market' | 'auction' | 'bought'
   /** active vs archived (utile surtout pour auctions: sold_premium + tri par défaut) */
   section?: 'active' | 'archived'
+ 
+canEditStatusPriority?: boolean
+  statusOptions?: string[]
+  savingInlineKey?: string | null
+  onUpdateArtworkField?: (
+    artworkId: string,
+    field: 'status' | 'priority',
+    value: string | boolean | null
+  ) => void
+
 }
 
 const th: React.CSSProperties = {
@@ -17,7 +28,7 @@ const th: React.CSSProperties = {
   padding: '10px 12px',
   backgroundColor: '#f5f5f5',
   fontWeight: 600,
-  fontSize: '0.85rem',
+  fontSize: '1.05rem',
   borderBottom: '1px solid #ddd',
   verticalAlign: 'bottom',
 }
@@ -38,19 +49,25 @@ const cell2Lines: React.CSSProperties = {
   minWidth: 0,
 }
 
+
 const mainLine: React.CSSProperties = {
   color: '#111',
+  fontSize: '1.1rem',      // ✅ AJOUT ICI
+    lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
 
 const secondLine: React.CSSProperties = {
-  color: '#666',
+  color: '#111',
+  fontSize: '1.05rem',     // ✅ AJOUT ICI
+  lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
+
 
 const formatNumber = (n: number) =>
   new Intl.NumberFormat('fr-CH', { maximumFractionDigits: 0 }).format(n)
@@ -154,6 +171,18 @@ function getProposedByText(a: any): string {
   return s ? s : '—'
 }
 
+
+function getProposedToText(a: any): string {
+  const proposals = Array.isArray(a?.proposals) ? a.proposals : []
+
+  const labels = proposals
+    .map((p: any) => (p?.contact_label ?? '').toString().trim())
+    .filter(Boolean)
+
+  return labels.join(', ')
+}
+
+
 /** ✅ 2e ligne de la colonne "Price/Priority" : "Priority • Status" */
 function getPriorityStatusText(a: any): string {
   const pr = ((a?.priority ?? '—') as any).toString()
@@ -197,21 +226,35 @@ export default function ArtworkList({
   artworks,
   mode = 'market',
   section = 'active',
+  canEditStatusPriority = false,
+  statusOptions = [],
+  savingInlineKey = null,
+  onUpdateArtworkField,
+  
 }: ArtworkListProps) {
   const router = useRouter()
+  
+const { role } = useSessionProfile()
 
-  const [sortKey, setSortKey] = useState<
-    | 'artist'
-    | 'title'
-    | 'date'
-    | 'asking'
-    | 'estimate'
-    | 'sold_premium'
-    | 'cost'
-    | 'priority'
-    | 'status'
-    | null
-  >(null)
+const normalizedRole =
+  typeof role === 'string' ? role.toLowerCase() : ''
+
+
+
+const [sortKey, setSortKey] = useState<
+  | 'artist'
+  | 'title'
+  | 'date'
+  | 'proposed_to'
+  | 'asking'
+  | 'estimate'
+  | 'sold_premium'
+  | 'cost'
+  | 'priority'
+  | 'status'
+  | null
+>(null)
+
 
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -282,6 +325,11 @@ const compareStrings = (x: any, y: any, dir: 'asc' | 'desc') => {
           va = getDateSortMs(a, mode)
           vb = getDateSortMs(b, mode)
           break
+        case 'proposed_to':
+          va = getProposedToText(a)
+          vb = getProposedToText(b)
+          break
+
         case 'asking':
           va = Number((a as any).asking_price ?? 0)
           vb = Number((b as any).asking_price ?? 0)
@@ -393,53 +441,102 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
             <th style={{ ...th, width: 80 }}>Image</th>
 
             {/* 2) Date / Proposed by */}
-            <th
-              style={{
-                ...th,
-                cursor: 'pointer',
-                userSelect: 'none',
-                backgroundColor: (sortKey ?? defaultSort.key) === 'date' ? '#eee' : '#f5f5f5',
-                width: 100,
-              }}
-              onClick={() => handleSort('date')}
-              title="Sort by date"
-            >
-              {dateHeaderLabel}
-              {getHeaderArrow('date')}
-              <div style={{ fontWeight: 500, color: '#666', marginTop: 4 }}>Proposed by</div>
-            </th>
+
+
+
+
+{/* 2) Date / Proposed by / Proposed to */}
+<th
+  style={{
+    ...th,
+    width: dateColumnWidth,
+    minWidth: dateColumnWidth,
+  }}
+>
+  <div style={headerStackStyle}>
+    {/* ✅ DATE = tri actif */}
+    <div
+      style={{
+        ...headerClickableLineStyle,
+        backgroundColor: (sortKey ?? defaultSort.key) === 'date' ? '#eee' : 'transparent',
+      }}
+      onClick={() => handleSort('date')}
+      title="Sort by date"
+    >
+      {dateHeaderLabel}
+      {getHeaderArrow('date')}
+    </div>
+
+    {/* ✅ PROPOSED BY = affichage seulement */}
+    <div style={headerStaticLineStyle}>
+      Proposed by
+    </div>
+
+    {/* ✅ PROPOSED TO = tri admin/editor */}
+    {(normalizedRole === 'administrator' || normalizedRole === 'editor') && (
+      <div
+        style={{
+          ...headerClickableLineStyle,
+          fontWeight: 500,
+          color: '#111',
+          backgroundColor: sortKey === 'proposed_to' ? '#eee' : 'transparent',
+        }}
+        onClick={() => handleSort('proposed_to')}
+        title="Sort by proposed to"
+      >
+        Proposed to
+        {sortKey === 'proposed_to' && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
+      </div>
+    )}
+  </div>
+</th>
+
+
+
+
 
             {/* 3) Artist / Title */}
-            <th style={{ ...th, width: 140 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    backgroundColor: sortKey === 'artist' ? '#eee' : 'transparent',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                  }}
-                  onClick={() => handleSort('artist')}
-                  title="Sort by artist"
-                >
-                  Artist{sortKey === 'artist' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                </span>
-                <span
-                  style={{
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    backgroundColor: sortKey === 'title' ? '#eee' : 'transparent',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                  }}
-                  onClick={() => handleSort('title')}
-                  title="Sort by title"
-                >
-                  Title{sortKey === 'title' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                </span>
-              </div>
-            </th>
+
+
+<th style={{ ...th, width: 140 }}>
+
+  <div style={{ display: 'flex', flexDirection: 'column' }}>
+
+    {/* ✅ ARTIST */}
+    <div
+      style={{
+        cursor: 'pointer',
+        userSelect: 'none',
+        backgroundColor: sortKey === 'artist' ? '#eee' : '#f5f5f5',
+        padding: '2px 6px',
+        borderRadius: 4,
+        display: 'inline-block',
+        alignSelf: 'flex-start', // ✅ garde la largeur du texte
+      }}
+      onClick={() => handleSort('artist')}
+      title="Sort by artist"
+    >
+      Artist{sortKey === 'artist' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+    </div>
+
+    {/* ✅ TITLE */}
+    <div
+      style={{
+        marginTop: 4,
+        padding: '2px 6px',   // ✅ même padding !
+        cursor: 'pointer',
+      }}
+      onClick={() => handleSort('title')}
+      title="Sort by title"
+    >
+      Title{sortKey === 'title' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+    </div>
+
+  </div>
+
+</th>
+
+
 
             {/* 4) Price / Priority+Status */}
 
@@ -470,9 +567,9 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
   {/* ✅ 2) Ligne du bas : tri PRIORITY et STATUS */}
   <div
     style={{
-      fontSize: '0.75rem',
+      fontSize: '0.95rem',
       fontWeight: 500,
-      color: '#666',
+      color: '#111',
       marginTop: 4,
       textAlign: 'right',
       display: 'flex',
@@ -525,7 +622,7 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
             const dateText = formatDateFr2(dateValue)
 
             const proposedByText = getProposedByText(a as any)
-
+const proposedToText = getProposedToText(a as any)
             const artistText =
               a.artist &&
               typeof a.artist === 'object' &&
@@ -583,8 +680,8 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
         src={mainImage.url}
         alt=""
         style={{
-          width: 60,
-          height: 60,
+          width: 80,
+          height: 70,
           objectFit: 'cover',
           borderRadius: 4,
           display: 'block',
@@ -605,17 +702,54 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
 </td>
 
 
-                {/* 2) Date / Proposed by */}
-                <td style={{ ...td, width: 100 }}>
-                  <div style={cell2Lines}>
-                    <div style={mainLine} title={dateText}>
-                      {dateText}
-                    </div>
-                    <div style={secondLine} title={proposedByText}>
-                      {truncateText(proposedByText, 22)}
-                    </div>
-                  </div>
-                </td>
+
+
+
+<td
+  style={{
+    ...td,
+    width: 220,
+    minWidth: 220,
+  }}
+>
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 3,            // ✅ respiration propre
+      lineHeight: 1.2,
+    }}
+  >
+
+    {/* ✅ DATE */}
+    <div style={mainLine} title={dateText}>
+      {dateText}
+    </div>
+
+    {/* ✅ PROPOSED BY */}
+    <div style={secondLine} title={proposedByText}>
+      {truncateText(proposedByText, 26)}
+    </div>
+
+    {/* ✅ PROPOSED TO */}
+    {(normalizedRole === 'administrator' || normalizedRole === 'editor') && (
+      <div
+        style={{
+          ...secondLine,
+          color: '#006039',     // ✅ vert
+          fontStyle: 'italic',  // ✅ italique
+          fontSize: '0.98rem',  // ✅ légèrement plus discret
+          opacity: 0.9,
+        }}
+        title={proposedToText}
+      >
+        {proposedToText ? truncateText(proposedToText, 26) : ''}
+      </div>
+    )}
+
+  </div>
+</td>
+
 
                 {/* 3) Artist / Title */}
                 <td style={{ ...td, width: 140 }}>
@@ -626,20 +760,98 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
                     <div style={secondLine} title={titleRaw}>
                       {titleText}
                     </div>
+                    
                   </div>
                 </td>
 
-                {/* 4) Price / Priority+Status */}
-                <td style={{ ...td, width: 140, textAlign: 'right' }}>
-                  <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
-                    <div style={mainLine} title={priceMain}>
-                      {priceMain}
-                    </div>
-                    <div style={secondLine} title={prStatus}>
-                      {prStatus}
-                    </div>
-                  </div>
-                </td>
+
+
+{/* 4) Price / Priority+Status */}
+<td style={{ ...td, width: 140, textAlign: 'right' }}>
+  <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
+
+    {/* ✅ PRICE */}
+    <div style={mainLine} title={priceMain}>
+      {priceMain}
+    </div>
+
+    {/* ✅ PRIORITY + STATUS */}
+    <div style={secondLine} title={prStatus}>
+      {canEditStatusPriority && onUpdateArtworkField ? (
+        <div
+          style={{
+            display: 'flex',
+            gap: 6,
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+          }}
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+        >
+          {/* ✅ PRIORITY */}
+
+<select
+  value={(a.priority ?? '').toString()}
+  disabled={savingInlineKey === `${a.id}:priority`}
+  onClick={(e) => e.stopPropagation()}
+  onChange={(e) => {
+    e.stopPropagation()
+
+    onUpdateArtworkField(
+      a.id,
+      'priority',
+      e.target.value || null
+    )
+  }}
+  style={inlineMiniSelect}
+>
+  <option value="">—</option>
+
+  <option value="High">High</option>
+  <option value="Medium">Medium</option>
+  <option value="Information">Information</option>
+</select>
+
+
+
+          {/* séparateur */}
+          <span style={{ opacity: 0.5 }}>/</span>
+
+          {/* ✅ STATUS */}
+          <select
+            value={(a.status ?? '').toString()}
+            disabled={savingInlineKey === `${a.id}:status`}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation()
+
+              onUpdateArtworkField(
+                a.id,
+                'status',
+                e.target.value || null
+              )
+            }}
+            style={inlineMiniSelect}
+          >
+            <option value="">—</option>
+
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        // ✅ fallback VIEWER / lecture seule
+        prStatus
+      )}
+    </div>
+  </div>
+</td>
+
+
               </tr>
             )
           })}
@@ -660,6 +872,7 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
             onClick={() => setShowAll(v => !v)}
             style={{
               display: 'block',
+              fontSize: '1rem',
               margin: '0 auto',
               background: 'none',
               border: 'none',
@@ -675,4 +888,44 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
       )}
     </div>
   )
+}
+
+
+
+const inlineMiniSelect: React.CSSProperties = {
+  fontSize: '1rem',
+  padding: '2px 4px',
+  borderRadius: 4,
+  border: '1px solid rgba(0,0,0,0.25)',
+  backgroundColor: '#fff',
+  height: 22,
+}
+
+
+const dateColumnWidth = 240
+
+const headerStackStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: 4,
+  minWidth: 0,
+}
+
+const headerClickableLineStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  userSelect: 'none',
+  padding: '2px 6px',
+  borderRadius: 4,
+  display: 'inline-block',
+  whiteSpace: 'nowrap',
+}
+
+const headerStaticLineStyle: React.CSSProperties = {
+  fontWeight: 500,
+  color: '#111',
+  padding: '2px 6px',
+  display: 'inline-block',
+  whiteSpace: 'nowrap',
+  cursor: 'default',
 }

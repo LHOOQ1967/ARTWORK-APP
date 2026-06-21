@@ -32,17 +32,28 @@ return (
       >
 
       <EntryCardFlorac
-        href="/artworks/"
-        title="Artworks"
-        subtitle="Sorted by Status"
+        href="/artworks/active"
+        title="Proposals"
+        subtitle="Sorted by Priority"
       />
-
-
         <EntryCardFlorac
         href="/artworks/updated"
         title="Update"
         subtitle="Artworks Sorted by Date updated"
       />
+            <EntryCardFlorac
+        href="/artworks/bought"
+        title="Collection"
+        subtitle="Sorted by Acquisition Date"
+      />
+
+
+            <EntryCardFlorac
+        href="/artworks/archived"
+        title="Archived"
+        subtitle="Sorted by Date Proposed"
+      />
+
       
       <EntryCardFlorac
         href="/artworks/print"
@@ -50,28 +61,6 @@ return (
         subtitle="All Artworks"
       />
 
-      <EntryCardFlorac
-        href="/artworks/print?market=private&status=active&priority=all&sort=date&dir=desc"
-        title="Private Market"
-        subtitle="Active Proposals by date"
-      />
-      <EntryCardFlorac
-        href="/artworks/print?market=auction&status=active&priority=all&sort=priority&dir=desc"
-        title="Auction"
-        subtitle="Active lots by priority"
-      />
-
-      <EntryCardFlorac
-        href="/artworks/print?market=all&status=bought&priority=all&sort=date&dir=desc"
-        title="Bought"
-        subtitle="All Acquisitions by date"
-      />
-
-      <EntryCardFlorac
-        href="/artworks/print?market=all&status=archived&priority=all&sort=date&dir=desc"
-        title="All Archived"
-        subtitle="All Artworks by date"
-      />
       </div>
 
     <div

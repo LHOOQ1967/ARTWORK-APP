@@ -429,14 +429,46 @@ const displayTitle = (() => {
 
 
 
-      {/* ✅ Artist */}
-      {artwork.artist && (
-        <h2 style={{ fontSize: '1.6rem', }}>
-          {[artwork.artist.first_name, artwork.artist.last_name]
-            .filter(Boolean)
-            .join(' ')}
-        </h2>
-      )}
+
+{/* ✅ Artist */}
+{artwork.artist && (
+  <h2 style={{ fontSize: '1.6rem' }}>
+    {[artwork.artist.first_name, artwork.artist.last_name]
+      .filter(Boolean)
+      .join(' ')}
+
+    {/* ✅ Dates / lieux */}
+    {(artwork.artist.place_of_birth ||
+      artwork.artist.year_of_birth ||
+      artwork.artist.place_of_death ||
+      artwork.artist.year_of_death) && (
+      <span
+        style={{
+          fontSize: '1.2rem',
+          marginLeft: '8px',
+          fontWeight: 'normal',
+        }}
+      >
+        (
+        {/* ✅ naissance */}
+        {[artwork.artist.place_of_birth, artwork.artist.year_of_birth]
+          .filter(Boolean)
+          .join(' ')}
+
+        {/* ✅ tiret seulement si une partie décès existe */}
+        {(artwork.artist.place_of_death ||
+          artwork.artist.year_of_death) && ' – '}
+
+        {/* ✅ décès */}
+        {[artwork.artist.place_of_death, artwork.artist.year_of_death]
+          .filter(Boolean)
+          .join(' ')}
+        )
+      </span>
+    )}
+  </h2>
+)}
+
 
       {/* ✅ Title */}
       <h1 style={{ fontSize: '1.4rem',  }}>

@@ -5,8 +5,16 @@ import { createServerClient } from '@supabase/ssr'
 type UserRole = 'Viewer' | 'Editor' | 'Administrator'
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
   const { pathname } = req.nextUrl
+
+  /* ---------------------------------------------------
+     ✅ 0️⃣ BYPASS DEV (LOCAL UNIQUEMENT)
+     --------------------------------------------------- */
+  if (process.env.NODE_ENV === 'development') {
+    return NextResponse.next()
+  }
+
+  const res = NextResponse.next()
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,24 +37,24 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession()
 
   /* ---------------------------------------------------
-     1️⃣ Routes PUBLIQUES (toujours autorisées)
+     1️⃣ Routes PUBLIQUES
      --------------------------------------------------- */
   if (pathname === '/login' || pathname.startsWith('/auth')) {
     return res
   }
 
-
-// ✅ Autoriser l'accès à /print/* uniquement si une clé est présente
-if (pathname.startsWith('/print')) {
-  const key = req.nextUrl.searchParams.get('key')
-  if (key && key === process.env.PRINT_SECRET) {
-    return res
+  /* ---------------------------------------------------
+     ✅ PRINT sécurisé
+     --------------------------------------------------- */
+  if (pathname.startsWith('/print')) {
+    const key = req.nextUrl.searchParams.get('key')
+    if (key && key === process.env.PRINT_SECRET) {
+      return res
+    }
   }
-}
-
 
   /* ---------------------------------------------------
-     2️⃣ Non logué → REDIRECTION LOGIN
+     2️⃣ Non logué → LOGIN
      --------------------------------------------------- */
   if (!session) {
     const url = req.nextUrl.clone()
@@ -55,7 +63,7 @@ if (pathname.startsWith('/print')) {
   }
 
   /* ---------------------------------------------------
-     3️⃣ Logué → contrôle des rôles via profiles
+     3️⃣ Rôle utilisateur
      --------------------------------------------------- */
   const { data: profileData } = await supabase
     .from('profiles')
@@ -81,18 +89,11 @@ if (pathname.startsWith('/print')) {
     return redirectToHome()
   }
 
-  /* ---------------------------------------------------
-     4️⃣ Si le profil n’existe pas mais la session est valide,
-     on laisse quand même l’accès général au site.
-     Les contrôles de route spécifiques restent actifs.
-     --------------------------------------------------- */
   return res
 }
-
 
 export const config = {
   matcher: [
     '/((?!api|_next|favicon.ico|assets).*)',
   ],
 }
-
