@@ -107,15 +107,9 @@ const canEditStatusPriority =
   const [proposedByIdFilter, setProposedByIdFilter] = useState('all')
   const [proposedToIdFilter, setProposedToIdFilter] = useState('all')
 
-  // ✅ Par défaut: 1er janvier de l’année en cours (comme tu avais)
-  const defaultFromDateProposed = useMemo(() => {
-    const now = new Date()
-    const year = now.getFullYear()
-    return `${year}-01-01` // YYYY-MM-DD
-  }, [])
 
-  const [fromDateProposed, setFromDateProposed] = useState<string>(defaultFromDateProposed)
 
+const [fromDateProposed, setFromDateProposed] = useState<string>('')
   // =========================
   // Helpers date
   // =========================
@@ -152,17 +146,20 @@ const canEditStatusPriority =
   // =========================
   // Helpers labels
   // =========================
-  const contactLabel = (c?: ContactRow | null) => {
-    const full = `${(c?.first_name ?? '').trim()} ${(c?.last_name ?? '').trim()}`.trim()
-    if (full) return full
-    const company = (c?.company_name ?? '').trim()
-    if (company) return company
-    const last = (c?.last_name ?? '').trim()
-    if (last) return last
-    const email = (c?.email ?? '').trim()
-    if (email) return email
-    return ''
-  }
+
+const contactLabel = (c?: ContactRow | null) => {
+  const company = (c?.company_name ?? '').trim()
+  if (company) return company
+
+  const full = `${(c?.first_name ?? '').trim()} ${(c?.last_name ?? '').trim()}`.trim()
+  if (full) return full
+
+  const email = (c?.email ?? '').trim()
+  if (email) return email
+
+  return ''
+}
+
 
   const artistLabel = (a?: ArtistRow | null) => (a?.last_name ?? '').trim()
 

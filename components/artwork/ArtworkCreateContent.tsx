@@ -696,11 +696,43 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
   }
 }
 
+
+const ARTWORK_DRAFT_VERSION = 1
+
+function getArtworkDraftKey(importId: string | null) {
+  return importId
+    ? `artmuse_artwork_new_draft_import_${importId}`
+    : 'artmuse_artwork_new_draft_manual'
+}
+
+function isMeaningfulArtworkDraft(artwork: ArtworkForm) {
+  return Boolean(
+    artwork.title?.trim() ||
+      artwork.medium?.trim?.() ||
+      artwork.signature?.trim?.() ||
+      artwork.dimensions?.trim?.() ||
+      artwork.notes?.trim?.() ||
+      artwork.artist_id ||
+      artwork.proposed_by_id ||
+      artwork.location_contact_id ||
+      artwork.auction_contact_id ||
+      artwork.buyer_contact_id ||
+      artwork.destination_contact_id ||
+      artwork.asking_price !== null ||
+      artwork.estimate_low !== null ||
+      artwork.estimate_high !== null ||
+      artwork.lot?.trim?.()
+  )
+}
+
+
 export default function ArtworkCreateContent({
   initialValues = null,
   importRow = null,
 }: ArtworkCreateContentProps) {
   const router = useRouter()
+const hasRestoredDraftRef = useRef(false)
+const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
 
@@ -730,6 +762,12 @@ export default function ArtworkCreateContent({
     initialValues?.import_id ??
     importRow?.id ??
     null
+
+    
+const draftKey = useMemo(() => {
+  return getArtworkDraftKey(currentImportId)
+}, [currentImportId])
+
 
   const mergedInitialValues = useMemo(() => {
     return mergeInitialValuesWithManualPrefill(initialValues, manualPrefill)
@@ -855,59 +893,194 @@ export default function ArtworkCreateContent({
     destinationResults,
   ])
 
-  // ✅ Appliquer le préremplissage import + corrections manuelles une seule fois
-  useEffect(() => {
-    if (!manualPrefillLoaded) return
-    if (!mergedInitialValues) return
 
-    const currentApplyKey = JSON.stringify({
-      import_id: mergedInitialValues.import_id ?? '__no_import_id__',
-      manualPrefill,
-    })
+// ✅ Restaurer un brouillon OU appliquer le préremplissage import + corrections manuelles une seule fois
+useEffect(() => {
+  if (!manualPrefillLoaded) return
 
-    if (appliedImportRef.current === currentApplyKey) return
+  const currentApplyKey = JSON.stringify({
+    import_id: mergedInitialValues?.import_id ?? currentImportId ?? '__no_import_id__',
+    manualPrefill,
+  })
 
-    const prefilledArtwork = buildArtworkFromInitialValues(mergedInitialValues)
+  if (appliedImportRef.current === currentApplyKey) return
 
+  // ✅ Priorité 1 : restaurer le brouillon local si disponible
+  if (!hasRestoredDraftRef.current) {
+    try {
+      const rawDraft = sessionStorage.getItem(draftKey)
 
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft)
 
-setArtwork((prev) => ({
-  ...prev,
-  ...prefilledArtwork,
+        if (
+          parsed &&
+          parsed.version === ARTWORK_DRAFT_VERSION &&
+          parsed.artwork
+        ) {
+          console.log('[ARTWORK_CREATE] draft restored =', parsed)
 
-  // on garde certains defaults utiles seulement s'ils ne sont pas déjà définis
-  date_proposition: prev.date_proposition || EMPTY_ARTWORK.date_proposition,
-  priority: prev.priority || EMPTY_ARTWORK.priority,
+          setArtwork({
+            ...EMPTY_ARTWORK,
+            ...parsed.artwork,
+          })
 
-  cost_currency: prev.cost_currency ?? EMPTY_ARTWORK.cost_currency,
-  insurance_currency: prev.insurance_currency ?? EMPTY_ARTWORK.insurance_currency,
-}))
+          if (parsed.queries) {
+            setArtistQuery(parsed.queries.artistQuery ?? '')
+            setProposedByQuery(parsed.queries.proposedByQuery ?? '')
+            setLocationQuery(parsed.queries.locationQuery ?? '')
+            setCertificateLocationQuery(parsed.queries.certificateLocationQuery ?? '')
+            setAuctionHouseQuery(parsed.queries.auctionHouseQuery ?? '')
+            setBuyerQuery(parsed.queries.buyerQuery ?? '')
+            setDestinationQuery(parsed.queries.destinationQuery ?? '')
+          }
 
-
-
-    // Priorité 1 : nom artiste corrigé manuellement
-    const manualArtistName =
-      manualPrefill?.artist_name ? String(manualPrefill.artist_name) : ''
-
-    // Priorité 2 : initialValues éventuel
-    const initialArtistName =
-      mergedInitialValues.artist_name ? String(mergedInitialValues.artist_name) : ''
-
-    // Priorité 3 : valeur OCR brute / normalisée
-    const artistNameFromImport =
-      importRow?.parsed_data?.normalized?.artist_name ??
-      importRow?.parsed_data?.artist_raw ??
-      ''
-
-    if (!mergedInitialValues.artist_id) {
-      const queryName = manualArtistName || initialArtistName || String(artistNameFromImport || '')
-      if (queryName) {
-        setArtistQuery(queryName)
+          hasRestoredDraftRef.current = true
+          appliedImportRef.current = currentApplyKey
+          return
+        }
       }
+    } catch (error) {
+      console.error('[ARTWORK_CREATE] impossible de restaurer le brouillon', error)
     }
 
+    hasRestoredDraftRef.current = true
+  }
+
+  // ✅ Priorité 2 : préremplissage normal depuis l'import
+  if (!mergedInitialValues) {
     appliedImportRef.current = currentApplyKey
-  }, [manualPrefillLoaded, mergedInitialValues, manualPrefill, importRow])
+    return
+  }
+
+  const prefilledArtwork = buildArtworkFromInitialValues(mergedInitialValues)
+
+  setArtwork((prev) => ({
+    ...prev,
+    ...prefilledArtwork,
+
+    // on garde certains defaults utiles seulement s'ils ne sont pas déjà définis
+    date_proposition: prev.date_proposition || EMPTY_ARTWORK.date_proposition,
+    priority: prev.priority || EMPTY_ARTWORK.priority,
+
+    cost_currency: prev.cost_currency ?? EMPTY_ARTWORK.cost_currency,
+    insurance_currency: prev.insurance_currency ?? EMPTY_ARTWORK.insurance_currency,
+  }))
+
+  // Priorité 1 : nom artiste corrigé manuellement
+  const manualArtistName =
+    manualPrefill?.artist_name ? String(manualPrefill.artist_name) : ''
+
+  // Priorité 2 : initialValues éventuel
+  const initialArtistName =
+    mergedInitialValues.artist_name ? String(mergedInitialValues.artist_name) : ''
+
+  // Priorité 3 : valeur OCR brute / normalisée
+  const artistNameFromImport =
+    importRow?.parsed_data?.normalized?.artist_name ??
+    importRow?.parsed_data?.artist_raw ??
+    ''
+
+  if (!mergedInitialValues.artist_id) {
+    const queryName =
+      manualArtistName ||
+      initialArtistName ||
+      String(artistNameFromImport || '')
+
+    if (queryName) {
+      setArtistQuery(queryName)
+    }
+  }
+
+  appliedImportRef.current = currentApplyKey
+}, [
+  manualPrefillLoaded,
+  mergedInitialValues,
+  manualPrefill,
+  importRow,
+  currentImportId,
+  draftKey,
+])
+
+
+// ✅ Autosave du brouillon local
+useEffect(() => {
+  if (!manualPrefillLoaded) return
+  if (!hasRestoredDraftRef.current) return
+  if (saving) return
+
+  const hasContent = isMeaningfulArtworkDraft(artwork)
+
+  if (!hasContent) {
+    return
+  }
+
+  if (draftSaveTimeoutRef.current) {
+    clearTimeout(draftSaveTimeoutRef.current)
+  }
+
+  draftSaveTimeoutRef.current = setTimeout(() => {
+    try {
+      const draft = {
+        version: ARTWORK_DRAFT_VERSION,
+        savedAt: new Date().toISOString(),
+        importId: currentImportId,
+        artwork,
+        queries: {
+          artistQuery,
+          proposedByQuery,
+          locationQuery,
+          certificateLocationQuery,
+          auctionHouseQuery,
+          buyerQuery,
+          destinationQuery,
+        },
+      }
+
+      sessionStorage.setItem(draftKey, JSON.stringify(draft))
+      console.log('[ARTWORK_CREATE] draft saved')
+    } catch (error) {
+      console.error('[ARTWORK_CREATE] impossible de sauvegarder le brouillon', error)
+    }
+  }, 500)
+
+  return () => {
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current)
+    }
+  }
+}, [
+  artwork,
+  artistQuery,
+  proposedByQuery,
+  locationQuery,
+  certificateLocationQuery,
+  auctionHouseQuery,
+  buyerQuery,
+  destinationQuery,
+  draftKey,
+  currentImportId,
+  manualPrefillLoaded,
+  saving,
+])
+
+
+// ✅ Avertissement navigateur si refresh / fermeture / changement d'onglet
+useEffect(() => {
+  const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (!isMeaningfulArtworkDraft(artwork)) return
+    if (saving) return
+
+    event.preventDefault()
+    event.returnValue = ''
+  }
+
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+  }
+}, [artwork, saving])
 
   // ✅ S'assurer que l'artiste prérempli est disponible dans artistOptions
   useEffect(() => {
@@ -1046,6 +1219,13 @@ async function saveArtwork() {
         console.error('[ARTWORK_CREATE] impossible de supprimer le prefill manuel', error)
       }
     }
+    
+try {
+  sessionStorage.removeItem(draftKey)
+} catch (error) {
+  console.error('[ARTWORK_CREATE] impossible de supprimer le brouillon', error)
+}
+
 
     router.push(`/artworks/print/${data.id}`)
   } catch (err) {
@@ -1175,14 +1355,26 @@ async function saveArtwork() {
               </div>
             )}
 
-            <button
-              className="edit-button"
-              type="button"
-              onClick={() => router.back()}
-              disabled={saving}
-            >
-              Cancel
-            </button>
+
+<button
+  className="edit-button"
+  type="button"
+  onClick={() => {
+    if (isMeaningfulArtworkDraft(artwork)) {
+      const ok = window.confirm(
+        'Voulez-vous vraiment quitter cette page ? Les informations non enregistrées seront conservées comme brouillon.'
+      )
+
+      if (!ok) return
+    }
+
+    router.back()
+  }}
+  disabled={saving}
+>
+  Cancel
+</button>
+
 
             <button
               className="edit-button"

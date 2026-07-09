@@ -54,6 +54,12 @@ return (
         subtitle="Sorted by Date Proposed"
       />
 
+
+            <EntryCardFlorac
+        href="/artworks"
+        title="All Proposals"
+        subtitle="Sorted by Date Proposed"
+      />
       
       <EntryCardFlorac
         href="/artworks/print"

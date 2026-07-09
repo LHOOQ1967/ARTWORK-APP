@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEditMode } from '@/contexts/EditModeContext'
 import { supabase } from '@/lib/supabaseBrowser'
@@ -137,6 +137,29 @@ function logSupabaseError(context: string, error: any) {
 }
 
 
+const ARTWORK_EDIT_DRAFT_VERSION = 1
+
+function getArtworkEditDraftKey(artworkId: string) {
+  return `artmuse_artwork_edit_draft_${artworkId}`
+}
+
+function safeStringify(value: unknown) {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return ''
+  }
+}
+
+function hasArtworkEditDraftChanged(
+  current: ArtworkWithRelations | null,
+  original: ArtworkWithRelations | null
+) {
+  if (!current || !original) return false
+
+  return safeStringify(current) !== safeStringify(original)
+}
+
 export default function ArtworkDetailContent({
   artworkId,
   isEditMode,
@@ -147,6 +170,11 @@ export default function ArtworkDetailContent({
   const id = decodeURIComponent(artworkId || '')
   const router = useRouter()
   const { isEditing, setIsEditing } = useEditMode()
+
+const originalArtworkRef = useRef<ArtworkWithRelations | null>(null)
+const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+const hasLoadedArtworkRef = useRef(false)
+
 
   const [artwork, setArtwork] = useState<ArtworkWithRelations | null>(null)
 
@@ -161,6 +189,11 @@ export default function ArtworkDetailContent({
   const [newDocUrl, setNewDocUrl] = useState('')
   
   const [isAddingProposal, setIsAddingProposal] = useState(false)
+
+  
+const draftKey = useMemo(() => {
+  return id ? getArtworkEditDraftKey(id) : ''
+}, [id])
 
   useEffect(() => {
     setIsEditing(isEditMode)
@@ -358,7 +391,44 @@ const fullArtwork = normalizeArtwork({
 
 
 
-      setArtwork(fullArtwork)
+
+originalArtworkRef.current = fullArtwork
+hasLoadedArtworkRef.current = true
+
+// ✅ Si on est en mode édition, on restaure un brouillon éventuel
+if (isEditMode && draftKey) {
+  try {
+    const rawDraft = sessionStorage.getItem(draftKey)
+
+    if (rawDraft) {
+      const parsed = JSON.parse(rawDraft)
+
+      if (
+        parsed &&
+        parsed.version === ARTWORK_EDIT_DRAFT_VERSION &&
+        parsed.artwork &&
+        parsed.artwork.id === fullArtwork.id
+      ) {
+        console.log('[ARTWORK_DETAIL] draft restored =', parsed)
+
+        setArtwork({
+          ...fullArtwork,
+          ...parsed.artwork,
+        })
+
+        setNewDocLabel(parsed.newDocLabel ?? '')
+        setNewDocUrl(parsed.newDocUrl ?? '')
+
+        return
+      }
+    }
+  } catch (error) {
+    console.error('[ARTWORK_DETAIL] impossible de restaurer le brouillon', error)
+  }
+}
+
+setArtwork(fullArtwork)
+
     } catch (err) {
       if (!isMounted) return
       console.error('Unexpected error loading artwork:', err)
@@ -376,7 +446,95 @@ const fullArtwork = normalizeArtwork({
   return () => {
     isMounted = false
   }
-}, [id])
+}, [id, isEditMode, draftKey])
+
+
+// ✅ Autosave du brouillon pendant l'édition
+useEffect(() => {
+  if (!draftKey) return
+  if (!isEditing) return
+  if (!hasLoadedArtworkRef.current) return
+  if (!artwork) return
+  if (saving || deleting) return
+
+  const hasChanged =
+    hasArtworkEditDraftChanged(artwork, originalArtworkRef.current) ||
+    newDocLabel.trim().length > 0 ||
+    newDocUrl.trim().length > 0
+
+  if (!hasChanged) {
+    return
+  }
+
+  if (draftSaveTimeoutRef.current) {
+    clearTimeout(draftSaveTimeoutRef.current)
+  }
+
+  draftSaveTimeoutRef.current = setTimeout(() => {
+    try {
+      const draft = {
+        version: ARTWORK_EDIT_DRAFT_VERSION,
+        savedAt: new Date().toISOString(),
+        artworkId: artwork.id,
+        artwork,
+        newDocLabel,
+        newDocUrl,
+      }
+
+      sessionStorage.setItem(draftKey, JSON.stringify(draft))
+      console.log('[ARTWORK_DETAIL] draft saved')
+    } catch (error) {
+      console.error('[ARTWORK_DETAIL] impossible de sauvegarder le brouillon', error)
+    }
+  }, 500)
+
+  return () => {
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current)
+    }
+  }
+}, [
+  artwork,
+  newDocLabel,
+  newDocUrl,
+  draftKey,
+  isEditing,
+  saving,
+  deleting,
+])
+
+
+// ✅ Avertissement si refresh / fermeture de l'onglet avec modifications non sauvegardées
+useEffect(() => {
+  const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (!isEditing) return
+    if (!artwork) return
+    if (saving || deleting) return
+
+    const hasChanged =
+      hasArtworkEditDraftChanged(artwork, originalArtworkRef.current) ||
+      newDocLabel.trim().length > 0 ||
+      newDocUrl.trim().length > 0
+
+    if (!hasChanged) return
+
+    event.preventDefault()
+    event.returnValue = ''
+  }
+
+  window.addEventListener('beforeunload', handleBeforeUnload)
+
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+  }
+}, [
+  artwork,
+  newDocLabel,
+  newDocUrl,
+  isEditing,
+  saving,
+  deleting,
+])
 
 
   async function saveArtwork() {
@@ -462,8 +620,29 @@ const payload = {
         return
       }
 
-      setIsEditing(false)
-      router.push(`/artworks/print/${artwork.id}`)
+
+try {
+  if (draftKey) {
+    sessionStorage.removeItem(draftKey)
+  }
+} catch (error) {
+  console.error('[ARTWORK_DETAIL] impossible de supprimer le brouillon', error)
+}
+
+originalArtworkRef.current = artwork
+
+setIsEditing(false)
+
+try {
+  if (draftKey) {
+    sessionStorage.removeItem(draftKey)
+  }
+} catch (error) {
+  console.error('[ARTWORK_DETAIL] impossible de supprimer le brouillon après delete', error)
+}
+
+router.push(`/artworks/print/${artwork.id}`)
+
     } catch (err) {
       console.error('Unexpected save error:', err)
       setError('Unexpected error while saving artwork')
@@ -937,22 +1116,24 @@ const artworkDocuments = useMemo(
             </div>
           )}
 
-          <button
-            className="edit-button"
-            type="button"
-            disabled={saving || deleting}
-            onClick={() => {
-              if (!artwork?.id) return
 
-              if (isEditing) {
-                router.push(`/artworks/print/${artwork.id}`)
-              } else {
-                router.push(`/artworks/${artwork.id}/edit`)
-              }
-            }}
-          >
-            {isEditing ? 'Cancel' : 'Edit'}
-          </button>
+<button
+  className="edit-button"
+  type="button"
+  disabled={saving || deleting}
+  onClick={() => {
+    if (!artwork?.id) return
+
+    if (isEditing) {
+      router.push(`/artworks/print/${artwork.id}`)
+    } else {
+      router.push(`/artworks/${artwork.id}/edit`)
+    }
+  }}
+>
+  {isEditing ? 'Cancel' : 'Edit'}
+</button>
+
 
           {isEditing && (
             <button
