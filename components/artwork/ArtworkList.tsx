@@ -52,11 +52,16 @@ const cell2Lines: React.CSSProperties = {
 
 const mainLine: React.CSSProperties = {
   color: '#111',
-  fontSize: '1.1rem',      // ✅ AJOUT ICI
-    lineHeight: 1.2,
+  fontSize: '1.1rem',
+  lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
+}
+
+const mainLineBold: React.CSSProperties = {
+  ...mainLine,
+  fontWeight: 700,
 }
 
 const secondLine: React.CSSProperties = {
@@ -425,8 +430,16 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
     return effectiveDir === 'asc' ? ' ▲' : ' ▼'
   }
 
-  return (
-    <div style={{ backgroundColor: 'white', borderRadius: 6, overflow: 'hidden' }}>
+return (
+  <div
+    style={{
+      backgroundColor: 'white',
+      borderRadius: 6,
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      width: '100%',
+    }}
+  >
       <table
         style={{
           width: '100%',
@@ -564,53 +577,56 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
     {sortKey === priceSortKey && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
   </div>
 
-  {/* ✅ 2) Ligne du bas : tri PRIORITY et STATUS */}
-  <div
+{/* ✅ 2) Lignes du bas : STATUS puis PRIORITY */}
+<div
+  style={{
+    fontSize: '0.95rem',
+    fontWeight: 500,
+    color: '#111',
+    marginTop: 4,
+    textAlign: 'right',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 2,
+  }}
+>
+  <span
     style={{
-      fontSize: '0.95rem',
-      fontWeight: 500,
-      color: '#111',
-      marginTop: 4,
-      textAlign: 'right',
-      display: 'flex',
-      justifyContent: 'flex-end',
-      gap: 8,
+      cursor: 'pointer',
+      backgroundColor: sortKey === 'status' ? '#eee' : 'transparent',
+      padding: '2px 6px',
+      borderRadius: 4,
     }}
+    onClick={(e) => {
+      e.stopPropagation()
+      handleSort('status')
+    }}
+    title="Sort by status"
   >
-    <span
-      style={{
-        cursor: 'pointer',
-        backgroundColor: sortKey === 'priority' ? '#eee' : 'transparent',
-        padding: '2px 6px',
-        borderRadius: 4,
-      }}
-      onClick={e => {
-        e.stopPropagation()
-        handleSort('priority')
-      }}
-      title="Sort by priority"
-    >
-      Priority{sortKey === 'priority' && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
-    </span>
+    Status
+    {sortKey === 'status' &&
+      (sortDirection === 'asc' ? ' ▲' : ' ▼')}
+  </span>
 
-    <span style={{ opacity: 0.6 }}> / </span>
-
-    <span
-      style={{
-        cursor: 'pointer',
-        backgroundColor: sortKey === 'status' ? '#eee' : 'transparent',
-        padding: '2px 6px',
-        borderRadius: 4,
-      }}
-      onClick={e => {
-        e.stopPropagation()
-        handleSort('status')
-      }}
-      title="Sort by status"
-    >
-      Status{sortKey === 'status' && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
-    </span>
-  </div>
+  <span
+    style={{
+      cursor: 'pointer',
+      backgroundColor: sortKey === 'priority' ? '#eee' : 'transparent',
+      padding: '2px 6px',
+      borderRadius: 4,
+    }}
+    onClick={(e) => {
+      e.stopPropagation()
+      handleSort('priority')
+    }}
+    title="Sort by priority"
+  >
+    Priority
+    {sortKey === 'priority' &&
+      (sortDirection === 'asc' ? ' ▲' : ' ▼')}
+  </span>
+</div>
 </th>
 
           </tr>
@@ -752,17 +768,49 @@ const proposedToText = getProposedToText(a as any)
 
 
                 {/* 3) Artist / Title */}
-                <td style={{ ...td, width: 140 }}>
-                  <div style={cell2Lines}>
-                    <div style={mainLine} title={artistText}>
-                      {truncateText(artistText, 24)}
-                    </div>
-                    <div style={secondLine} title={titleRaw}>
-                      {titleText}
-                    </div>
-                    
-                  </div>
-                </td>
+<td style={{ ...td, width: 180 }}>
+  <div
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 3,
+      lineHeight: 1.2,
+      minWidth: 0,
+    }}
+  >
+    {/* Artiste */}
+    <div style={mainLineBold} title={artistText}>
+      {truncateText(artistText, 24)}
+    </div>
+
+    {/* Titre + année */}
+    <div
+      style={secondLine}
+      title={`${titleRaw}${
+        (a as any).year_execution ? `, ${(a as any).year_execution}` : ''
+      }`}
+    >
+      {truncateText(
+        `${titleRaw}${
+          (a as any).year_execution ? `, ${(a as any).year_execution}` : ''
+        }`,
+        40
+      )}
+    </div>
+
+    {/* Medium */}
+    <div
+      style={{
+        ...secondLine,
+        fontSize: '0.95rem',
+        color: '#666',
+      }}
+      title={(a as any).medium ?? ''}
+    >
+      {truncateText((a as any).medium ?? '', 40)}
+    </div>
+  </div>
+</td>
 
 
 
@@ -771,83 +819,77 @@ const proposedToText = getProposedToText(a as any)
   <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
 
     {/* ✅ PRICE */}
-    <div style={mainLine} title={priceMain}>
+    <div style={mainLineBold} title={priceMain}>
       {priceMain}
     </div>
 
     {/* ✅ PRIORITY + STATUS */}
-    <div style={secondLine} title={prStatus}>
-      {canEditStatusPriority && onUpdateArtworkField ? (
-        <div
-          style={{
-            display: 'flex',
-            gap: 6,
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-          }}
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-        >
-          {/* ✅ PRIORITY */}
+<div style={secondLine} title={prStatus}>
+  {canEditStatusPriority && onUpdateArtworkField ? (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        alignItems: 'flex-end',
+      }}
+      onClick={(e) => {
+        e.stopPropagation()
+      }}
+    >
+      {/* ✅ STATUS */}
+      <select
+        value={(a.status ?? '').toString()}
+        disabled={savingInlineKey === `${a.id}:status`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          e.stopPropagation()
 
-<select
-  value={(a.priority ?? '').toString()}
-  disabled={savingInlineKey === `${a.id}:priority`}
-  onClick={(e) => e.stopPropagation()}
-  onChange={(e) => {
-    e.stopPropagation()
+          onUpdateArtworkField(
+            a.id,
+            'status',
+            e.target.value || null
+          )
+        }}
+        style={inlineMiniSelect}
+      >
+        <option value="">—</option>
 
-    onUpdateArtworkField(
-      a.id,
-      'priority',
-      e.target.value || null
-    )
-  }}
-  style={inlineMiniSelect}
->
-  <option value="">—</option>
+        {statusOptions.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
 
-  <option value="High">High</option>
-  <option value="Medium">Medium</option>
-  <option value="Information">Information</option>
-</select>
+      {/* ✅ PRIORITY */}
+      <select
+        value={(a.priority ?? '').toString()}
+        disabled={savingInlineKey === `${a.id}:priority`}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          e.stopPropagation()
 
+          onUpdateArtworkField(
+            a.id,
+            'priority',
+            e.target.value || null
+          )
+        }}
+        style={inlineMiniSelect}
+      >
+        <option value="">—</option>
 
-
-          {/* séparateur */}
-          <span style={{ opacity: 0.5 }}>/</span>
-
-          {/* ✅ STATUS */}
-          <select
-            value={(a.status ?? '').toString()}
-            disabled={savingInlineKey === `${a.id}:status`}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              e.stopPropagation()
-
-              onUpdateArtworkField(
-                a.id,
-                'status',
-                e.target.value || null
-              )
-            }}
-            style={inlineMiniSelect}
-          >
-            <option value="">—</option>
-
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        // ✅ fallback VIEWER / lecture seule
-        prStatus
-      )}
+        <option value="High">High</option>
+        <option value="Medium">Medium</option>
+        <option value="Information">Information</option>
+      </select>
     </div>
+  ) : (
+    // ✅ fallback VIEWER / lecture seule
+    prStatus
+  )}
+</div>
   </div>
 </td>
 
@@ -899,10 +941,13 @@ const inlineMiniSelect: React.CSSProperties = {
   border: '1px solid rgba(0,0,0,0.25)',
   backgroundColor: '#fff',
   height: 22,
+
+  textAlign: 'right',
+  textAlignLast: 'right',
 }
 
 
-const dateColumnWidth = 240
+const dateColumnWidth = 140
 
 const headerStackStyle: React.CSSProperties = {
   display: 'flex',

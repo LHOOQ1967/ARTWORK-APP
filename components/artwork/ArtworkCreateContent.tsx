@@ -1250,7 +1250,7 @@ try {
         paddingTop: 80,
         paddingLeft: 10,
         paddingRight: 10,
-        paddingBottom: 20,
+        paddingBottom: 100,
         backgroundColor: '#006039',
         color: 'white',
         minHeight: '100vh',
@@ -1320,17 +1320,27 @@ try {
           </div>
         )}
 
-        <div
-          style={{
-            position: 'sticky',
-            top: 70,
-            zIndex: 30,
-            backgroundColor: '#006039',
-            paddingTop: 8,
-            paddingBottom: 10,
-            marginBottom: 18,
-          }}
-        >
+<div
+  style={{
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+
+    zIndex: 999,
+
+    backgroundColor: '#006039',
+
+    borderTop: '1px solid rgba(255,255,255,0.2)',
+
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 20,
+    paddingRight: 20,
+
+    boxShadow: '0 -2px 10px rgba(0,0,0,0.25)',
+  }}
+>
           <div
             style={{
               display: 'flex',

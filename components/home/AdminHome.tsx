@@ -103,6 +103,12 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
           subtitle="All artworks sorted by date updated"
         />
 
+                <EntryCardNew
+          href="admin/users"
+          title="Users"
+          subtitle=""
+        />
+
           <EntryCardFlorac
           href="market"
           title="Market"

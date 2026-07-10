@@ -608,7 +608,19 @@ const payload = {
   depth_cm: artwork.depth_cm || null,
 }
 
+const proposalCount =
+  artwork.artwork_proposals?.length ?? 0
 
+if (proposalCount === 0) {
+  const proceed = window.confirm(
+    'This proposal does not have a "Proposed to". Are you sure you want to save it anyway?'
+  )
+
+  if (!proceed) {
+    setSaving(false)
+    return
+  }
+}
       const { error } = await supabase
         .from('artworks')
         .update(payload)
@@ -1059,7 +1071,7 @@ const artworkDocuments = useMemo(
         paddingTop: 80,
         paddingLeft: 10,
         paddingRight: 10,
-        paddingBottom: 10,
+        paddingBottom: 120,
         minHeight: '100vh',
         backgroundColor: '#006039',
         color: 'white',
@@ -1082,24 +1094,33 @@ const artworkDocuments = useMemo(
           </div>
         )}
 
-        <div
-          style={{
-            position: 'fixed',
-            top: 72,
-            right: 24,
-            left: 'auto',
-            zIndex: 50,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 20,
-            paddingTop: 8,
-            paddingBottom: 10,
-            backdropFilter: 'blur(4px)',
-            borderBottom: '1px solid rgba(255,255,255,0.12)',
-          }}
-        >
+<div
+  style={{
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+
+    zIndex: 999,
+
+    backgroundColor: '#006039',
+
+    borderTop: '1px solid rgba(255,255,255,0.25)',
+
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 20,
+    paddingRight: 20,
+
+    boxShadow: '0 -2px 12px rgba(0,0,0,0.25)',
+
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  }}
+>
           {(saving || deleting) && (
             <div
               style={{
