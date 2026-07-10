@@ -947,7 +947,7 @@ const inlineMiniSelect: React.CSSProperties = {
 }
 
 
-const dateColumnWidth = 140
+const dateColumnWidth = 100
 
 const headerStackStyle: React.CSSProperties = {
   display: 'flex',
