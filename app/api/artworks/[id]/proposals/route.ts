@@ -1,30 +1,17 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-
-async function getSupabase() {
-  const cookieStore = await cookies() // ✅ await obligatoire
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
-}
+import { requireRole } from '@/lib/apiAuth'
 
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> } // ✅ params est une Promise
 ) {
-  const { id } = await context.params // ✅ await obligatoire
-  const supabase = await getSupabase()
+  const { id } = await context.params
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
+
   const body = await req.json()
 
   const { contact_id, proposed_at } = body
@@ -36,7 +23,7 @@ export async function POST(
     )
   }
 
-  const { error } = await supabase
+  const { error } = await authorization.supabase
     .from('artwork_proposals')
     .insert({
       artwork_id: id,

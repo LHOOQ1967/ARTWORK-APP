@@ -1,23 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-
-async function getSupabase() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
-}
+import { requireRole } from '@/lib/apiAuth'
 
 export async function DELETE(
   req: NextRequest,
@@ -25,13 +8,17 @@ export async function DELETE(
     params: Promise<{ id: string; proposalId: string }>
   }
 ) {
-  const { proposalId } = await context.params
-  const supabase = await getSupabase()
+  const { id, proposalId } = await context.params
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
 
-  const { error } = await supabase
+  const { error } = await authorization.supabase
     .from('artwork_proposals')
     .delete()
     .eq('id', proposalId)
+    .eq('artwork_id', id)
 
   if (error) {
     return NextResponse.json(

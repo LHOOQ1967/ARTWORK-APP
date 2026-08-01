@@ -1,21 +1,25 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { requireRole } from '@/lib/apiAuth'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(req: Request) {
+  const authorization = await requireRole(['Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
+
   try {
     const body = await req.json()
 
     const email = body.email?.trim()
     const role = body.role ?? 'Viewer'
 
-    if (!email) {
+    if (
+      !email ||
+      !['Viewer', 'Editor', 'Administrator'].includes(role)
+    ) {
       return NextResponse.json(
-        { error: 'Email required' },
+        { error: 'A valid email and role are required' },
         { status: 400 }
       )
     }

@@ -1,39 +1,28 @@
 
 
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { supabaseServer } from '@/lib/supabaseServer'
-
-
-export async function getSupabaseServerClient() {
-  const cookieStore = await cookies()
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
-}
-
-
+import { requireRole } from '@/lib/apiAuth'
 
 export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id: artworkId } = await context.params
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
+
   const body = await req.json()
+  if (
+    typeof body.document_type !== 'string' ||
+    typeof body.url !== 'string' ||
+    body.url.length === 0
+  ) {
+    return NextResponse.json({ error: 'Invalid document payload' }, { status: 400 })
+  }
 
-  const supabase = await getSupabaseServerClient()
-
-  const { data, error } = await supabase
+  const { data, error } = await authorization.supabase
     .from('documents')
     .insert({
       artwork_id: artworkId,
@@ -54,6 +43,5 @@ export async function POST(
 
   return NextResponse.json(data)
 }
-
 
 

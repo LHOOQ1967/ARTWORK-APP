@@ -2,7 +2,6 @@
 'use client'
 
 import { useState } from 'react'
-import type { ArtworkBase } from '@/app/(protected)/types/artwork'
 import Link from 'next/link'
 
 type AuditArtwork = {

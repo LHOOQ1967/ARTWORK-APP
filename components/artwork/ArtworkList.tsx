@@ -18,7 +18,7 @@ canEditStatusPriority?: boolean
   onUpdateArtworkField?: (
     artworkId: string,
     field: 'status' | 'priority',
-    value: string | boolean | null
+    value: string | null
   ) => void
 
 }
@@ -676,9 +676,7 @@ const proposedToText = getProposedToText(a as any)
 
 <td style={{ ...td, width: 80 }}>
   {(() => {
-    const images = Array.isArray((a as any).images)
-      ? (a as any).images
-      : []
+    const images = a.images ?? []
 
     const sortedImages = images
       .filter((d) => d.document_type === 'image')

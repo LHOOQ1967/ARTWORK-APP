@@ -33,14 +33,14 @@ export async function POST(req: Request) {
     // ✅ Cookies HttpOnly (sécurisés)
     res.cookies.set('sb-access-token', data.access_token, {
       httpOnly: true,
-      secure: false, // true en production HTTPS
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
     })
 
     res.cookies.set('sb-refresh-token', data.refresh_token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
     })

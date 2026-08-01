@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabaseServer'
+import { requireRole } from '@/lib/apiAuth'
 
 type RouteParams = {
   id: string
@@ -12,10 +12,14 @@ export async function POST(
   context: { params: Promise<RouteParams> }
 ) {
   const { id } = await context.params
-  const body = await req.json()
-const supabase = await supabaseServer()
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
 
-  const { data, error } = await supabase
+  const body = await req.json()
+
+  const { data, error } = await authorization.supabase
     .from('documents')
     .insert({
       artwork_id: id,
@@ -39,14 +43,17 @@ export async function DELETE(
   req: NextRequest,
   context: { params: Promise<RouteParams> }
 ) {
-  const { documentId } = await context.params
+  const { id, documentId } = await context.params
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
 
-  const supabase = await supabaseServer()
-
-  const { error } = await supabase
+  const { error } = await authorization.supabase
     .from('documents')
     .delete()
     .eq('id', documentId)
+    .eq('artwork_id', id)
 
   if (error) {
     console.error('DELETE DOCUMENT ERROR:', error)
@@ -60,16 +67,24 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<RouteParams> }
 ) {
-  const { documentId } = await context.params
-  const body = await req.json()
-const supabase = await supabaseServer()
+  const { id, documentId } = await context.params
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
 
-  const { data, error } = await supabase
+  const body = await req.json()
+  if (body.label !== null && typeof body.label !== 'string') {
+    return NextResponse.json({ error: 'Invalid document label' }, { status: 400 })
+  }
+
+  const { data, error } = await authorization.supabase
     .from('documents')
     .update({
       label: body.label ?? null,
     })
     .eq('id', documentId)
+    .eq('artwork_id', id)
     .select()
     .single()
 
