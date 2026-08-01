@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "build:prod": "NODE_OPTIONS='--max-old-space-size=512' next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@adobe/pdfservices-node-sdk": "^4.1.0",
@@ -32,6 +33,7 @@
     "eslint-config-next": "16.2.3",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
