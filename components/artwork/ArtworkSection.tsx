@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabaseBrowser'
 import type {
   ArtworkForm,
+  ArtworkDocument,
   ArtworkWithRelations,
   ArtworkProposal,
   Contact,
@@ -2386,7 +2387,7 @@ async function handleAddProposal() {
 
     {artwork.rapport_heritier && (
       <div style={{ flex: 1 }}>
-        <AutocompleteSelect<Contact>
+        <AutocompleteSelect<ArtworkDocument>
           value={artwork.rapport_heritier_document_id ?? ''}
           onChange={(value) => {
             const selected =
@@ -2458,4 +2459,3 @@ async function handleAddProposal() {
     </div>
   )
 }
-

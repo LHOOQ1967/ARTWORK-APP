@@ -23,6 +23,8 @@ type ArtworkCreateInitialValues = {
   inventory_number?: string
   lot?: string
   status?: string
+  acquired?: boolean | string
+  date_acquisition?: string
   asking_price?: string | number
   currency?: string
   estimate_low?: string | number
@@ -84,6 +86,7 @@ const EMPTY_ARTWORK: ArtworkForm = {
   cost_amount: null,
   cost_currency: null,
   commission_blondeau: null,
+  purchase_cost: null,
 
   status: 'Draft',
   priority: 'Medium',
@@ -129,6 +132,8 @@ const EMPTY_ARTWORK: ArtworkForm = {
 
   insurance_value: null,
   insurance_currency: null,
+  rapport_heritier: false,
+  rapport_heritier_document_id: null,
   updated_at: null,
 
   documents: [],

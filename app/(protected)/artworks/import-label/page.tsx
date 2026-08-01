@@ -89,6 +89,7 @@ function normalizeForEdit(importRow: ArtworkImportRow | null): EditableNormalize
     title: safeString(normalized.title),
     year: safeString(normalized.year),
     medium: safeString(normalized.medium),
+    signature: safeString(normalized.signature),
     height_cm: safeString(normalized.height_cm),
     width_cm: safeString(normalized.width_cm),
     depth_cm:
@@ -428,6 +429,7 @@ function handleResetAll() {
     title: "",
     year: "",
     medium: "",
+    signature: "",
     height_cm: "",
     width_cm: "",
     depth_cm: "",

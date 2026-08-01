@@ -860,7 +860,7 @@ const displaySections = useMemo(() => {
     await loadData();
   }
 
-  async function handleCreateSection(e: React.HTMLFormEElement) {
+  async function handleCreateSection(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canEdit) return;
 
@@ -905,7 +905,7 @@ const displaySections = useMemo(() => {
     await loadData();
   }
 
-    async function handleCreateItem(e: React.HTMLFormElement) {
+    async function handleCreateItem(e: React.FormEvent<HTMLFormElement>) {
 
     e.preventDefault();
     if (!canEdit) return;

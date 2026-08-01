@@ -8,7 +8,7 @@ import { CSS } from '@dnd-kit/utilities'
 
 type SortableArtworkDocument = {
   id: string
-  document_type: 'image' | 'onedrive'
+  document_type: 'image' | 'link' | 'onedrive'
   label?: string | null
   url?: string | null
   position?: number | null

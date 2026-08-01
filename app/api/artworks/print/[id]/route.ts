@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabaseServer'
+import { requireUser } from '@/lib/apiAuth'
 
 export async function GET(
   req: NextRequest,
@@ -14,7 +14,12 @@ export async function GET(
       { status: 400 }
     )
   }
-const supabase = await supabaseServer()
+  const authorization = await requireUser()
+  if (authorization.response) {
+    return authorization.response
+  }
+
+  const { supabase } = authorization
 
   const { data, error } = await supabase
     .from('artworks')

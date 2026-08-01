@@ -1,42 +1,51 @@
-
 import { NextRequest, NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiAuth'
+
+type DocumentPosition = {
+  id: string
+  position: number
+}
+
+function isDocumentPosition(value: unknown): value is DocumentPosition {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as DocumentPosition).id === 'string' &&
+    Number.isInteger((value as DocumentPosition).position)
+  )
+}
 
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params
-
-  const accessToken = req.cookies.get('sb-access-token')?.value
-  if (!accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id: artworkId } = await context.params
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
   }
 
-  const body = await req.json()
-  // body = [{ id: string, position: number }, ...]
+  const body: unknown = await req.json()
+  if (!Array.isArray(body) || !body.every(isDocumentPosition)) {
+    return NextResponse.json({ error: 'Invalid document positions' }, { status: 400 })
+  }
 
-  const updates = body.map((item: { id: string; position: number }) => ({
-    id: item.id,
-    position: item.position,
-  }))
-
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/documents`,
-    {
-      method: 'PATCH',
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify(updates),
-    }
+  const results = await Promise.all(
+    body.map(({ id, position }) =>
+      authorization.supabase
+        .from('documents')
+        .update({ position })
+        .eq('id', id)
+        .eq('artwork_id', artworkId)
+    )
   )
+  const failedUpdate = results.find(({ error }) => error)
 
-  if (!res.ok) {
-    const text = await res.text()
-    return NextResponse.json({ error: text }, { status: res.status })
+  if (failedUpdate?.error) {
+    return NextResponse.json(
+      { error: failedUpdate.error.message },
+      { status: 400 }
+    )
   }
 
   return NextResponse.json({ success: true })

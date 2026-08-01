@@ -65,14 +65,15 @@ export type ArtworkFull = {
   medium?: string | null
   signature?: string | null
   year_execution?: number | null
+  dimensions?: string | null
 
   height_cm?: number | null
   width_cm?: number | null
   depth_cm?: number | null
 
   /* ---------- statut ---------- */
-  status?: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
-  priority?: 'Information' | 'Medium' | 'High'
+  status?: string | null
+  priority?: string | null
   acquired?: boolean | null
 
   /* ---------- dates ---------- */
@@ -91,6 +92,7 @@ export type ArtworkFull = {
   cost_amount?: number | null
   cost_currency?: string | null
   commission_blondeau?: number | null
+  purchase_cost?: number | null
 
   insurance_value?: number | null
   insurance_currency?: string | null
@@ -123,6 +125,13 @@ export type ArtworkFull = {
 
   /* ---------- relations ---------- */
   artist?: Artist | null
+  artist_id?: string | null
+  location_contact_id?: string | null
+  auction_contact_id?: string | null
+  buyer_contact_id?: string | null
+  destination_contact_id?: string | null
+  certificate_location_contact_id?: string | null
+  proposed_by_id?: string | null
 
   proposedBy?: Contact | null
   buyer?: Contact | null
@@ -130,9 +139,11 @@ export type ArtworkFull = {
   destination?: Contact | null
   certificateLocation?: Contact | null
   auctionContact?: Contact | null
+  auction_house?: Contact | null
 
   /* ---------- arrays ---------- */
   proposals?: ArtworkProposal[] | null
+  artwork_proposals?: ArtworkProposal[] | null
   documents?: ArtworkDocument[] | null
   images?: ArtworkDocument[] | null
 
@@ -152,6 +163,8 @@ export type ArtworkFull = {
 
   updated_at?: string | null
 }
+
+export type ArtworkWithRelations = ArtworkFull
 
 
 
@@ -201,6 +214,7 @@ export type ArtworkForm = {
   medium: string | null
   signature: string | null
   year_execution: number | null
+  dimensions: string | null
 
   status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
   priority: 'Information' | 'Medium' | 'High'
@@ -238,6 +252,7 @@ export type ArtworkForm = {
   condition: string | null
   notes: string | null
   certificate: boolean
+  check_seller: boolean
 
   date_acquisition: string | null
   cost_amount: number | null
@@ -255,4 +270,7 @@ rapport_heritier: boolean
 rapport_heritier_document_id: string | null
 
   acquired?: boolean
+updated_at?: string | null
+documents?: ArtworkDocument[]
+artwork_proposals?: ArtworkProposal[]
 }

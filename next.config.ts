@@ -10,11 +10,6 @@ const nextConfig = {
       },
     ],
   },
-
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   // 🔥 IMPORTANT → empêche génération statique
   experimental: {
     workerThreads: false,

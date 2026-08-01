@@ -3,10 +3,18 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+function getSafeNextPath(value: string | null): string {
+  if (value?.startsWith('/') && !value.startsWith('//')) {
+    return value
+  }
+
+  return '/'
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const next = url.searchParams.get('next') ?? '/'
+  const next = getSafeNextPath(url.searchParams.get('next'))
 
   // ✅ reconstruire l’origin public derrière reverse proxy
   const proto = request.headers.get('x-forwarded-proto') ?? 'https'

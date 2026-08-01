@@ -1,8 +1,14 @@
 
 import { NextResponse } from 'next/server'
+import { requireRole } from '@/lib/apiAuth'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function GET() {
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
+
   const { data, error } = await supabaseAdmin
     .from('artworks')
     .select(`
@@ -26,7 +32,7 @@ export async function GET() {
   }
 
   // Artworks sans AUCUNE proposal avec proposed_at
-  const invalidArtworks = data.filter(
+  const invalidArtworks = (data ?? []).filter(
     artwork =>
       !artwork.artwork_proposals?.some(
         p => p.proposed_at !== null

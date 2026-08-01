@@ -29,8 +29,7 @@ type ProposalLinkRow = { artwork_id: string; contact_id: string }
 
 
 type EditableArtworkField = 'status' | 'priority'
-
-type EditableArtworkValue = string | boolean | null
+type EditableArtworkValue = string | null
 
 
 const chunk = <T,>(arr: T[], size: number) => {
@@ -82,7 +81,10 @@ const statusOptions = useMemo(() => {
 
   const existingStatuses = artworks
     .map(a => a.status)
-    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .filter(
+      (v): v is NonNullable<typeof v> =>
+        typeof v === 'string' && v.trim().length > 0
+    )
 
   return Array.from(new Set([...baseStatuses, ...existingStatuses]))
 }, [artworks])
@@ -683,11 +685,11 @@ function groupByPriority(list: ArtworkAll[]) {
 const buildPrintUrl = ({
   market,
   priority,
-  status,
+  status = 'active',
 }: {
   market: 'private' | 'auction'
   priority?: string
-  status: 'active' | 'bought' | 'archived'
+  status?: 'active' | 'bought' | 'archived'
 }) => {
   const params = new URLSearchParams()
 

@@ -1,28 +1,8 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireRole, requireUser } from '@/lib/apiAuth'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-
-/* =========================================================
-   Supabase server client (SSR, cookies + RLS)
-   ========================================================= */
-async function getSupabase() {
-  const cookieStore = await cookies() // ✅ IMPORTANT
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
-}
 
 /* =========================================================
    GET /api/artworks/[id]
@@ -40,7 +20,12 @@ export async function GET(
     )
   }
 
-  const supabase = await getSupabase()
+  const authorization = await requireUser()
+  if (authorization.response) {
+    return authorization.response
+  }
+
+  const { supabase } = authorization
 
   const { data, error } = await supabase
     .from('artworks')
@@ -136,7 +121,12 @@ export async function PATCH(
     )
   }
 
-  const supabase = await getSupabase()
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
+
+  const { supabase } = authorization
   const body = await req.json()
 
   const {
@@ -145,6 +135,9 @@ export async function PATCH(
     year_execution,
     signature,
     dimensions,
+    height_cm,
+    width_cm,
+    depth_cm,
     location_contact_id,
     status,
     priority,
@@ -166,9 +159,12 @@ export async function PATCH(
     guarantee,
     buyer_contact_id,
     destination_contact_id,
+    acquired,
+    date_acquisition,
     cost_amount,
     cost_currency,
     commission_blondeau,
+    purchase_cost,
     date_proposition,
     proposed_by_id,
     view_date,
@@ -180,6 +176,8 @@ export async function PATCH(
     artist_id,
     insurance_value,
     insurance_currency,
+    rapport_heritier,
+    rapport_heritier_document_id,
     updated_at,
   } = body
 
@@ -191,6 +189,9 @@ export async function PATCH(
       year_execution,
       signature,
       dimensions,
+      height_cm,
+      width_cm,
+      depth_cm,
       location_contact_id,
       status,
       priority,
@@ -212,8 +213,11 @@ export async function PATCH(
       guarantee,
       buyer_contact_id,
       destination_contact_id,
+      acquired,
+      date_acquisition,
       cost_amount,
       cost_currency,
+      purchase_cost,
       date_proposition,
       proposed_by_id,
       view_date,
@@ -226,6 +230,8 @@ export async function PATCH(
       insurance_value,
       insurance_currency,
       commission_blondeau,
+      rapport_heritier,
+      rapport_heritier_document_id,
       updated_at,
     })
     .eq('id', id)
@@ -260,6 +266,11 @@ export async function DELETE(
     )
   }
 
+  const authorization = await requireRole(['Editor', 'Administrator'])
+  if (authorization.response) {
+    return authorization.response
+  }
+
   const { data, error } = await supabaseAdmin
     .from('artworks')
     .delete()
@@ -283,5 +294,3 @@ export async function DELETE(
 
   return NextResponse.json({ success: true })
 }
-
-
