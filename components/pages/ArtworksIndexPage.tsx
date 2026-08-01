@@ -5,58 +5,57 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import ArtworkList from '@/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseBrowser'
-import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { resolveSource } from '@/lib/viewerSources'
 import SearchSelect from '@/components/ui/SearchSelect'
+import {
+  artistLabel,
+  artistRows,
+  artworkRows,
+  buildPrintUrl,
+  chunk,
+  contactLabel,
+  contactRows,
+  dateAcquisitionMs,
+  getArtistId,
+  getErrorSummary,
+  getProposedById,
+  getProposedByLabelFromRow,
+  groupByPriority,
+  logQueryError,
+  nonActiveFilterDateMs,
+  proposalLinkRows,
+  type ArtistRow,
+  type ArtworkIndexItem,
+  type ContactRow,
+  type ProposalLinkRow,
+} from '@/components/artwork/artworkIndexHelpers'
 
 type Props = {
   title?: string
   fixedProposedToId?: string
-  forcedStatus?: 'Bought' | 'Archived' | 'Active' 
+  forcedStatus?: ForcedStatus
 }
 
-type ContactRow = {
-  id: string
-  company_name: string | null
-  first_name: string | null
-  last_name: string | null
-  email: string | null
-}
-
-type ArtistRow = { id: string; last_name: string | null }
-type ProposalLinkRow = { artwork_id: string; contact_id: string }
-
-
+type ForcedStatus = 'Bought' | 'Archived' | 'Active'
 type EditableArtworkField = 'status' | 'priority'
 type EditableArtworkValue = string | null
 
+const applyForcedStatusFilter = <T extends {
+  or: (filters: string) => T
+  eq: (column: string, value: string) => T
+}>(
+  query: T,
+  forcedStatus?: ForcedStatus
+) => {
+  if (!forcedStatus) return query
 
-const chunk = <T,>(arr: T[], size: number) => {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
+  if (forcedStatus === 'Active') {
+    return query.or('status.is.null,status.not.in.(Bought,Archived)')
+  }
+
+  return query.eq('status', forcedStatus)
 }
-
-type ArtworkAll = ArtworkListItem & {
-  auctions?: boolean | null
-
-  artist_id?: string | null
-  proposed_by_id?: string | null
-
-  artist_label?: string | null
-  proposed_by_label?: string | null
-
-  proposed_by_name?: string | null
-
-  proposals?: { contact_id: string; contact_label: string }[] | null
-
-  // Champs utiles (selon tes vues)
-  date_proposition?: string | null
-  date_acquisition?: string | null
-  sale_date?: string | null
-}
-
 
 export default function ArtworksIndexPage({
   title,
@@ -64,7 +63,7 @@ export default function ArtworksIndexPage({
   forcedStatus,   // ✅ AJOUT ICI
 }: Props)
  {
-  const [artworks, setArtworks] = useState<ArtworkAll[]>([])
+  const [artworks, setArtworks] = useState<ArtworkIndexItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -101,135 +100,19 @@ const canEditStatusPriority =
   const marketSource = role ? resolveSource('artworks', role) : null
   const auctionsSource = role ? resolveSource('auctions', role) : null
 
-  // (optionnel) si tu affiches le nom du contact fixé quelque part
-  const [fixedProposedToName, setFixedProposedToName] = useState<string | null>(null)
-
   // Filtres
   const [artistIdFilter, setArtistIdFilter] = useState('all')
   const [proposedByIdFilter, setProposedByIdFilter] = useState('all')
   const [proposedToIdFilter, setProposedToIdFilter] = useState('all')
+  const selectedProposedToIdFilter = fixedProposedToId ?? proposedToIdFilter
 
 
 
 const [fromDateProposed, setFromDateProposed] = useState<string>('')
-  // =========================
-  // Helpers date
-  // =========================
-  const safeDateMs = (v: any) => {
-    if (!v) return 0
-    const d = new Date(v)
-    return isNaN(d.getTime()) ? 0 : d.getTime()
-  }
-
-  const dateAcquisitionMs = (a: any) => safeDateMs(a?.date_acquisition)
-
-  // ✅ Archived doivent s’afficher avec "date proposed"
-  // On rend le getter robuste (au cas où ta vue auctions n’utilise pas exactement le même nom)
-  const datePropositionMs = (a: any) =>
-    safeDateMs(a?.date_proposition) ||
-    safeDateMs((a as any)?.proposed_at) ||
-    safeDateMs((a as any)?.date_proposed) ||
-    safeDateMs((a as any)?.proposed_date)
-
-  const saleDateMs = (a: any) => safeDateMs(a?.sale_date)
-
-  // ✅ Date utilisée pour le filtre "From date ..." :
-  // - Bought => date_acquisition
-  // - Archived => date_proposition (et si absente: fallback sale_date UNIQUEMENT pour ne pas perdre les rows)
-  const nonActiveFilterDateMs = (a: any) => {
-    if (a?.status === 'Bought') return dateAcquisitionMs(a)
-    if (a?.status === 'Archived') {
-      const dp = datePropositionMs(a)
-      return dp || saleDateMs(a) // fallback pour que les "archived auctions" ne disparaissent pas
-    }
-    return 0
-  }
-
-  // =========================
-  // Helpers labels
-  // =========================
-
-const contactLabel = (c?: ContactRow | null) => {
-  const company = (c?.company_name ?? '').trim()
-  if (company) return company
-
-  const full = `${(c?.first_name ?? '').trim()} ${(c?.last_name ?? '').trim()}`.trim()
-  if (full) return full
-
-  const email = (c?.email ?? '').trim()
-  if (email) return email
-
-  return ''
-}
-
-
-  const artistLabel = (a?: ArtistRow | null) => (a?.last_name ?? '').trim()
-
-  const getArtistId = (a: any): string | null => {
-    if (a?.artist_id) return String(a.artist_id)
-    if (a?.artist?.id) return String(a.artist.id)
-    if (a?.artistId) return String(a.artistId)
-    return null
-  }
-
-  const getProposedById = (a: any): string | null => {
-    if (a?.proposed_by_id) return String(a.proposed_by_id)
-    if (a?.proposed_by) return String(a.proposed_by)
-    if (a?.proposed_by_contact_id) return String(a.proposed_by_contact_id)
-    if (a?.proposedById) return String(a.proposedById)
-    if (a?.proposed_by?.id) return String(a.proposed_by.id)
-    return null
-  }
-
-  const getProposedByLabelFromRow = (a: any): string => {
-    const s = (a?.proposed_by_name ?? '').toString().trim()
-    return s ? s : ''
-  }
-
-
-const applyForcedStatusFilter = (query: any) => {
-  if (!forcedStatus) return query
-
-  if (forcedStatus === 'Active') {
-    // Inclut les status null + tous les status sauf Bought / Archived
-    return query.or('status.is.null,status.not.in.(Bought,Archived)')
-  }
-
-  return query.eq('status', forcedStatus)
-}
-
-
-  // Charger le nom du contact fixé
-  useEffect(() => {
-    const loadFixedName = async () => {
-      if (!fixedProposedToId) {
-        setFixedProposedToName(null)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('company_name, first_name, last_name, email')
-        .eq('id', fixedProposedToId)
-        .maybeSingle()
-
-      if (error) {
-        console.error('Failed to load fixed contact name', error)
-        setFixedProposedToName(null)
-        return
-      }
-
-      const label = contactLabel((data ?? null) as any) || null
-      setFixedProposedToName(label)
-    }
-
-    loadFixedName()
-  }, [fixedProposedToId])
 
   // Load artworks
   useEffect(() => {
     if (!marketSource || !auctionsSource) {
-      setLoading(false)
       return
     }
 
@@ -242,7 +125,7 @@ const applyForcedStatusFilter = (query: any) => {
         const shouldLoadProposedTo = !isViewer && !fixedProposedToId
 
 
-let baseArtworks: any[] = []
+let baseArtworks: ArtworkIndexItem[] = []
 
 if (marketSource === auctionsSource) {
   // ✅ Une seule vue fusionnée : on charge UNE SEULE FOIS
@@ -251,7 +134,7 @@ let query = supabase
   .from(marketSource)
   .select('*')
 
-query = applyForcedStatusFilter(query)
+query = applyForcedStatusFilter(query, forcedStatus)
 
 const { data, error } = await query
 
@@ -261,7 +144,7 @@ const { data, error } = await query
     return
   }
 
-  const rows = (Array.isArray(data) ? data : []) as any[]
+  const rows = artworkRows(data)
 
   // ✅ On garde le vrai champ auctions venant de la vue
   baseArtworks = rows.map(a => ({
@@ -279,8 +162,8 @@ let auctionsQuery = supabase
   .from(auctionsSource)
   .select('*')
 
-marketQuery = applyForcedStatusFilter(marketQuery)
-auctionsQuery = applyForcedStatusFilter(auctionsQuery)
+marketQuery = applyForcedStatusFilter(marketQuery, forcedStatus)
+auctionsQuery = applyForcedStatusFilter(auctionsQuery, forcedStatus)
 
 const [
   { data: marketData, error: marketError },
@@ -293,45 +176,27 @@ const [
 
 
 if (marketError) {
-  console.error('marketError raw =', marketError)
-  console.error('marketError json =', JSON.stringify(marketError, null, 2))
-  console.error('marketError message =', (marketError as any)?.message)
-  console.error('marketError details =', (marketError as any)?.details)
-  console.error('marketError hint =', (marketError as any)?.hint)
-  console.error('marketError code =', (marketError as any)?.code)
+  logQueryError('marketError', marketError)
 
   setError(
-    `Failed to load artworks (market): ${
-      (marketError as any)?.message ||
-      (marketError as any)?.details ||
-      'unknown error'
-    }`
+    `Failed to load artworks (market): ${getErrorSummary(marketError)}`
   )
   return
 }
 
 
 if (auctionsError) {
-  console.error('auctionsError raw =', auctionsError)
-  console.error('auctionsError json =', JSON.stringify(auctionsError, null, 2))
-  console.error('auctionsError message =', (auctionsError as any)?.message)
-  console.error('auctionsError details =', (auctionsError as any)?.details)
-  console.error('auctionsError hint =', (auctionsError as any)?.hint)
-  console.error('auctionsError code =', (auctionsError as any)?.code)
+  logQueryError('auctionsError', auctionsError)
 
   setError(
-    `Failed to load artworks (auctions): ${
-      (auctionsError as any)?.message ||
-      (auctionsError as any)?.details ||
-      'unknown error'
-    }`
+    `Failed to load artworks (auctions): ${getErrorSummary(auctionsError)}`
   )
   return
 }
 
 
-  const marketRows = (Array.isArray(marketData) ? marketData : []) as any[]
-  const auctionsRows = (Array.isArray(auctionsData) ? auctionsData : []) as any[]
+  const marketRows = artworkRows(marketData)
+  const auctionsRows = artworkRows(auctionsData)
 
   baseArtworks = [
     ...marketRows.map(a => ({ ...a, auctions: false })),
@@ -341,9 +206,13 @@ if (auctionsError) {
 
 
 
-        const artworkIds = baseArtworks.map(a => a.id).filter(Boolean) as string[]
-        const artistIds = Array.from(new Set(baseArtworks.map(getArtistId).filter(Boolean))) as string[]
-        const proposedByIds = Array.from(new Set(baseArtworks.map(getProposedById).filter(Boolean))) as string[]
+        const artworkIds = baseArtworks.map(artwork => artwork.id)
+        const artistIds = Array.from(
+          new Set(baseArtworks.map(getArtistId).filter((id): id is string => Boolean(id)))
+        )
+        const proposedByIds = Array.from(
+          new Set(baseArtworks.map(getProposedById).filter((id): id is string => Boolean(id)))
+        )
 
         // Proposals links
         let proposalLinks: ProposalLinkRow[] = []
@@ -361,12 +230,12 @@ if (auctionsError) {
               return
             }
 
-            proposalLinks = proposalLinks.concat((data ?? []) as ProposalLinkRow[])
+            proposalLinks = proposalLinks.concat(proposalLinkRows(data))
           }
         }
 
         const proposedToIds = shouldLoadProposedTo
-          ? (Array.from(new Set(proposalLinks.map(p => p.contact_id).filter(Boolean))) as string[])
+          ? Array.from(new Set(proposalLinks.map(proposal => proposal.contact_id)))
           : []
 
         // Contacts map
@@ -387,7 +256,7 @@ if (auctionsError) {
               return
             }
 
-            for (const c of (data ?? []) as ContactRow[]) {
+            for (const c of contactRows(data)) {
               contactsMap.set(c.id, c)
             }
           }
@@ -404,7 +273,7 @@ if (auctionsError) {
               setError('Failed to load artists')
               return
             }
-            for (const a of (data ?? []) as ArtistRow[]) artistsMap.set(a.id, a)
+            for (const a of artistRows(data)) artistsMap.set(a.id, a)
           }
         }
 
@@ -422,7 +291,7 @@ if (auctionsError) {
         }
 
         // Normalisation finale
-        const normalized: ArtworkAll[] = baseArtworks.map(a => {
+        const normalized: ArtworkIndexItem[] = baseArtworks.map(a => {
           const artist_id = getArtistId(a)
           const proposed_by_id = getProposedById(a)
 
@@ -461,8 +330,8 @@ if (auctionsError) {
   // Options filtres
   const artistOptions = useMemo(() => {
     const map = new Map<string, string>()
-    for (const a of artworks as any[]) {
-      const id = a.artist_id as string | null
+    for (const a of artworks) {
+      const id = a.artist_id
       const label = (a.artist_label ?? '').trim()
       if (id && label) map.set(id, label)
     }
@@ -473,8 +342,8 @@ if (auctionsError) {
 
   const proposedByOptions = useMemo(() => {
     const map = new Map<string, string>()
-    for (const a of artworks as any[]) {
-      const id = (a.proposed_by_id ?? null) as string | null
+    for (const a of artworks) {
+      const id = a.proposed_by_id
       const label = (a.proposed_by_label ?? '').trim()
       if (id && label) map.set(id, label)
     }
@@ -496,12 +365,6 @@ if (auctionsError) {
       .sort((x, y) => x.label.localeCompare(y.label, 'fr-CH', { sensitivity: 'base' }))
   }, [artworks])
 
-  // Forcer proposedTo si page dédiée
-  useEffect(() => {
-    if (!fixedProposedToId) return
-    setProposedToIdFilter(fixedProposedToId)
-  }, [fixedProposedToId])
-
   // Filtrage global
 
 const globallyFiltered = useMemo(() => {
@@ -521,9 +384,9 @@ if (forcedStatus) {
     if (artistIdFilter !== 'all' && a.artist_id !== artistIdFilter) return false
     if (proposedByIdFilter !== 'all' && a.proposed_by_id !== proposedByIdFilter) return false
 
-    if (!isViewer && proposedToIdFilter !== 'all') {
+    if (!isViewer && selectedProposedToIdFilter !== 'all') {
       const ids = (Array.isArray(a.proposals) ? a.proposals : []).map(p => p.contact_id)
-      if (!ids.includes(proposedToIdFilter)) return false
+      if (!ids.includes(selectedProposedToIdFilter)) return false
     }
 
     return true
@@ -533,7 +396,7 @@ if (forcedStatus) {
   forcedStatus,     // ✅ important
   artistIdFilter,
   proposedByIdFilter,
-  proposedToIdFilter,
+  selectedProposedToIdFilter,
   isViewer,
 ])
 
@@ -554,14 +417,14 @@ if (forcedStatus) {
     if (!fromMs) return nonActiveBase
 
     return nonActiveBase.filter(a => {
-      const d = nonActiveFilterDateMs(a as any)
+      const d = nonActiveFilterDateMs(a)
       return d && d >= fromMs
     })
   }, [nonActiveBase, fromDateProposed])
 
   // Sections
-  const primaryMarket = useMemo(() => activeAll.filter(a => !((a as any).auctions ?? false)), [activeAll])
-  const auctions = useMemo(() => activeAll.filter(a => !!(a as any).auctions), [activeAll])
+  const primaryMarket = useMemo(() => activeAll.filter(a => !a.auctions), [activeAll])
+  const auctions = useMemo(() => activeAll.filter(a => Boolean(a.auctions)), [activeAll])
 
   const bought = useMemo(() => nonActiveFiltered.filter(a => a.status === 'Bought'), [nonActiveFiltered])
   const archivedAll = useMemo(() => nonActiveFiltered.filter(a => a.status === 'Archived'), [nonActiveFiltered])
@@ -573,12 +436,12 @@ if (forcedStatus) {
 
   // Archived séparés (comme tu veux)
   const archivedMarket = useMemo(
-    () => archivedAll.filter(a => !((a as any).auctions ?? false)),
+    () => archivedAll.filter(a => !a.auctions),
     [archivedAll]
   )
 
   const archivedAuctions = useMemo(
-    () => archivedAll.filter(a => !!(a as any).auctions),
+    () => archivedAll.filter(a => Boolean(a.auctions)),
     [archivedAll]
   )
   
@@ -600,10 +463,10 @@ const auctionGroups = useMemo(
     setArtistIdFilter('all')
     setProposedByIdFilter('all')
     setFromDateProposed('') // ✅ efface
-    setProposedToIdFilter(isViewer ? 'all' : fixedProposedToId ?? 'all')
+    setProposedToIdFilter('all')
   }
 
-  if (loading) return <p className="p-10">Loading artworks…</p>
+  if (loading && marketSource && auctionsSource) return <p className="p-10">Loading artworks…</p>
   if (error) return <p className="p-10 text-red-600">{error}</p>
 
   const baseTitle = title ?? 'Artworks — Private market & Auctions'
@@ -657,57 +520,6 @@ const handleUpdateArtworkField = async (
     setSavingInlineKey(null)
   }
 }
-
-
-
-function groupByPriority(list: ArtworkAll[]) {
-  const groups: Record<string, ArtworkAll[]> = {
-    High: [],
-    Medium: [],
-    Information: [],
-    Other: [],
-  }
-
-  for (const a of list) {
-    const key = (a.priority ?? '').toString().trim()
-
-    if (key === 'High') groups.High.push(a)
-    else if (key === 'Medium') groups.Medium.push(a)
-    else if (key === 'Information') groups.Information.push(a)
-    else groups.Other.push(a)
-  }
-
-  return groups
-}
-
-
-
-const buildPrintUrl = ({
-  market,
-  priority,
-  status = 'active',
-}: {
-  market: 'private' | 'auction'
-  priority?: string
-  status?: 'active' | 'bought' | 'archived'
-}) => {
-  const params = new URLSearchParams()
-
-  params.set('market', market)
-  params.set('status', status)
-  params.set('sort', 'date')
-  params.set('dir', 'desc')
-
-  if (priority && priority !== 'Other') {
-    params.set('priority', priority)
-  } else {
-    params.set('priority', 'all')
-  }
-
-  return `/artworks/print?${params.toString()}`
-}
-
-
 
 
 
@@ -1169,16 +981,6 @@ const subSectionTitle: React.CSSProperties = {
 }
 
 
-const printButtonStyle: React.CSSProperties = {
-  padding: '4px 10px',
-  fontSize: '0.8rem',
-  borderRadius: 6,
-  border: '1px solid rgba(0,0,0,0.25)',
-  backgroundColor: '#fff',
-  cursor: 'pointer',
-}
-
-
 const printLinkStyle: React.CSSProperties = {
   padding: '4px 10px',
   borderRadius: 8,
@@ -1191,14 +993,6 @@ const printLinkStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-
-const sectionHeaderRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
-  marginBottom: 8,
-}
 
 const subSectionHeaderRowStyle: React.CSSProperties = {
   display: 'flex',

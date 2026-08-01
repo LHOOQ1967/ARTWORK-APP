@@ -20,6 +20,7 @@ export type Artist = {
   id: string
   first_name?: string | null
   last_name?: string | null
+  lastName?: string | null
 
   year_of_birth?: number | null
   year_of_death?: number | null
@@ -116,6 +117,7 @@ export type ArtworkFull = {
 
   sold_hammer?: number | null
   sold_premium?: number | null
+  sold_premium_currency?: string | null
   underbidder?: boolean | null
 
   /* ---------- ✅ NEW : rapport héritier ---------- */
@@ -149,11 +151,12 @@ export type ArtworkFull = {
 
   /* ---------- computed / logs ---------- */
   proposed_by_name?: string | null
+  proposed_by_label?: string | null
   buyer_id?: string | null
 
   last_changed_at?: string | null
   changed_fields?: string[] | null
-  changed_diff?: any
+  changed_diff?: Record<string, { old: unknown; new: unknown }> | null
 
   /* ---------- legacy ---------- */
   certificate?: boolean | null
@@ -175,6 +178,10 @@ export type ArtworkWithRelations = ArtworkFull
 /* ✅ PRINT = FULL */
 export type ArtworkPrint = ArtworkFull
 
+export type ArtworkProposalSummary = Pick<
+  ArtworkProposal,
+  'contact_id' | 'contact_label'
+>
 
 /* ✅ LIST (léger, performant) */
 export type ArtworkListItem = Pick<
@@ -182,17 +189,22 @@ export type ArtworkListItem = Pick<
   | 'id'
   | 'title'
   | 'artist'
+  | 'medium'
+  | 'year_execution'
   | 'status'
   | 'priority'
   | 'date_proposition'
   | 'asking_price'
   | 'currency'
   | 'sale_date'
+  | 'sale_time'
   | 'estimate_low'
   | 'estimate_high'
   | 'auction_currency'
   | 'auction_max_hammer'
   | 'auction_max_premium'
+  | 'sold_premium'
+  | 'sold_premium_currency'
   | 'lot'
   | 'date_acquisition'
   | 'cost_amount'
@@ -200,7 +212,11 @@ export type ArtworkListItem = Pick<
   | 'commission_blondeau'
   | 'updated_at'
   | 'images'
->
+  | 'proposed_by_name'
+  | 'proposed_by_label'
+> & {
+  proposals?: ArtworkProposalSummary[] | null
+}
 
 
 /* =========================================

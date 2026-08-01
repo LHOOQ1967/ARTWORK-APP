@@ -1,16 +1,37 @@
 
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import {
+  formatAsking,
+  formatCost,
+  formatDateFr2,
+  formatEstimate,
+  formatSoldPremium,
+  getArtistName,
+  getDefaultSort,
+  getDisplayDateValue,
+  getMainImage,
+  getPriorityStatusText,
+  getProposedByText,
+  getProposedToText,
+  getTitleWithYear,
+  sortArtworkItems,
+  truncateText,
+  type ArtworkListMode,
+  type ArtworkListSection,
+  type ArtworkSortKey,
+  type SortDirection,
+} from './artworkListHelpers'
 
 type ArtworkListProps = {
   artworks: ArtworkListItem[]
-  mode?: 'market' | 'auction' | 'bought'
+  mode?: ArtworkListMode
   /** active vs archived (utile surtout pour auctions: sold_premium + tri par défaut) */
-  section?: 'active' | 'archived'
+  section?: ArtworkListSection
  
 canEditStatusPriority?: boolean
   statusOptions?: string[]
@@ -74,159 +95,6 @@ const secondLine: React.CSSProperties = {
 }
 
 
-const formatNumber = (n: number) =>
-  new Intl.NumberFormat('fr-CH', { maximumFractionDigits: 0 }).format(n)
-
-const formatEstimate = (a: any) => {
-  const low = a.estimate_low
-  const high = a.estimate_high
-  const cur = a.auction_currency || a.currency || ''
-
-  if ((low == null || low === '') && (high == null || high === '')) {
-    return cur ? `Estimate (${cur}): on request` : 'Estimate: on request'
-  }
-
-  if (low != null && low !== '' && (high == null || high === '')) {
-    return cur ? `${cur} ≥ ${formatNumber(Number(low))}` : `Estimate: ≥ ${formatNumber(Number(low))}`
-  }
-
-  if (high != null && high !== '' && (low == null || low === '')) {
-    return cur ? `${cur} ≤ ${formatNumber(Number(high))}` : `Estimate: ≤ ${formatNumber(Number(high))}`
-  }
-
-  return cur
-    ? `${cur} ${formatNumber(Number(low))} – ${formatNumber(Number(high))}`
-    : `${formatNumber(Number(low))} – ${formatNumber(Number(high))}`
-}
-
-const formatAsking = (a: any) => {
-  const p = a.asking_price
-  const cur = a.currency || ''
-  if (p == null || p === '') return cur ? `Asking (${cur}): —` : 'Asking: —'
-  return cur ? `${cur} ${formatNumber(Number(p))}` : `Asking: ${formatNumber(Number(p))}`
-}
-
-/** ✅ Sold premium (Auctions archived) */
-const formatSoldPremium = (a: any) => {
-  const p = a.sold_premium
-  const cur = a.sold_premium_currency || a.auction_currency || a.currency || ''
-  if (p == null || p === '') return cur ? `Sold (${cur}): —` : 'Sold: —'
-  return cur ? `${cur} ${formatNumber(Number(p))}` : `Sold: ${formatNumber(Number(p))}`
-}
-
-function truncateText(s: string, max = 70) {
-  const t = (s ?? '').toString()
-  if (!t) return '—'
-  return t.length > max ? t.slice(0, max - 1) + '…' : t
-}
-
-function getSaleDateTimeMs(a: any): number {
-  if (!a?.sale_date) return 0
-  const d = new Date(a.sale_date)
-  if (isNaN(d.getTime())) return 0
-
-  const t = (a?.sale_time ?? '').toString().trim()
-  if (!t) return d.getTime()
-
-  const m = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (m) {
-    const hh = Math.min(23, Math.max(0, parseInt(m[1], 10)))
-    const mm = Math.min(59, Math.max(0, parseInt(m[2], 10)))
-    const ss = m[3] ? Math.min(59, Math.max(0, parseInt(m[3], 10))) : 0
-    const dt = new Date(d)
-    dt.setHours(hh, mm, ss, 0)
-    return dt.getTime()
-  }
-
-  return d.getTime()
-}
-
-/** ✅ IMPORTANT : pour les auctions, ne pas dépendre de a.auctions (souvent absent des vues) */
-function getDisplayDateValue(a: any, mode: 'market' | 'auction' | 'bought') {
-  if (mode === 'auction') return a.sale_date
-  if (mode === 'bought') return a.date_acquisition
-  return a.date_proposition
-}
-
-function getDateSortMs(a: any, mode: 'market' | 'auction' | 'bought') {
-  if (mode === 'auction') return getSaleDateTimeMs(a)
-  if (mode === 'bought') return a?.date_acquisition ? new Date(a.date_acquisition).getTime() : 0
-  return a?.date_proposition ? new Date(a.date_proposition).getTime() : 0
-}
-
-/** ✅ Priorité: ordre métier stable */
-function priorityRank(p?: string | null): number {
-  const key = (p ?? '').toString().trim().toLowerCase()
-  const order: Record<string, number> = { high: 4, medium: 3, low: 2, information: 1 }
-  return order[key] ?? 0
-}
-
-function formatDateFr2(d: any): string {
-  if (!d) return '—'
-  const dt = new Date(d)
-  if (isNaN(dt.getTime())) return '—'
-  return dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-}
-
-/** ✅ Proposed by : label calculé (proposed_by_label) ou venant de la view (proposed_by_name) */
-function getProposedByText(a: any): string {
-  const s =
-    (a?.proposed_by_label ?? '').toString().trim() ||
-    (a?.proposed_by_name ?? '').toString().trim()
-  return s ? s : '—'
-}
-
-
-function getProposedToText(a: any): string {
-  const proposals = Array.isArray(a?.proposals) ? a.proposals : []
-
-  const labels = proposals
-    .map((p: any) => (p?.contact_label ?? '').toString().trim())
-    .filter(Boolean)
-
-  return labels.join(', ')
-}
-
-
-/** ✅ 2e ligne de la colonne "Price/Priority" : "Priority • Status" */
-function getPriorityStatusText(a: any): string {
-  const pr = ((a?.priority ?? '—') as any).toString()
-  const st = ((a?.status ?? '—') as any).toString()
-  return `${pr} • ${st}`
-}
-
-/** ✅ Tri par défaut (selon tes règles) */
-function getDefaultSort(mode: 'market' | 'auction' | 'bought', section: 'active' | 'archived') {
-  // 1) Primary market active & archived => date proposed DESC
-  if (mode === 'market') return { key: 'date' as const, dir: 'desc' as const }
-
-  // 2) Bought => acquisition date DESC (via getDateSortMs)
-  if (mode === 'bought') return { key: 'date' as const, dir: 'desc' as const }
-
-  // 3) Auctions active => sale date ASC
-  if (mode === 'auction' && section === 'active') return { key: 'date' as const, dir: 'asc' as const }
-
-  // 4) Auctions archived => sale date DESC
-  if (mode === 'auction' && section === 'archived') return { key: 'date' as const, dir: 'desc' as const }
-
-  return { key: 'date' as const, dir: 'desc' as const }
-}
-
-
-function getMainImage(artwork: ArtworkListItem) {
-  const images =
-    (artwork.images ?? [])
-      .filter((d) => d.document_type === 'image')
-      .sort((a, b) => {
-        const pa = typeof a.position === 'number' ? a.position : 9999
-        const pb = typeof b.position === 'number' ? b.position : 9999
-        return pa - pb
-      })
-
-  return images[0] ?? null
-}
-
-
 export default function ArtworkList({
   artworks,
   mode = 'market',
@@ -246,32 +114,17 @@ const normalizedRole =
 
 
 
-const [sortKey, setSortKey] = useState<
-  | 'artist'
-  | 'title'
-  | 'date'
-  | 'proposed_to'
-  | 'asking'
-  | 'estimate'
-  | 'sold_premium'
-  | 'cost'
-  | 'priority'
-  | 'status'
-  | null
->(null)
+const [sortKey, setSortKey] = useState<ArtworkSortKey | null>(null)
 
 
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
   const PREVIEW_COUNT = 5
   const [showAll, setShowAll] = useState(false)
 
   const defaultSort = useMemo(() => getDefaultSort(mode, section), [mode, section])
 
-  useEffect(() => {}, [artworks, mode, section])
-
-
-function handleSort(columnKey: NonNullable<typeof sortKey>) {
+function handleSort(columnKey: ArtworkSortKey) {
   // 1) Si on reclique sur la même colonne : toggle asc/desc
   if (sortKey === columnKey) {
     setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -295,107 +148,7 @@ function handleSort(columnKey: NonNullable<typeof sortKey>) {
 }
 
 
-  function sortArtworks(list: ArtworkListItem[]) {
-    const hasUserSort = !!sortKey
-    const effectiveKey = (sortKey ?? defaultSort.key) as NonNullable<typeof sortKey>
-    const effectiveDir = (hasUserSort ? sortDirection : defaultSort.dir) as 'asc' | 'desc'
-
-const compareNumbers = (x: number, y: number, dir: 'asc' | 'desc') => {
-  if (x < y) return dir === 'asc' ? -1 : 1
-  if (x > y) return dir === 'asc' ? 1 : -1
-  return 0
-}
-
-const compareStrings = (x: any, y: any, dir: 'asc' | 'desc') => {
-  const sx = (x ?? '').toString()
-  const sy = (y ?? '').toString()
-  const cmp = sx.localeCompare(sy, 'fr-CH', { sensitivity: 'base' })
-  return dir === 'asc' ? cmp : -cmp
-}
-
-    return [...list].sort((a, b) => {
-      let va: any
-      let vb: any
-
-      switch (effectiveKey) {
-        case 'artist':
-          va = ((a.artist as any)?.last_name ?? (a.artist as any)?.lastName ?? '').toString()
-          vb = ((b.artist as any)?.last_name ?? (b.artist as any)?.lastName ?? '').toString()
-          break
-        case 'title':
-          va = (a.title ?? '').toString()
-          vb = (b.title ?? '').toString()
-          break
-        case 'date':
-          va = getDateSortMs(a, mode)
-          vb = getDateSortMs(b, mode)
-          break
-        case 'proposed_to':
-          va = getProposedToText(a)
-          vb = getProposedToText(b)
-          break
-
-        case 'asking':
-          va = Number((a as any).asking_price ?? 0)
-          vb = Number((b as any).asking_price ?? 0)
-          break
-        case 'estimate':
-          va = Number((a as any).estimate_low ?? (a as any).estimate_high ?? 0)
-          vb = Number((b as any).estimate_low ?? (b as any).estimate_high ?? 0)
-          break
-        case 'sold_premium':
-          va = Number((a as any).sold_premium ?? 0)
-          vb = Number((b as any).sold_premium ?? 0)
-          break
-        case 'cost':
-          va = Number((a as any).cost_amount ?? 0)
-          vb = Number((b as any).cost_amount ?? 0)
-          break
-        case 'priority':
-          va = priorityRank((a as any).priority ?? null)
-          vb = priorityRank((b as any).priority ?? null)
-          break
-        case 'status':
-          va = ((a as any).status ?? '').toString()
-          vb = ((b as any).status ?? '').toString()
-          break
-        default:
-          return 0
-      }
-
-
-// 1) Comparaison principale
-let primaryCmp = 0
-
-const isString = typeof va === 'string' || typeof vb === 'string'
-if (isString) {
-  primaryCmp = compareStrings(va, vb, effectiveDir)
-} else {
-  primaryCmp = compareNumbers(Number(va ?? 0), Number(vb ?? 0), effectiveDir)
-}
-
-if (primaryCmp !== 0) return primaryCmp
-
-// 2) ✅ Tie-breaker : si égalité, trier aussi par DATE "comme par défaut"
-// (sauf si la clé principale EST déjà la date)
-if (effectiveKey !== 'date') {
-  const da = getDateSortMs(a, mode)
-  const db = getDateSortMs(b, mode)
-
-  // IMPORTANT: le sens du tie-break est le sens du tri par défaut de la section
-  const dateCmp = compareNumbers(da, db, defaultSort.dir)
-  if (dateCmp !== 0) return dateCmp
-}
-
-// 3) ✅ Tie-breaker final stable (évite les inversions aléatoires)
-const ida = (a as any).id?.toString() ?? ''
-const idb = (b as any).id?.toString() ?? ''
-return ida.localeCompare(idb)
-
-    })
-  }
-
-  const sortedArtworks = sortArtworks(artworks)
+  const sortedArtworks = sortArtworkItems(artworks, mode, defaultSort, sortKey, sortDirection)
   const displayedArtworks = showAll ? sortedArtworks : sortedArtworks.slice(0, PREVIEW_COUNT)
 
   const dateHeaderLabel =
@@ -422,10 +175,10 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
 
 
   // ✅ Afficher l'indicateur ▲▼ même quand on est sur le tri par défaut (sortKey=null)
-  function getHeaderArrow(key: NonNullable<typeof sortKey>) {
+  function getHeaderArrow(key: ArtworkSortKey) {
     const hasUserSort = !!sortKey
-    const effectiveKey = (sortKey ?? defaultSort.key) as NonNullable<typeof sortKey>
-    const effectiveDir = (hasUserSort ? sortDirection : defaultSort.dir) as 'asc' | 'desc'
+    const effectiveKey = sortKey ?? defaultSort.key
+    const effectiveDir = hasUserSort ? sortDirection : defaultSort.dir
     if (effectiveKey !== key) return ''
     return effectiveDir === 'asc' ? ' ▲' : ' ▼'
   }
@@ -634,35 +387,28 @@ return (
 
         <tbody>
           {displayedArtworks.map(a => {
-            const dateValue = getDisplayDateValue(a as any, mode)
+            const dateValue = getDisplayDateValue(a, mode)
             const dateText = formatDateFr2(dateValue)
 
-            const proposedByText = getProposedByText(a as any)
-const proposedToText = getProposedToText(a as any)
-            const artistText =
-              a.artist &&
-              typeof a.artist === 'object' &&
-              ((a.artist as any).first_name || (a.artist as any).last_name)
-                ? `${(a.artist as any).first_name ?? ''} ${(a.artist as any).last_name ?? ''}`.trim()
-                : '—'
+            const proposedByText = getProposedByText(a)
+const proposedToText = getProposedToText(a)
+            const artistText = getArtistName(a)
 
-            const titleRaw = typeof a.title === 'string' && a.title.trim() !== '' ? a.title : '—'
-            const titleText = truncateText(titleRaw, 60)
+            const titleWithYear = getTitleWithYear(a)
 
             const showSoldPremium = mode === 'auction' && section === 'archived'
 
             const priceMain =
               mode === 'market'
-                ? formatAsking(a as any)
+                ? formatAsking(a)
                 : mode === 'auction'
                 ? showSoldPremium
-                  ? formatSoldPremium(a as any)
-                  : formatEstimate(a as any)
-                : (a as any).cost_amount != null && (a as any).cost_amount !== ''
-                ? `${(a as any).cost_currency ?? ''} ${formatNumber(Number((a as any).cost_amount))}`.trim()
-                : 'Cost: —'
+                  ? formatSoldPremium(a)
+                  : formatEstimate(a)
+                : formatCost(a)
 
-            const prStatus = getPriorityStatusText(a as any)
+            const prStatus = getPriorityStatusText(a)
+            const mainImage = getMainImage(a)
 
             return (
               <tr
@@ -675,21 +421,7 @@ const proposedToText = getProposedToText(a as any)
                 {/* 1) Image */}
 
 <td style={{ ...td, width: 80 }}>
-  {(() => {
-    const images = a.images ?? []
-
-    const sortedImages = images
-      .filter((d) => d.document_type === 'image')
-      .slice() // évite mutation
-      .sort((a, b) => {
-        const pa = typeof a.position === 'number' ? a.position : 9999
-        const pb = typeof b.position === 'number' ? b.position : 9999
-        return pa - pb
-      })
-
-    const mainImage = sortedImages[0]
-
-    return mainImage?.url ? (
+  {mainImage?.url ? (
       <img
         src={mainImage.url}
         alt=""
@@ -711,8 +443,7 @@ const proposedToText = getProposedToText(a as any)
           borderRadius: 4,
         }}
       />
-    )
-  })()}
+    )}
 </td>
 
 
@@ -784,16 +515,9 @@ const proposedToText = getProposedToText(a as any)
     {/* Titre + année */}
     <div
       style={secondLine}
-      title={`${titleRaw}${
-        (a as any).year_execution ? `, ${(a as any).year_execution}` : ''
-      }`}
+      title={titleWithYear}
     >
-      {truncateText(
-        `${titleRaw}${
-          (a as any).year_execution ? `, ${(a as any).year_execution}` : ''
-        }`,
-        40
-      )}
+      {truncateText(titleWithYear, 40)}
     </div>
 
     {/* Medium */}
@@ -803,9 +527,9 @@ const proposedToText = getProposedToText(a as any)
         fontSize: '0.95rem',
         color: '#666',
       }}
-      title={(a as any).medium ?? ''}
+      title={a.medium ?? ''}
     >
-      {truncateText((a as any).medium ?? '', 40)}
+      {truncateText(a.medium ?? '', 40)}
     </div>
   </div>
 </td>
