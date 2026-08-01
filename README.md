@@ -43,7 +43,10 @@ Authorization is enforced in API route handlers. Supabase Row Level Security mus
 ```bash
 npm run dev
 npm run lint
+npm test
 npm run build
 ```
 
 The build runs TypeScript validation. Do not suppress TypeScript errors in deployment configuration.
+
+`npm test` runs isolated API authorization tests and never connects to Supabase.
