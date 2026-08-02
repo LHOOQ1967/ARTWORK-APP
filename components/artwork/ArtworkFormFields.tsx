@@ -15,13 +15,14 @@ export default function ArtworkFormFields({
   setArtwork,
   isCreate = false,
 }: Props) {
-
-  // ✅ EN CREATE : PAS DE CONTEXTE, TOUJOURS AFFICHER
   if (isCreate) {
     return renderFields(artwork, setArtwork)
   }
 
-  // ✅ EN EDIT : CONTEXTE OBLIGATOIRE
+  return <EditArtworkFormFields artwork={artwork} setArtwork={setArtwork} />
+}
+
+function EditArtworkFormFields({ artwork, setArtwork }: Omit<Props, "isCreate">) {
   const { isEditing } = useEditMode()
 
   if (!isEditing) return null

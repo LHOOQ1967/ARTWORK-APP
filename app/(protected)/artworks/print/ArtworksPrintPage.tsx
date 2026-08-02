@@ -469,7 +469,7 @@ const filteredAndSorted = useMemo(() => {
   // ✅ LOGIQUE STANDARD (INCHANGÉE)
   // ================================
 
-  let filtered = artworks
+  const filtered = artworks
     .filter(a =>
       statusFilter === 'all'
         ? true
