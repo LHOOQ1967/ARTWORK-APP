@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
+import { logAuditEvent } from '@/lib/audit'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(req: NextRequest) {
@@ -12,6 +13,12 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file')
 
   if (!(file instanceof File)) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import',
+      outcome: 'failure',
+      errorMessage: 'Fichier manquant',
+    })
     return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 })
   }
 
@@ -26,6 +33,12 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (insertError || !importRow) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import',
+      outcome: 'failure',
+      errorMessage: insertError?.message ?? 'Création import impossible',
+    })
     return NextResponse.json(
       { error: insertError?.message ?? 'Création import impossible' },
       { status: 500 }
@@ -50,6 +63,15 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', importRow.id)
 
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import_upload',
+      outcome: 'failure',
+      subjectType: 'artwork_import',
+      subjectId: importRow.id,
+      errorMessage: uploadError.message,
+    })
+
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
@@ -69,6 +91,14 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (updateError) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import',
+      outcome: 'failure',
+      subjectType: 'artwork_import',
+      subjectId: importRow.id,
+      errorMessage: updateError.message,
+    })
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 

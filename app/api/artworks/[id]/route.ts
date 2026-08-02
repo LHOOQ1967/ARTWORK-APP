@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole, requireUser } from '@/lib/apiAuth'
+import { logAuditEvent } from '@/lib/audit'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 /* =========================================================
@@ -239,11 +240,27 @@ export async function PATCH(
     .maybeSingle()
 
   if (error) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_update',
+      outcome: 'failure',
+      subjectType: 'artwork',
+      subjectId: id,
+      errorMessage: error.message,
+    })
     return NextResponse.json(
       { error: error.message },
       { status: 400 }
     )
   }
+
+  await logAuditEvent({
+    actorId: authorization.userId,
+    action: 'artwork_update',
+    outcome: 'success',
+    subjectType: 'artwork',
+    subjectId: id,
+  })
 
   return NextResponse.json(data)
 }
@@ -279,6 +296,14 @@ export async function DELETE(
 
   if (error) {
     console.error('DELETE ARTWORK FAILED', error)
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_delete',
+      outcome: 'failure',
+      subjectType: 'artwork',
+      subjectId: id,
+      errorMessage: error.message,
+    })
     return NextResponse.json(
       { error: error.message },
       { status: 400 }
@@ -286,11 +311,27 @@ export async function DELETE(
   }
 
   if (!data || data.length === 0) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_delete',
+      outcome: 'failure',
+      subjectType: 'artwork',
+      subjectId: id,
+      errorMessage: 'Artwork not deleted (blocked by constraints or not found)',
+    })
     return NextResponse.json(
       { error: 'Artwork not deleted (blocked by constraints or not found)' },
       { status: 404 }
     )
   }
+
+  await logAuditEvent({
+    actorId: authorization.userId,
+    action: 'artwork_delete',
+    outcome: 'success',
+    subjectType: 'artwork',
+    subjectId: id,
+  })
 
   return NextResponse.json({ success: true })
 }
