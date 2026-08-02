@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   runLabelOcr: vi.fn(),
   parseLabelText: vi.fn(),
   findBestArtistMatch: vi.fn(),
+  logAuditEvent: vi.fn(),
 }))
 
 vi.mock('@/lib/apiAuth', () => ({
@@ -20,6 +21,10 @@ vi.mock('@/lib/apiAuth', () => ({
 
 vi.mock('@/lib/supabaseAdmin', () => ({
   supabaseAdmin: mocks.supabaseAdmin,
+}))
+
+vi.mock('@/lib/audit', () => ({
+  logAuditEvent: mocks.logAuditEvent,
 }))
 
 vi.mock('@/lib/imports/ocr', () => ({
@@ -154,6 +159,13 @@ describe('critical artwork workflows', () => {
         })
       )
       expect(artworkQuery.eq).toHaveBeenCalledWith('id', 'artwork-1')
+      expect(mocks.logAuditEvent).toHaveBeenCalledWith({
+        actorId: `${role.toLowerCase()}-1`,
+        action: 'artwork_update',
+        outcome: 'success',
+        subjectId: 'artwork-1',
+        subjectType: 'artwork',
+      })
       await expect(response.json()).resolves.toEqual(updatedArtwork)
     }
   )

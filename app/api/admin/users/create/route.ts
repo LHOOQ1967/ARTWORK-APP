@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
+import { logAuditEvent } from '@/lib/audit'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export async function POST(req: Request) {
@@ -35,11 +36,27 @@ export async function POST(req: Request) {
       )
 
     if (error) {
+      await logAuditEvent({
+        actorId: authorization.userId,
+        action: 'user_invitation',
+        outcome: 'failure',
+        errorMessage: error.message,
+        metadata: { role },
+      })
       return NextResponse.json(
         { error: error.message },
         { status: 400 }
       )
     }
+
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'user_invitation',
+      outcome: 'success',
+      subjectType: 'user',
+      subjectId: data.user.id,
+      metadata: { role },
+    })
 
     return NextResponse.json({
       success: true,
@@ -47,6 +64,12 @@ export async function POST(req: Request) {
     })
   } catch (error) {
     console.error(error)
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'user_invitation',
+      outcome: 'failure',
+      errorMessage: error instanceof Error ? error.message : 'Unexpected error',
+    })
 
     return NextResponse.json(
       { error: 'Unexpected error' },

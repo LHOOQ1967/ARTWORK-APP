@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
+import { logAuditEvent } from '@/lib/audit'
 import { findBestArtistMatch } from '@/lib/imports/findBestArtistMatch'
 import { runLabelOcr } from '@/lib/imports/ocr'
 import { parseLabelText } from '@/lib/imports/parseLabelText'
@@ -22,10 +23,26 @@ export async function POST(
     .single()
 
   if (fetchError || !importRow) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import_analysis',
+      outcome: 'failure',
+      subjectType: 'artwork_import',
+      subjectId: id,
+      errorMessage: fetchError?.message ?? 'Import introuvable',
+    })
     return NextResponse.json({ error: 'Import introuvable' }, { status: 404 })
   }
 
   if (!importRow.image_url) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import_analysis',
+      outcome: 'failure',
+      subjectType: 'artwork_import',
+      subjectId: id,
+      errorMessage: 'Aucune image_url sur cet import',
+    })
     return NextResponse.json(
       { error: 'Aucune image_url sur cet import' },
       { status: 400 }
@@ -41,6 +58,14 @@ export async function POST(
     .eq('id', id)
 
   if (processingError) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import_analysis',
+      outcome: 'failure',
+      subjectType: 'artwork_import',
+      subjectId: id,
+      errorMessage: processingError.message,
+    })
     return NextResponse.json({ error: processingError.message }, { status: 500 })
   }
 
@@ -89,6 +114,15 @@ export async function POST(
         error_message: errorMessage,
       })
       .eq('id', id)
+
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_import_analysis',
+      outcome: 'failure',
+      subjectType: 'artwork_import',
+      subjectId: id,
+      errorMessage,
+    })
 
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

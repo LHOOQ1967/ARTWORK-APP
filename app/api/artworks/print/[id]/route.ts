@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUser } from '@/lib/apiAuth'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function GET(
   req: NextRequest,
@@ -74,6 +75,14 @@ export async function GET(
     .single()
 
   if (error || !data) {
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_print',
+      outcome: 'failure',
+      subjectType: 'artwork',
+      subjectId: id,
+      errorMessage: error?.message ?? 'Artwork not found',
+    })
     return NextResponse.json(
       { error: 'Artwork not found' },
       { status: 404 }
