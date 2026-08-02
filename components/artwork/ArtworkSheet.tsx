@@ -691,17 +691,27 @@ const displayTitle = (() => {
         <InfoRowShort
         label="Estimation"
         value={
-          artwork.estimate_low && artwork.estimate_high
-            ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
-                artwork.estimate_low
-              )} – ${new Intl.NumberFormat('fr-CH').format(
-                artwork.estimate_high
-              )}`
-            : artwork.estimate_low
-            ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
-                artwork.estimate_low
-              )}`
-            : '—'
+          <>
+            {artwork.estimate_low && artwork.estimate_high
+              ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
+                  artwork.estimate_low
+                )} – ${new Intl.NumberFormat('fr-CH').format(
+                  artwork.estimate_high
+                )}`
+              : artwork.estimate_low
+              ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
+                  artwork.estimate_low
+                )}`
+              : '—'}{' '}
+            <a
+              href="https://buyerspremium.blondeau.ch/calculate.php"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: '#007a5e', textDecoration: 'underline' }}
+            >
+              Calculate Buyer's Premium
+            </a>
+          </>
         }
       />
       )}
