@@ -743,6 +743,7 @@ const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
 
   const [contactOptions, setContactOptions] = useState<Contact[]>([])
   const [artistOptions, setArtistOptions] = useState<Artist[]>([])
@@ -1125,6 +1126,7 @@ async function saveArtwork() {
   try {
     setSaving(true)
     setError(null)
+    setSaveSuccess(null)
 
     const payload = {
       title: artwork.title,
@@ -1232,6 +1234,8 @@ try {
 }
 
 
+    setSaveSuccess('Œuvre créée. Ouverture de la fiche…')
+    await new Promise(resolve => setTimeout(resolve, 450))
     router.push(`/artworks/print/${data.id}`)
   } catch (err) {
     console.error('UNEXPECTED CREATE ERROR:', err)
@@ -1325,7 +1329,14 @@ try {
           </div>
         )}
 
+        {saveSuccess && (
+          <div className="ux-inline-success" role="status" aria-live="polite">
+            {saveSuccess}
+          </div>
+        )}
+
 <div
+  className="artwork-action-bar"
   style={{
     position: 'fixed',
     bottom: 0,
