@@ -66,9 +66,11 @@ export default function ArtworksIndexPage({
   const [artworks, setArtworks] = useState<ArtworkIndexItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
 const [savingInlineKey, setSavingInlineKey] = useState<string | null>(null)
 const [inlineEditError, setInlineEditError] = useState<string | null>(null)
+const [inlineEditSuccess, setInlineEditSuccess] = useState<string | null>(null)
 const statusOptions = useMemo(() => {
   const baseStatuses = [
     'Draft',
@@ -104,6 +106,7 @@ const canEditStatusPriority =
   const [artistIdFilter, setArtistIdFilter] = useState('all')
   const [proposedByIdFilter, setProposedByIdFilter] = useState('all')
   const [proposedToIdFilter, setProposedToIdFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const selectedProposedToIdFilter = fixedProposedToId ?? proposedToIdFilter
 
 
@@ -326,7 +329,7 @@ if (auctionsError) {
     }
 
     load()
-}, [marketSource, auctionsSource, isViewer, fixedProposedToId, forcedStatus])
+}, [marketSource, auctionsSource, isViewer, fixedProposedToId, forcedStatus, reloadKey])
   // Options filtres
   const artistOptions = useMemo(() => {
     const map = new Map<string, string>()
@@ -368,6 +371,8 @@ if (auctionsError) {
   // Filtrage global
 
 const globallyFiltered = useMemo(() => {
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase('fr-CH')
+
   return artworks.filter(a => {
     // ✅ FORCE STATUS
 
@@ -389,6 +394,23 @@ if (forcedStatus) {
       if (!ids.includes(selectedProposedToIdFilter)) return false
     }
 
+    if (normalizedSearch) {
+      const searchableText = [
+        a.artist_label,
+        a.title,
+        a.medium,
+        a.status,
+        a.priority,
+        a.proposed_by_label,
+        ...(Array.isArray(a.proposals) ? a.proposals.map(p => p.contact_label) : []),
+      ]
+        .filter((value): value is string => typeof value === 'string')
+        .join(' ')
+        .toLocaleLowerCase('fr-CH')
+
+      if (!searchableText.includes(normalizedSearch)) return false
+    }
+
     return true
   })
 }, [
@@ -398,6 +420,7 @@ if (forcedStatus) {
   proposedByIdFilter,
   selectedProposedToIdFilter,
   isViewer,
+  searchQuery,
 ])
 
   // Active vs Non-active
@@ -464,10 +487,37 @@ const auctionGroups = useMemo(
     setProposedByIdFilter('all')
     setFromDateProposed('') // ✅ efface
     setProposedToIdFilter('all')
+    setSearchQuery('')
   }
 
-  if (loading && marketSource && auctionsSource) return <p className="p-10">Loading artworks…</p>
-  if (error) return <p className="p-10 text-red-600">{error}</p>
+  if (loading && marketSource && auctionsSource) {
+    return (
+      <main style={mainStyle}>
+        <div className="ux-feedback-card" role="status" aria-live="polite">
+          <span className="ux-spinner" aria-hidden="true" />
+          Chargement des œuvres…
+        </div>
+      </main>
+    )
+  }
+
+  if (error) {
+    return (
+      <main style={mainStyle}>
+        <div className="ux-feedback-card ux-feedback-card-error" role="alert">
+          <strong>Impossible de charger les œuvres.</strong>
+          <span>{error}</span>
+          <button
+            type="button"
+            className="edit-button"
+            onClick={() => setReloadKey(key => key + 1)}
+          >
+            Réessayer
+          </button>
+        </div>
+      </main>
+    )
+  }
 
   const baseTitle = title ?? 'Artworks — Private market & Auctions'
   const headerTitle = fixedProposedToId ? `${baseTitle}` : baseTitle
@@ -482,6 +532,7 @@ const handleUpdateArtworkField = async (
   if (!canEditStatusPriority) return
 
   setInlineEditError(null)
+  setInlineEditSuccess(null)
   setSavingInlineKey(`${artworkId}:${field}`)
 
   try {
@@ -513,6 +564,7 @@ const handleUpdateArtworkField = async (
           : a
       )
     )
+    setInlineEditSuccess('Modification enregistrée.')
   } catch (e) {
     console.error(e)
     setInlineEditError('Network error while updating artwork')
@@ -538,13 +590,7 @@ const handleUpdateArtworkField = async (
       {/* Filters */}
       <section className="no-print" style={filtersBoxStyle}>
         {/* LIGNE 1 */}        
-        <div
-          style={
-            window.innerWidth > 768
-              ? filtersRowDesktopStyle
-              : filtersRowStyle
-          }
-        >
+        <div className="artwork-filters-primary" style={filtersRowStyle}>
           <div style={dateBlockStyle}>
             <div style={{ marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}>
               From date{" "}
@@ -575,6 +621,23 @@ const handleUpdateArtworkField = async (
 
         {/* LIGNE 2 */}
         <div style={filtersRowStyle}>
+          <div style={{ width: '100%' }}>
+            <label
+              htmlFor="artwork-search"
+              style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}
+            >
+              Recherche
+            </label>
+            <input
+              id="artwork-search"
+              type="search"
+              value={searchQuery}
+              onChange={event => setSearchQuery(event.target.value)}
+              placeholder="Titre, artiste, statut, contact…"
+              style={dateInputStyle}
+            />
+          </div>
+
           <SearchSelect
             label="Proposed by"
             placeholder="Search contact…"
@@ -622,6 +685,12 @@ const handleUpdateArtworkField = async (
     }}
   >
     {inlineEditError}
+  </div>
+)}
+
+{inlineEditSuccess && (
+  <div className="ux-inline-success" role="status" aria-live="polite">
+    {inlineEditSuccess}
   </div>
 )}
 
@@ -896,6 +965,12 @@ const handleUpdateArtworkField = async (
   </section>
 )}
 
+{totalDisplayed === 0 && (
+  <div className="ux-empty-state" role="status">
+    Aucune œuvre ne correspond aux filtres sélectionnés.
+  </div>
+)}
+
     </main>
   )
 }
@@ -940,12 +1015,6 @@ const filtersRowStyle: React.CSSProperties = {
   gap: 12,
 }
 
-
-const filtersRowDesktopStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: 12,
-}
 
 const dateBlockStyle: React.CSSProperties = {
   width: '100%',

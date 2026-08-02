@@ -181,8 +181,10 @@ const hasLoadedArtworkRef = useRef(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
 
   const [error, setError] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
   const [openImage, setOpenImage] = useState<string | null>(null)
 
   const [newDocLabel, setNewDocLabel] = useState('')
@@ -446,7 +448,7 @@ setArtwork(fullArtwork)
   return () => {
     isMounted = false
   }
-}, [id, isEditMode, draftKey])
+}, [id, isEditMode, draftKey, reloadKey])
 
 
 // ✅ Autosave du brouillon pendant l'édition
@@ -543,6 +545,7 @@ useEffect(() => {
     try {
       setSaving(true)
       setError(null)
+      setSaveSuccess(null)
 
       
 const payload = {
@@ -644,6 +647,7 @@ try {
 originalArtworkRef.current = artwork
 
 setIsEditing(false)
+setSaveSuccess('Modifications enregistrées. Ouverture de la fiche…')
 
 try {
   if (draftKey) {
@@ -653,6 +657,7 @@ try {
   console.error('[ARTWORK_DETAIL] impossible de supprimer le brouillon après delete', error)
 }
 
+await new Promise(resolve => setTimeout(resolve, 450))
 router.push(`/artworks/print/${artwork.id}`)
 
     } catch (err) {
@@ -1055,27 +1060,50 @@ const artworkDocuments = useMemo(
     boxSizing: 'border-box',
   }
 
+  const pageStyle: React.CSSProperties = {
+    paddingTop: 80,
+    paddingLeft: 10,
+    paddingRight: 10,
+    paddingBottom: 120,
+    minHeight: '100vh',
+    backgroundColor: '#006039',
+    color: 'white',
+  }
+
   if (loading) {
-    return <p style={{ padding: 40 }}>Loading artwork…</p>
+    return (
+      <main style={pageStyle}>
+        <div className="ux-feedback-card" role="status" aria-live="polite">
+          <span className="ux-spinner" aria-hidden="true" />
+          Chargement de l’œuvre…
+        </div>
+      </main>
+    )
   }
 
   if (error && !artwork) {
-    return <p style={{ padding: 40 }}>{error}</p>
+    return (
+      <main style={pageStyle}>
+        <div className="ux-feedback-card ux-feedback-card-error" role="alert">
+          <strong>Impossible de charger l’œuvre.</strong>
+          <span>{error}</span>
+          <button
+            type="button"
+            className="edit-button"
+            onClick={() => setReloadKey(key => key + 1)}
+          >
+            Réessayer
+          </button>
+        </div>
+      </main>
+    )
   }
 
   if (!artwork) return null
 
   return (
     <main
-      style={{
-        paddingTop: 80,
-        paddingLeft: 10,
-        paddingRight: 10,
-        paddingBottom: 120,
-        minHeight: '100vh',
-        backgroundColor: '#006039',
-        color: 'white',
-      }}
+      style={pageStyle}
     >
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         {error && (
@@ -1094,7 +1122,14 @@ const artworkDocuments = useMemo(
           </div>
         )}
 
+        {saveSuccess && (
+          <div className="ux-inline-success" role="status" aria-live="polite">
+            {saveSuccess}
+          </div>
+        )}
+
 <div
+  className="artwork-action-bar"
   style={{
     position: 'fixed',
     bottom: 0,
