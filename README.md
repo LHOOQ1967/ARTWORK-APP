@@ -38,6 +38,12 @@ npm run dev
 
 Authorization is enforced in API route handlers. Supabase Row Level Security must remain enabled as a second layer of protection.
 
+## Supabase operations
+
+The production runbook, including the observed schema, migration workflow, RLS
+contract, Storage buckets, backup/restore procedure, and production variables,
+is available in [docs/SUPABASE_OPERATIONS.md](docs/SUPABASE_OPERATIONS.md).
+
 ## Commands
 
 ```bash
