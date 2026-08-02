@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import type { Artist, Contact } from '@/app/(protected)/types/artwork'
+import { LinkedText } from '@/components/ui/LinkedText'
 
 
 /* ======================
@@ -370,7 +371,7 @@ async function remove() {
       style={{ width: '100%' }}
     />
   ) : (
-    artist.notes || '—'
+    artist.notes ? <LinkedText text={artist.notes} /> : '—'
   )}
 </InlineRow>
 
@@ -703,7 +704,7 @@ async function remove() {
       style={{ width: '100%' }}
     />
   ) : (
-    contact.notes || '—'
+    contact.notes ? <LinkedText text={contact.notes} /> : '—'
   )}
 </InlineRow>
 
