@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { LinkedText } from '@/components/ui/LinkedText';
 import { supabase } from '@/lib/supabaseBrowser';
 
 type ProfileRole = 'Administrator' | 'Editor' | 'Viewer' | null;
@@ -454,6 +455,8 @@ const styles: Record<string, CSSProperties> = {
     color: '#475569',
     fontSize: '14px',
     lineHeight: 1.6,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
   },
   emptyBox: {
     border: '1px dashed #cbd5e1',
@@ -1184,7 +1187,9 @@ const displaySections = useMemo(() => {
                 </div>
 
                 {section.notes ? (
-                  <p style={{ ...styles.noteText, marginTop: '10px' }}>{section.notes}</p>
+                  <p style={{ ...styles.noteText, marginTop: '10px' }}>
+                    <LinkedText text={section.notes} />
+                  </p>
                 ) : null}
               </div>
 
@@ -1319,7 +1324,7 @@ const displaySections = useMemo(() => {
                               </div>
 
                               {item.notes ? (
-                                <p style={styles.itemSecondaryText}>{item.notes}</p>
+                                <p style={styles.itemSecondaryText}><LinkedText text={item.notes} /></p>
                               ) : null}
                             </div>
 
@@ -1598,7 +1603,7 @@ const displaySections = useMemo(() => {
                       onChange={(e) =>
                         setSectionForm((prev) => ({ ...prev, notes: e.target.value }))
                       }
-                      placeholder="Notes internes sur la section"
+                      placeholder="Notes internes — URL ou [libellé](https://...)"
                       rows={4}
                       style={styles.textarea}
                     />

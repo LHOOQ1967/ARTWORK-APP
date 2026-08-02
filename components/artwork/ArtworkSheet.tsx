@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(protected)/types/artwork'
 import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
+import { LinkedText } from '@/components/ui/LinkedText'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { canEditArtworks } from '@/lib/permissions'
 
@@ -929,7 +930,7 @@ const displayTitle = (() => {
       {artwork.notes && (
         <div style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>
           <strong>Notes</strong>
-          <p>{artwork.notes}</p>
+          <p><LinkedText text={artwork.notes} /></p>
         </div>
       )}
 <ArtworkViewerComment artworkId={artwork.id} />
