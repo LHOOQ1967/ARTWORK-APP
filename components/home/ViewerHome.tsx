@@ -41,6 +41,13 @@ return (
         title="Update"
         subtitle="Artworks Sorted by Date updated"
       />
+
+            <EntryCardFlorac
+        href="/artworks"
+        title="All Proposals"
+        subtitle="Sorted by Date Proposed"
+      />
+
             <EntryCardFlorac
         href="/artworks/bought"
         title="Collection"
@@ -54,12 +61,6 @@ return (
         subtitle="Sorted by Date Proposed"
       />
 
-
-            <EntryCardFlorac
-        href="/artworks"
-        title="All Proposals"
-        subtitle="Sorted by Date Proposed"
-      />
       
       <EntryCardFlorac
         href="/artworks/print"

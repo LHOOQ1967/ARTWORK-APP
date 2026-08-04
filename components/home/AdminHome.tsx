@@ -47,6 +47,11 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
           subtitle="Sorted by priority"
         />
 
+        <EntryCardNew
+          href="artworks"
+          title="All Artworks"
+          subtitle="Sorted by status"
+        />
 
 
                 <EntryCardNew
@@ -61,11 +66,7 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
           subtitle="Sorted by date proposed"
         />
 
-        <EntryCardNew
-          href="artworks"
-          title="All Artworks"
-          subtitle="Sorted by status"
-        />
+
 
         <EntryCardNew
           href="artworks/print"
@@ -94,6 +95,12 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
         <EntryCardNew
           href="inventory"
           title="Inventory"
+          subtitle="Florac Works"
+        />
+
+                <EntryCardNew
+          href="valuations"
+          title="Valuations"
           subtitle="Florac Works"
         />
 

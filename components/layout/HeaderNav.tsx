@@ -62,15 +62,16 @@ export default function HeaderNav() {
           </Link>
         )}
 
-                {!loading && isLoggedIn && canEdit && (
+                {isLoggedIn && (
           <Link
-            href="/artworks/import-label"
+            href="/artworks"
             prefetch={false}
-            style={navLink(isActive('/artworks/import-label'))}
+            style={navLink(isActive('/artworks'))}
           >
-            Import
+            All
           </Link>
         )}
+
 
           {isLoggedIn && (
           <Link
