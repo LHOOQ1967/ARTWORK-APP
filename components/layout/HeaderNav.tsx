@@ -102,6 +102,16 @@ export default function HeaderNav() {
           </Link>
         )}
 
+        {!loading && isLoggedIn && canEdit && (
+          <Link
+            href="/commissions"
+            prefetch={false}
+            style={navLink(isActive('/commissions'))}
+          >
+            Commissions
+          </Link>
+        )}
+
 
           <Link
             href="market"

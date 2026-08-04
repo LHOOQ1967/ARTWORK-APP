@@ -105,6 +105,12 @@ export default function AdminHome({ artworks, loadingArtworks }: AdminHomeProps)
         />
 
         <EntryCardNew
+          href="commissions"
+          title="Commissions"
+          subtitle="Florac & Léopold Meyer"
+        />
+
+        <EntryCardNew
           href="artworks/updated"
           title="Updated"
           subtitle="All artworks sorted by date updated"
@@ -276,5 +282,4 @@ function EntryCardFlorac({
     </Link>
   )
 }
-
 
