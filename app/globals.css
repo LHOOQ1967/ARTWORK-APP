@@ -185,6 +185,7 @@ body {
    ========================================================= */
 
 @page {
+  size: A4 landscape;
   margin: 12mm;
 }
 
@@ -300,6 +301,60 @@ body {
     display: none !important;
   }
 
+  .inventory-print-header {
+    display: block;
+    margin: 0 0 8mm;
+  }
+
+  .inventory-print-header h1 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .inventory-print-header p {
+    margin: 2mm 0 0;
+    font-size: 10px;
+  }
+
+  .inventory-table-container {
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
+  .inventory-table {
+    width: 100%;
+    font-size: 7px;
+  }
+
+  .inventory-table th,
+  .inventory-table td {
+    padding: 2px 3px;
+    vertical-align: top;
+  }
+
+  .inventory-table input,
+  .inventory-table select {
+    display: none !important;
+  }
+
+  .inventory-table .print-text {
+    text-align: right;
+  }
+
+  .inventory-table img {
+    width: 26px;
+    height: 26px;
+  }
+
+  .inventory-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* A table footer repeats by default in print; keep valuation totals only after all rows. */
+  .valuations-history-table tfoot {
+    display: table-row-group;
+  }
 
   /* éviter que les sections ajoutent des espaces inutiles */
   section {
@@ -313,7 +368,9 @@ body {
   }
 }
 
-
+.inventory-print-header {
+  display: none;
+}
 
 .florac-button {
   display: inline-flex;

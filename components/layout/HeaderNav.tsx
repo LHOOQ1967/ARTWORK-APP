@@ -2,7 +2,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
 
@@ -10,7 +10,6 @@ import { useSessionProfile } from '@/contexts/SessionContext'
 
 export default function HeaderNav() {
   const pathname = usePathname()
-  const router = useRouter()
   const { role, loading } = useSessionProfile()
 
   const isActive = (href: string) =>
@@ -90,6 +89,16 @@ export default function HeaderNav() {
             style={navLink(isActive('/artworks/print'))}
           >
             Factsheets
+          </Link>
+        )}
+
+        {!loading && isLoggedIn && canEdit && (
+          <Link
+            href="/valuations"
+            prefetch={false}
+            style={navLink(isActive('/valuations'))}
+          >
+            Valuations
           </Link>
         )}
 

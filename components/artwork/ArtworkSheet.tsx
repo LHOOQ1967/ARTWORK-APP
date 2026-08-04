@@ -710,7 +710,7 @@ const displayTitle = (() => {
               rel="noopener noreferrer"
               style={{ color: '#007a5e', textDecoration: 'underline' }}
             >
-              Calculate Buyer's Premium
+              Calculate Buyer&apos;s Premium
             </a>
           </>
         }
