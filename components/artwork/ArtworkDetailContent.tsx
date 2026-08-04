@@ -1064,7 +1064,7 @@ const artworkDocuments = useMemo(
     paddingTop: 80,
     paddingLeft: 10,
     paddingRight: 10,
-    paddingBottom: 120,
+    paddingBottom: 40,
     minHeight: '100vh',
     backgroundColor: '#006039',
     color: 'white',
@@ -1132,28 +1132,18 @@ const artworkDocuments = useMemo(
   className="artwork-action-bar"
   style={{
     position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
-
+    top: 68,
+    right: 20,
     zIndex: 999,
-
-    backgroundColor: '#006039',
-
-    borderTop: '1px solid rgba(255,255,255,0.25)',
-
-    paddingTop: 10,
-    paddingBottom: 10,
-    paddingLeft: 20,
-    paddingRight: 20,
-
-    boxShadow: '0 -2px 12px rgba(0,0,0,0.25)',
-
     display: 'flex',
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+    backgroundColor: '#006039',
+    padding: 10,
+    borderRadius: 8,
+    boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
   }}
 >
           {(saving || deleting) && (
