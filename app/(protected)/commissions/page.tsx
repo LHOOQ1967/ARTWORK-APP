@@ -14,12 +14,23 @@ type Artwork = {
   id: string
   title: string | null
   medium: string | null
-  provenance: string | null
   year_execution: number | null
   date_acquisition: string
   cost_amount: number
   cost_currency: string
-  buyer: { company_name: string | null } | null
+  auctions: boolean | null
+  sold_hammer: number | null
+  auction_currency: string | null
+  buyer: {
+    company_name: string | null
+    first_name: string | null
+    last_name: string | null
+  } | null
+  proposedBy: {
+    company_name: string | null
+    first_name: string | null
+    last_name: string | null
+  } | null
   artist: { first_name: string | null; last_name: string | null } | null
 }
 
@@ -35,6 +46,19 @@ type CommissionRate = {
   rate: number
 }
 
+type Invoice = {
+  artwork_id: string
+  invoiced_at: string
+  invoice_url: string | null
+}
+
+type CorrectionInvoice = {
+  calendar_year: number
+  company: Company
+  invoiced_at: string
+  invoice_url: string | null
+}
+
 type CommissionRow = Artwork & {
   company: Company
   year: string
@@ -42,7 +66,14 @@ type CommissionRow = Artwork & {
   exceptionalRate: number | null
   standardRate: number
   appliedRate: number
-  commission: number
+  commissionBase: number | null
+  commissionCurrency: string
+  commissionBaseUsd: number | null
+  commission: number | null
+  commissionUsd: number | null
+  invoicedAt: string | null
+  invoiceUrl: string | null
+  isCorrectionApplied?: boolean
 }
 
 function normalize(value: string | null | undefined) {
@@ -54,8 +85,11 @@ function normalize(value: string | null | undefined) {
 
 function companyForArtwork(artwork: Artwork): Company | null {
   const company = normalize(artwork.buyer?.company_name)
+  const buyerName = `${normalize(artwork.buyer?.first_name)} ${normalize(
+    artwork.buyer?.last_name
+  )}`.trim()
   if (company.includes('florac')) return 'Florac'
-  if (company.includes('leopold meyer')) return 'Léopold Meyer'
+  if (buyerName === 'leopold meyer') return 'Léopold Meyer'
   return null
 }
 
@@ -69,7 +103,7 @@ function formatNumber(value: number, maximumFractionDigits = 0) {
 }
 
 function formatMoney(value: number | null, currency: string) {
-  return value === null ? '—' : `${currency} ${formatNumber(value, 2)}`
+  return value === null ? '—' : `${currency} ${formatNumber(value)}`
 }
 
 function formatDate(value: string) {
@@ -86,6 +120,14 @@ function titleLabel(artwork: Artwork) {
   return [artwork.title, artwork.year_execution].filter(Boolean).join(', ')
 }
 
+function contactLabel(contact: Artwork['proposedBy']) {
+  return (
+    contact?.company_name ||
+    [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') ||
+    '—'
+  )
+}
+
 function rateToUsd(
   currency: string,
   date: string,
@@ -93,18 +135,17 @@ function rateToUsd(
 ) {
   if (currency === 'USD') return 1
   const isoDate = date.slice(0, 10)
-  const directRate = ratesByKey.get(`${isoDate}:${currency}:USD`)
-  if (directRate) return directRate
-
-  const usdToEur = ratesByKey.get(`${isoDate}:USD:EUR`)
-  if (!usdToEur) return null
-  if (currency === 'EUR') return 1 / usdToEur
-
-  const currencyToEur = ratesByKey.get(`${isoDate}:${currency}:EUR`)
-  return currencyToEur ? currencyToEur / usdToEur : null
+  return ratesByKey.get(`${isoDate}:${currency}:USD`) ?? null
 }
 
 function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 'Toutes') {
+  const commissionTotals = Object.entries(
+    rows.reduce<Record<string, number>>((totals, row) => {
+      totals[row.commissionCurrency] =
+        (totals[row.commissionCurrency] ?? 0) + (row.commission ?? 0)
+      return totals
+    }, {})
+  )
   const worksheet = XLSX.utils.aoa_to_sheet([
     [`Commissions Blondeau & Cie — ${company} — ${year}`],
     [],
@@ -114,12 +155,16 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
       'Artiste',
       'Titre',
       'Medium',
-      'Provenance',
+      'Proposed by',
       'Prix achat',
       'Devise',
       'Prix achat USD',
+      'Base commission',
+      'Devise base',
+      'FX vers USD',
       'Taux commission',
       'Commission',
+      'Commission USD',
       'Devise commission',
       'Taux exceptionnel',
     ],
@@ -129,18 +174,26 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
       artistLabel(row),
       titleLabel(row),
       row.medium ?? '',
-      row.provenance ?? '',
+      contactLabel(row.proposedBy),
       row.cost_amount,
       row.cost_currency,
       row.purchaseUsd ?? '',
+      row.commissionBase ?? '',
+      row.commissionCurrency,
+      row.commissionCurrency === 'USD'
+        ? 1
+        : row.commissionUsd === null || row.commission === null
+          ? ''
+          : row.commissionUsd / row.commission,
       row.appliedRate,
-      row.commission,
-      row.cost_currency,
+      row.commission ?? '',
+      row.commissionUsd ?? '',
+      row.commissionCurrency,
       row.exceptionalRate ?? '',
     ]),
     [],
-    [
-      'TOTAL',
+    ...commissionTotals.map(([currency, amount], index) => [
+      index === 0 ? 'TOTAL' : '',
       '',
       '',
       '',
@@ -148,12 +201,16 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
       '',
       '',
       '',
-      rows.reduce((sum, row) => sum + (row.purchaseUsd ?? 0), 0),
-      '',
-      rows.reduce((sum, row) => sum + row.commission, 0),
+      index === 0 ? rows.reduce((sum, row) => sum + (row.purchaseUsd ?? 0), 0) : '',
       '',
       '',
-    ],
+      '',
+      '',
+      '',
+      amount,
+      currency,
+      '',
+    ]),
   ])
 
   worksheet['!cols'] = [
@@ -167,13 +224,15 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
     { wch: 10 },
     { wch: 18 },
     { wch: 18 },
+    { wch: 14 },
+    { wch: 18 },
     { wch: 18 },
     { wch: 18 },
     { wch: 18 },
   ]
-  worksheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }]
+  worksheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 14 } }]
 
-  for (let column = 0; column <= 12; column += 1) {
+  for (let column = 0; column <= 14; column += 1) {
     const cell = XLSX.utils.encode_cell({ r: 2, c: column })
     worksheet[cell].s = {
       fill: { fgColor: { rgb: '006039' } },
@@ -181,10 +240,10 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
       alignment: { horizontal: 'center' },
     }
   }
-  ;['I', 'J', 'K', 'M'].forEach((column) => {
+  ;['I', 'L', 'M', 'O'].forEach((column) => {
     for (let row = 3; row <= rows.length + 4; row += 1) {
       const cell = worksheet[`${column}${row}`]
-      if (cell) cell.z = column === 'J' || column === 'M' ? '0.00%' : "#,##0.00"
+      if (cell) cell.z = column === 'L' || column === 'O' ? '0.00%' : '#,##0'
     }
   })
 
@@ -197,11 +256,20 @@ export default function CommissionsPage() {
   const [artworks, setArtworks] = useState<Artwork[]>([])
   const [fxRates, setFxRates] = useState<FxRate[]>([])
   const [exceptionalRates, setExceptionalRates] = useState<Record<string, number>>({})
+  const [invoices, setInvoices] = useState<Record<string, Invoice>>({})
+  const [correctionInvoices, setCorrectionInvoices] = useState<Record<string, CorrectionInvoice>>({})
   const [year, setYear] = useState('')
   const [company, setCompany] = useState<Company | 'Toutes'>('Toutes')
   const [draftRates, setDraftRates] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [savingInvoiceId, setSavingInvoiceId] = useState<string | null>(null)
+  const [draftInvoiceDates, setDraftInvoiceDates] = useState<Record<string, string>>({})
+  const [draftInvoiceUrls, setDraftInvoiceUrls] = useState<Record<string, string>>({})
+  const [draftCorrectionDates, setDraftCorrectionDates] = useState<Record<string, string>>({})
+  const [draftCorrectionUrls, setDraftCorrectionUrls] = useState<Record<string, string>>({})
+  const [shownCorrectionCompanies, setShownCorrectionCompanies] = useState<Company[]>([])
+  const [draftFxRates, setDraftFxRates] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -213,6 +281,8 @@ export default function CommissionsPage() {
         artworks?: Artwork[]
         fxRates?: FxRate[]
         commissionRates?: CommissionRate[]
+        invoices?: Invoice[]
+        correctionInvoices?: CorrectionInvoice[]
         error?: string
       }
       if (cancelled) return
@@ -227,6 +297,19 @@ export default function CommissionsPage() {
             (payload.commissionRates ?? []).map((commissionRate) => [
               commissionRate.artwork_id,
               Number(commissionRate.rate),
+            ])
+          )
+        )
+        setInvoices(
+          Object.fromEntries(
+            (payload.invoices ?? []).map((invoice) => [invoice.artwork_id, invoice])
+          )
+        )
+        setCorrectionInvoices(
+          Object.fromEntries(
+            (payload.correctionInvoices ?? []).map((invoice) => [
+              `${invoice.calendar_year}:${invoice.company}`,
+              invoice,
             ])
           )
         )
@@ -250,7 +333,7 @@ export default function CommissionsPage() {
 
   const selectedYear = year || years[0] || String(new Date().getFullYear())
 
-  const rows = useMemo(() => {
+  const annualRows = useMemo(() => {
     const ratesByKey = new Map(
       fxRates.map((rate) => [
         `${rate.rate_date}:${rate.from_currency}:${rate.to_currency}`,
@@ -278,27 +361,54 @@ export default function CommissionsPage() {
       })
       .filter((artwork): artwork is NonNullable<typeof artwork> => artwork !== null)
 
-    const qualifyingPurchaseTotal = annualArtworks.reduce(
-      (sum, artwork) =>
-        sum + (artwork.exceptionalRate === null ? artwork.purchaseUsd ?? 0 : 0),
-      0
-    )
-    const standardRate =
-      qualifyingPurchaseTotal > THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
-
-    return annualArtworks
-      .filter((artwork) => company === 'Toutes' || artwork.company === company)
+    const orderedArtworks = annualArtworks
       .sort((first, second) => first.date_acquisition.localeCompare(second.date_acquisition))
-      .map((artwork) => {
+    return orderedArtworks.map((artwork, index) => {
+        const qualifyingPurchaseTotal = orderedArtworks
+          .slice(0, index + 1)
+          .reduce(
+            (sum, item) =>
+              sum + (item.exceptionalRate === null ? item.purchaseUsd ?? 0 : 0),
+            0
+          )
+        const standardRate =
+          qualifyingPurchaseTotal >= THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
         const appliedRate = artwork.exceptionalRate ?? standardRate
+        const isAuction = artwork.auctions === true
+        const commissionBase =
+          isAuction ? artwork.sold_hammer : artwork.cost_amount
+        const commissionCurrency =
+          isAuction ? artwork.auction_currency ?? artwork.cost_currency : artwork.cost_currency
+        const commissionConversionRate = rateToUsd(
+          commissionCurrency,
+          artwork.date_acquisition,
+          ratesByKey
+        )
         return {
           ...artwork,
           standardRate,
           appliedRate,
-          commission: artwork.cost_amount * appliedRate,
+          commissionBase,
+          commissionCurrency,
+          commissionBaseUsd:
+            commissionBase === null || commissionConversionRate === null
+              ? null
+              : commissionBase * commissionConversionRate,
+          commission: commissionBase === null ? null : commissionBase * appliedRate,
+          commissionUsd:
+            commissionBase === null || commissionConversionRate === null
+              ? null
+              : commissionBase * appliedRate * commissionConversionRate,
+          invoicedAt: invoices[artwork.id]?.invoiced_at ?? null,
+          invoiceUrl: invoices[artwork.id]?.invoice_url ?? null,
         }
       })
-  }, [artworks, company, exceptionalRates, fxRates, selectedYear])
+  }, [artworks, exceptionalRates, fxRates, invoices, selectedYear])
+
+  const rows = useMemo(
+    () => annualRows.filter((row) => company === 'Toutes' || row.company === company),
+    [annualRows, company]
+  )
 
   const annualQualifyingUsd = useMemo(() => {
     const ratesByKey = new Map(
@@ -327,6 +437,124 @@ export default function CommissionsPage() {
   }, [artworks, exceptionalRates, fxRates, selectedYear])
 
   const standardRate = annualQualifyingUsd > THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
+
+  const invoicedRows = useMemo(
+    () => rows.filter((row) => row.invoicedAt !== null),
+    [rows]
+  )
+
+  const invoicedCommissionUsdTotal = useMemo(
+    () => invoicedRows.reduce((sum, row) => sum + (row.commissionUsd ?? 0), 0),
+    [invoicedRows]
+  )
+
+  const commissionBasesUsdByRate = useMemo(
+    () =>
+      [REDUCED_RATE, STANDARD_RATE].map((rate) => ({
+        rate,
+        amount: rows
+          .filter((row) => row.appliedRate === rate)
+          .reduce((sum, row) => sum + (row.commissionBaseUsd ?? 0), 0),
+      })),
+    [rows]
+  )
+
+  const commissionBaseTotalsByCurrency = useMemo(
+    () =>
+      Object.entries(
+        rows.reduce<Record<string, number>>((totals, row) => {
+          totals[row.commissionCurrency] =
+            (totals[row.commissionCurrency] ?? 0) + (row.commissionBase ?? 0)
+          return totals
+        }, {})
+      ),
+    [rows]
+  )
+
+  const commissionBaseUsdTotal = useMemo(
+    () => rows.reduce((sum, row) => sum + (row.commissionBaseUsd ?? 0), 0),
+    [rows]
+  )
+
+  const correctionSummaries = useMemo(() => {
+    if (annualQualifyingUsd < THRESHOLD_USD) return []
+
+    return (['Florac', 'Léopold Meyer'] as const).map((correctionCompany) => {
+      const amount = annualRows
+        .filter(
+          (row) =>
+            row.company === correctionCompany &&
+            row.exceptionalRate === null &&
+            row.appliedRate === STANDARD_RATE &&
+            row.invoicedAt !== null
+        )
+        .reduce((sum, row) => sum - (row.commissionBaseUsd ?? 0) * 0.01, 0)
+      const key = `${selectedYear}:${correctionCompany}`
+      return {
+        company: correctionCompany,
+        amount,
+        invoicedAt: correctionInvoices[key]?.invoiced_at ?? null,
+        invoiceUrl: correctionInvoices[key]?.invoice_url ?? null,
+        key,
+      }
+    })
+  }, [annualQualifyingUsd, annualRows, correctionInvoices, selectedYear])
+
+  const displayedCorrections = useMemo(
+    () =>
+      correctionSummaries.filter(
+        (correction) => company === 'Toutes' || correction.company === company
+      ),
+    [company, correctionSummaries]
+  )
+
+  const invoicedCorrectionUsdTotal = useMemo(
+    () =>
+      displayedCorrections.reduce(
+        (sum, correction) => sum + (correction.invoicedAt ? correction.amount : 0),
+        0
+      ),
+    [displayedCorrections]
+  )
+
+  const tableRows = useMemo<CommissionRow[]>(
+    () =>
+      rows.map((row) => {
+        const isCorrectionShown =
+          (shownCorrectionCompanies.includes(row.company) ||
+            correctionInvoices[`${selectedYear}:${row.company}`]?.invoiced_at !== undefined) &&
+          row.exceptionalRate === null &&
+          row.appliedRate === STANDARD_RATE &&
+          row.invoicedAt !== null &&
+          row.commissionBase !== null
+
+        if (!isCorrectionShown || row.commissionBase === null) return row
+
+        return {
+          ...row,
+          appliedRate: REDUCED_RATE,
+          commission: row.commissionBase * REDUCED_RATE,
+          commissionUsd:
+            row.commissionBaseUsd === null
+              ? null
+              : row.commissionBaseUsd * REDUCED_RATE,
+          isCorrectionApplied: true,
+        }
+      }),
+    [correctionInvoices, rows, selectedYear, shownCorrectionCompanies]
+  )
+
+  function correctionRowsForCompany(correctionCompany: Company) {
+    return annualRows.filter(
+      (row) =>
+        row.company === correctionCompany &&
+        row.exceptionalRate === null &&
+        row.appliedRate === STANDARD_RATE &&
+        row.invoicedAt !== null &&
+        row.commissionBase !== null &&
+        row.commissionBaseUsd !== null
+    )
+  }
 
   async function saveExceptionalRate(artworkId: string) {
     const value = draftRates[artworkId] ?? ''
@@ -362,6 +590,159 @@ export default function CommissionsPage() {
       setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
     } finally {
       setSavingId(null)
+    }
+  }
+
+  function fxKey(rateDate: string, fromCurrency: string) {
+    return `${rateDate}:${fromCurrency}:USD`
+  }
+
+  function getFxRate(rateDate: string, fromCurrency: string) {
+    return fxRates.find(
+      (fxRate) =>
+        fxRate.rate_date === rateDate &&
+        fxRate.from_currency === fromCurrency &&
+        fxRate.to_currency === 'USD'
+    )
+  }
+
+  async function saveFxRate(rateDate: string, fromCurrency: string) {
+    const key = fxKey(rateDate, fromCurrency)
+    if (!Object.hasOwn(draftFxRates, key)) return
+
+    const rate = Number(draftFxRates[key])
+    if (!Number.isFinite(rate) || rate <= 0) {
+      setError('Le taux de change doit être supérieur à zéro.')
+      return
+    }
+
+    setError('')
+    try {
+      const response = await fetch('/api/commissions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rateDate, fromCurrency, rate }),
+      })
+      const payload = (await response.json()) as { error?: string; fxRate?: FxRate }
+      const savedFxRate = payload.fxRate
+      if (!response.ok || !savedFxRate) {
+        throw new Error(payload.error ?? 'Enregistrement du taux impossible.')
+      }
+      setFxRates((previous) => [
+        ...previous.filter(
+          (fxRate) =>
+            !(
+              fxRate.rate_date === rateDate &&
+              fxRate.from_currency === fromCurrency &&
+              fxRate.to_currency === 'USD'
+            )
+        ),
+        savedFxRate,
+      ])
+      setDraftFxRates((previous) => {
+        const next = { ...previous }
+        delete next[key]
+        return next
+      })
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
+    }
+  }
+
+  async function saveArtworkInvoice(artworkId: string, commissionAmount: number | null) {
+    const invoicedAt = draftInvoiceDates[artworkId] ?? invoices[artworkId]?.invoiced_at
+    if (!invoicedAt) return
+    if (commissionAmount === null) {
+      setError('La commission ne peut pas être calculée sans base de commission et taux de change.')
+      return
+    }
+    const invoiceUrl = draftInvoiceUrls[artworkId] ?? invoices[artworkId]?.invoice_url ?? ''
+
+    setError('')
+    setSavingInvoiceId(artworkId)
+    try {
+      const response = await fetch('/api/commissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'artwork', artworkId, invoicedAt, invoiceUrl, commissionAmount }),
+      })
+      const payload = (await response.json()) as { error?: string; invoice?: Invoice }
+      if (!response.ok || !payload.invoice) {
+        throw new Error(payload.error ?? 'Enregistrement de la facture impossible.')
+      }
+      setInvoices((previous) => ({
+        ...previous,
+        [payload.invoice!.artwork_id]: payload.invoice!,
+      }))
+      setDraftInvoiceDates((previous) => {
+        const next = { ...previous }
+        delete next[artworkId]
+        return next
+      })
+      setDraftInvoiceUrls((previous) => {
+        const next = { ...previous }
+        delete next[artworkId]
+        return next
+      })
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
+    } finally {
+      setSavingInvoiceId(null)
+    }
+  }
+
+  async function saveCorrectionInvoice(
+    correctionCompany: Company,
+    key: string,
+    correctionRows: CommissionRow[]
+  ) {
+    const invoicedAt =
+      draftCorrectionDates[key] ?? correctionInvoices[key]?.invoiced_at
+    if (!invoicedAt) return
+    const invoiceUrl =
+      draftCorrectionUrls[key] ?? correctionInvoices[key]?.invoice_url ?? ''
+
+    setError('')
+    try {
+      const response = await fetch('/api/commissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'correction',
+          calendarYear: Number(selectedYear),
+          company: correctionCompany,
+          invoicedAt,
+          invoiceUrl,
+          artworkCommissions: correctionRows.map((row) => ({
+            artworkId: row.id,
+            commissionAmount: row.commissionBase! * REDUCED_RATE,
+          })),
+        }),
+      })
+      const payload = (await response.json()) as {
+        error?: string
+        correctionInvoice?: CorrectionInvoice
+      }
+      if (!response.ok || !payload.correctionInvoice) {
+        throw new Error(payload.error ?? 'Enregistrement de la correction impossible.')
+      }
+      setCorrectionInvoices((previous) => ({
+        ...previous,
+        [`${payload.correctionInvoice!.calendar_year}:${payload.correctionInvoice!.company}`]:
+          payload.correctionInvoice!,
+      }))
+      setDraftCorrectionDates((previous) => {
+        const next = { ...previous }
+        delete next[key]
+        return next
+      })
+      setDraftCorrectionUrls((previous) => {
+        const next = { ...previous }
+        delete next[key]
+        return next
+      })
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
     }
   }
 
@@ -422,6 +803,149 @@ export default function CommissionsPage() {
       </div>
 
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-800">{error}</p>}
+      {displayedCorrections.length > 0 && (
+        <section className="rounded border border-amber-300 bg-amber-50 p-4">
+          <h2 className="font-semibold">Corrections de commissions à facturer</h2>
+          <p className="mb-3 text-sm text-gray-700">
+            Le seuil annuel de USD 5&apos;000&apos;000 est atteint. La correction correspond à −1 % des commissions à 8 % déjà facturées.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {displayedCorrections.map((correction) => {
+              const dateValue =
+                draftCorrectionDates[correction.key] ?? correction.invoicedAt ?? ''
+              const invoiceUrl = draftCorrectionUrls[correction.key] ?? correction.invoiceUrl ?? ''
+              const correctionRows = correctionRowsForCompany(correction.company)
+              const showsCorrectionRows = shownCorrectionCompanies.includes(correction.company)
+              return (
+                <div key={correction.key} className="rounded border border-amber-200 bg-white p-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="min-w-48">
+                      <p className="font-medium">{correction.company}</p>
+                      <p className="text-lg font-semibold">{formatMoney(correction.amount, 'USD')}</p>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      Facturée le
+                      <input
+                        className="rounded border px-2 py-1"
+                        type="date"
+                        value={dateValue}
+                        onChange={(event) =>
+                          setDraftCorrectionDates((previous) => ({
+                            ...previous,
+                            [correction.key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      PDF OneDrive
+                      <input
+                        aria-label={`Lien PDF de la correction ${correction.company}`}
+                        className="w-56 rounded border px-2 py-1"
+                        type="url"
+                        placeholder="https://..."
+                        value={invoiceUrl}
+                        onChange={(event) =>
+                          setDraftCorrectionUrls((previous) => ({
+                            ...previous,
+                            [correction.key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                    {correction.invoiceUrl && (
+                      <a
+                        className="text-sm font-medium text-blue-700 underline"
+                        href={correction.invoiceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        PDF
+                      </a>
+                    )}
+                    <button
+                      className="edit-button"
+                      type="button"
+                      disabled={!dateValue}
+                      onClick={() =>
+                        void saveCorrectionInvoice(
+                          correction.company,
+                          correction.key,
+                          correctionRows
+                        )
+                      }
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      className="edit-button"
+                      type="button"
+                      onClick={() =>
+                        setShownCorrectionCompanies((previous) =>
+                          previous.includes(correction.company)
+                            ? previous
+                            : [...previous, correction.company]
+                        )
+                      }
+                    >
+                      Voir les œuvres à corriger ({correctionRows.length})
+                    </button>
+                    {showsCorrectionRows && (
+                      <button
+                        className="edit-button"
+                        type="button"
+                        onClick={() =>
+                          setShownCorrectionCompanies((previous) =>
+                            previous.filter((companyName) => companyName !== correction.company)
+                          )
+                        }
+                      >
+                        Annuler
+                      </button>
+                    )}
+                  </div>
+                  {showsCorrectionRows && (
+                    <div className="mt-3 overflow-x-auto border-t pt-3">
+                      <table className="w-full text-sm">
+                        <thead className="text-left">
+                          <tr>
+                            <th className="pb-2 pr-3">Artiste</th>
+                            <th className="pb-2 pr-3">Titre</th>
+                            <th className="pb-2 text-right">Correction −1 % (devise)</th>
+                            <th className="pb-2 text-right">Correction −1 % USD</th>
+                            <th className="pb-2 text-right">Nouvelle commission 7 % (devise)</th>
+                            <th className="pb-2 text-right">Nouvelle commission 7 % USD</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {correctionRows.map((row) => (
+                            <tr key={row.id} className="border-t">
+                              <td className="py-2 pr-3 font-medium">{artistLabel(row) || '—'}</td>
+                              <td className="py-2 pr-3">{titleLabel(row) || '—'}</td>
+                              <td className="py-2 text-right tabular-nums">
+                                {formatMoney(-row.commissionBase! * 0.01, row.commissionCurrency)}
+                              </td>
+                              <td className="py-2 text-right tabular-nums">
+                                {formatMoney(-row.commissionBaseUsd! * 0.01, 'USD')}
+                              </td>
+                              <td className="py-2 text-right tabular-nums font-medium">
+                                {formatMoney(row.commissionBase! * REDUCED_RATE, row.commissionCurrency)}
+                              </td>
+                              <td className="py-2 text-right tabular-nums font-medium">
+                                {formatMoney(row.commissionBaseUsd! * REDUCED_RATE, 'USD')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
       {loading ? (
         <p className="text-sm text-gray-500">Chargement…</p>
       ) : (
@@ -433,19 +957,24 @@ export default function CommissionsPage() {
                 <th className="p-3">Société</th>
                 <th className="p-3">Artiste</th>
                 <th className="p-3">Titre</th>
-                <th className="p-3">Provenance</th>
+                <th className="p-3">Proposed by</th>
                 <th className="p-3 text-right">Prix achat</th>
                 <th className="p-3 text-right">Prix achat USD</th>
+                <th className="p-3 text-right no-print">FX → USD</th>
+                <th className="p-3 text-right">Base commission</th>
                 <th className="p-3 text-right">Taux</th>
                 <th className="p-3 text-right">Commission</th>
+                <th className="p-3 no-print">Facturée le</th>
                 <th className="p-3 no-print">Taux exceptionnel</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {tableRows.map((row) => {
                 const draftRate =
                   draftRates[row.id] ??
                   (row.exceptionalRate === null ? '' : String(row.exceptionalRate * 100))
+                const invoicedCommissionAmount =
+                  annualRows.find((annualRow) => annualRow.id === row.id)?.commission ?? row.commission
                 return (
                   <tr key={row.id} className="border-b align-top">
                     <td className="p-3 whitespace-nowrap">{formatDate(row.date_acquisition)}</td>
@@ -455,21 +984,116 @@ export default function CommissionsPage() {
                       <p>{titleLabel(row) || '—'}</p>
                       {row.medium && <p className="text-xs text-gray-600">{row.medium}</p>}
                     </td>
-                    <td className="p-3">{row.provenance ?? '—'}</td>
+                    <td className="p-3">{contactLabel(row.proposedBy)}</td>
                     <td className="p-3 text-right tabular-nums">
                       {formatMoney(row.cost_amount, row.cost_currency)}
                     </td>
                     <td className={`p-3 text-right tabular-nums ${row.purchaseUsd === null ? 'text-red-700' : ''}`}>
                       {formatMoney(row.purchaseUsd, 'USD')}
                     </td>
+                    <td className="p-3 no-print">
+                      {(() => {
+                        const rateDate = row.date_acquisition.slice(0, 10)
+                        const key = fxKey(rateDate, row.cost_currency)
+                        const existingRate = getFxRate(rateDate, row.cost_currency)
+                        return row.cost_currency === 'USD' ? (
+                          <span className="text-sm">1.0000</span>
+                        ) : (
+                          <input
+                            aria-label={`Taux ${row.cost_currency} vers USD du ${rateDate}`}
+                            className="w-24 rounded border px-2 py-1 text-right"
+                            type="number"
+                            min="0"
+                            step="0.0001"
+                            placeholder="taux"
+                            value={draftFxRates[key] ?? (existingRate ? String(existingRate.rate) : '')}
+                            onChange={(event) =>
+                              setDraftFxRates((previous) => ({
+                                ...previous,
+                                [key]: event.target.value,
+                              }))
+                            }
+                            onBlur={() => void saveFxRate(rateDate, row.cost_currency)}
+                          />
+                        )
+                      })()}
+                    </td>
+                    <td className="p-3 text-right tabular-nums">
+                      {formatMoney(row.commissionBase, row.commissionCurrency)}
+                      {row.auctions && (
+                        <p className={`text-xs ${row.sold_hammer === null ? 'text-red-700' : 'text-gray-600'}`}>
+                          {row.sold_hammer === null ? 'hammer price manquant' : 'hammer price'}
+                        </p>
+                      )}
+                    </td>
                     <td className="p-3 text-right tabular-nums">
                       {(row.appliedRate * 100).toFixed(2)} %
                       {row.exceptionalRate !== null && (
                         <p className="text-xs text-amber-700">exceptionnel</p>
                       )}
+                      {row.isCorrectionApplied && (
+                        <p className="text-xs text-green-700">corrigée à 7 %</p>
+                      )}
                     </td>
                     <td className="p-3 text-right font-medium tabular-nums">
-                      {formatMoney(row.commission, row.cost_currency)}
+                      {formatMoney(row.commission, row.commissionCurrency)}
+                      <p className={`text-xs ${row.commissionUsd === null ? 'text-red-700' : 'text-gray-600'}`}>
+                        {formatMoney(row.commissionUsd, 'USD')}
+                      </p>
+                      {row.invoiceUrl && (
+                        <a
+                          className="text-xs font-medium text-blue-700 underline"
+                          href={row.invoiceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Facture PDF
+                        </a>
+                      )}
+                    </td>
+                    <td className="p-3 no-print">
+                      <div className="flex min-w-56 flex-col gap-2">
+                        <input
+                          aria-label={`Date de facture pour ${titleLabel(row)}`}
+                          className="rounded border px-2 py-1"
+                          type="date"
+                          value={draftInvoiceDates[row.id] ?? row.invoicedAt ?? ''}
+                          onChange={(event) =>
+                            setDraftInvoiceDates((previous) => ({
+                              ...previous,
+                              [row.id]: event.target.value,
+                            }))
+                          }
+                          onBlur={() => void saveArtworkInvoice(row.id, invoicedCommissionAmount)}
+                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            aria-label={`Lien PDF de la facture pour ${titleLabel(row)}`}
+                            className="w-40 rounded border px-2 py-1"
+                            type="url"
+                            placeholder="Lien PDF OneDrive"
+                            value={draftInvoiceUrls[row.id] ?? row.invoiceUrl ?? ''}
+                            onChange={(event) =>
+                              setDraftInvoiceUrls((previous) => ({
+                                ...previous,
+                                [row.id]: event.target.value,
+                              }))
+                            }
+                            onBlur={() => void saveArtworkInvoice(row.id, invoicedCommissionAmount)}
+                          />
+                          {row.invoiceUrl && (
+                            <a
+                              className="text-sm font-medium text-blue-700 underline"
+                              href={row.invoiceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              PDF
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      {savingInvoiceId === row.id && <span className="ml-1">…</span>}
                     </td>
                     <td className="p-3 no-print">
                       <div className="flex min-w-44 items-center gap-2">
@@ -506,23 +1130,48 @@ export default function CommissionsPage() {
             </tbody>
             <tfoot className="border-t bg-gray-50 font-semibold">
               <tr>
-                <td className="p-3" colSpan={6}>Total affiché</td>
+                <td className="p-3" colSpan={6}>Total facturé</td>
+                <td />
+                <td className="no-print" />
                 <td className="p-3 text-right tabular-nums">
-                  {formatMoney(rows.reduce((sum, row) => sum + (row.purchaseUsd ?? 0), 0), 'USD')}
+                  <p className="text-xs text-gray-600">Total bases commissions</p>
+                  {commissionBaseTotalsByCurrency.map(([currency, amount]) => (
+                    <p key={currency}>{formatMoney(amount, currency)}</p>
+                  ))}
+                  <p className="border-t pt-1">{formatMoney(commissionBaseUsdTotal, 'USD')}</p>
                 </td>
                 <td />
                 <td className="p-3 text-right tabular-nums">
                   {Object.entries(
-                    rows.reduce<Record<string, number>>((totals, row) => {
-                      totals[row.cost_currency] = (totals[row.cost_currency] ?? 0) + row.commission
+                    invoicedRows.reduce<Record<string, number>>((totals, row) => {
+                      totals[row.commissionCurrency] =
+                        (totals[row.commissionCurrency] ?? 0) + (row.commission ?? 0)
                       return totals
                     }, {})
                   ).map(([currency, amount]) => (
                     <p key={currency}>{formatMoney(amount, currency)}</p>
                   ))}
+                  <p className="border-t pt-1">
+                    {formatMoney(invoicedCommissionUsdTotal + invoicedCorrectionUsdTotal, 'USD')}
+                  </p>
                 </td>
                 <td className="no-print" />
+                <td className="no-print" />
               </tr>
+              {commissionBasesUsdByRate.map(({ rate, amount }) => (
+                <tr key={rate}>
+                  <td className="p-3" colSpan={8}>
+                    Base commissions au taux de {(rate * 100).toFixed(0)} %
+                  </td>
+                  <td className="p-3 text-right tabular-nums">
+                    {formatMoney(amount, 'USD')}
+                  </td>
+                  <td className="p-3 text-right">{(rate * 100).toFixed(0)} %</td>
+                  <td />
+                  <td className="no-print" />
+                  <td className="no-print" />
+                </tr>
+              ))}
             </tfoot>
           </table>
           {rows.some((row) => row.purchaseUsd === null) && (

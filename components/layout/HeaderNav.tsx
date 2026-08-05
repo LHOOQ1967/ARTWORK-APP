@@ -92,27 +92,6 @@ export default function HeaderNav() {
           </Link>
         )}
 
-        {!loading && isLoggedIn && canEdit && (
-          <Link
-            href="/valuations"
-            prefetch={false}
-            style={navLink(isActive('/valuations'))}
-          >
-            Valuations
-          </Link>
-        )}
-
-        {!loading && isLoggedIn && canEdit && (
-          <Link
-            href="/commissions"
-            prefetch={false}
-            style={navLink(isActive('/commissions'))}
-          >
-            Commissions
-          </Link>
-        )}
-
-
           <Link
             href="market"
             prefetch={false}
