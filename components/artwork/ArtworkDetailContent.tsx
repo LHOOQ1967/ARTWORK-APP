@@ -1061,13 +1061,13 @@ const artworkDocuments = useMemo(
   }
 
   const pageStyle: React.CSSProperties = {
-    paddingTop: 80,
-    paddingLeft: 10,
-    paddingRight: 10,
-    paddingBottom: 40,
+    paddingTop: 92,
+    paddingLeft: 20,
+    paddingRight: 20,
+    paddingBottom: 56,
     minHeight: '100vh',
-    backgroundColor: '#006039',
-    color: 'white',
+    backgroundColor: '#f3f5f1',
+    color: '#171717',
   }
 
   if (loading) {
@@ -1105,7 +1105,7 @@ const artworkDocuments = useMemo(
     <main
       style={pageStyle}
     >
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div className="artwork-edit-shell">
         {error && (
           <div
             style={{
@@ -1128,22 +1128,28 @@ const artworkDocuments = useMemo(
           </div>
         )}
 
+        <header className="artwork-edit-header">
+          <div>
+            <div className="artwork-edit-eyebrow">{isEditing ? 'Editing artwork' : 'Artwork record'}</div>
+            <h1>{artwork.artist?.last_name || 'Artwork'}</h1>
+            <p>{artwork.title || 'Untitled'}{artwork.year_execution ? `, ${artwork.year_execution}` : ''}</p>
+          </div>
+
 <div
   className="artwork-action-bar"
   style={{
     position: 'fixed',
     top: 68,
-    right: 20,
-    zIndex: 999,
+    right: 24,
+    zIndex: 1100,
     display: 'flex',
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    backgroundColor: '#006039',
-    padding: 10,
-    borderRadius: 8,
-    boxShadow: '0 2px 12px rgba(0,0,0,0.25)',
+    justifyContent: 'flex-end',
+    gap: 18,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: '#f3f5f1',
+    boxShadow: '0 8px 24px rgba(31,56,46,0.16)',
   }}
 >
           {(saving || deleting) && (
@@ -1233,16 +1239,13 @@ const artworkDocuments = useMemo(
             </button>
           )}
         </div>
+        </header>
 
         {(images.length > 0 || isEditing) && (
           <section
+            className="artwork-edit-card"
             style={{
-              marginTop: 40,
               marginBottom: 40,
-              backgroundColor: '#e6e5e5',
-              color: '#000',
-              borderRadius: 8,
-              padding: 24,
             }}
           >
             {isEditing && artwork.id && (

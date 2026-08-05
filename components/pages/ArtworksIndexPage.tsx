@@ -577,20 +577,30 @@ const handleUpdateArtworkField = async (
 
   return (
     <main style={mainStyle}>
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="m-0 text-[1.8rem] font-bold text-white">{headerTitle}</h2>
+      <div className="artwork-index-shell">
+      <div className="artwork-index-header">
+        <div>
+          <div className="artwork-index-eyebrow">Collection management</div>
+          <h1 className="artwork-index-title">{headerTitle}</h1>
+          <p className="artwork-index-subtitle">Review, filter and update proposals from one workspace.</p>
+        </div>
 
         {!isViewer && (
-        <Link className="no-print" href="/artworks/new">
-          <button className="edit-button">+ New artwork</button>
+        <Link className="no-print artwork-index-new-link" href="/artworks/new">
+          <button className="artwork-index-primary-button">+ New artwork</button>
         </Link>)}
       </div>
 
-      {/* Filters */}
-      <section className="no-print" style={filtersBoxStyle}>
-        {/* LIGNE 1 */}        
-        <div className="artwork-filters-primary" style={filtersRowStyle}>
+      <section className="no-print artwork-index-filters">
+        <div className="artwork-index-filter-heading">
+          <div>
+            <div className="artwork-index-filter-title">Filters</div>
+            <div className="artwork-index-filter-caption">Refine the proposals displayed below</div>
+          </div>
+          <div className="artwork-index-count">{totalDisplayed} proposals</div>
+        </div>
+
+        <div className="artwork-index-filter-grid">
           <div style={dateBlockStyle}>
             <div style={{ marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}>
               From date{" "}
@@ -617,11 +627,8 @@ const handleUpdateArtworkField = async (
             onChangeId={setArtistIdFilter}
             options={artistOptions}
           />
-        </div>
 
-        {/* LIGNE 2 */}
-        <div style={filtersRowStyle}>
-          <div style={{ width: '100%' }}>
+          <div className="artwork-index-search-field">
             <label
               htmlFor="artwork-search"
               style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}
@@ -657,15 +664,12 @@ const handleUpdateArtworkField = async (
           )}
         </div>
 
-        {/* Actions */}
-        <div className="mt-4 flex items-center">
-          <div className="text-[1.05rem] font-bold text-[#006039]">Total: {totalDisplayed}</div>
-
+        <div className="artwork-index-filter-actions">
           <button
             onClick={resetFilters}
-            className="ml-auto rounded-[10px] border border-black/25 bg-white px-4 py-2.5 font-semibold hover:bg-black/5"
+            className="artwork-index-reset-button"
           >
-            Reset
+            Reset filters
           </button>
         </div>
       </section>
@@ -971,6 +975,7 @@ const handleUpdateArtworkField = async (
   </div>
 )}
 
+      </div>
     </main>
   )
 }
@@ -997,25 +1002,6 @@ const dateInputStyle: React.CSSProperties = {
 
 
 
-const filtersBoxStyle: React.CSSProperties = {
-  marginBottom: 20,
-  borderRadius: 14,
-  border: '2px solid rgba(0,0,0,0.5)',
-  backgroundColor: '#DCEFE7',
-  padding: 16,
-  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-  width: '100%',
-  boxSizing: 'border-box',
-}
-
-
-const filtersRowStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: '1fr',
-  gap: 12,
-}
-
-
 const dateBlockStyle: React.CSSProperties = {
   width: '100%',
   minWidth: 0,            // ✅ CRITIQUE (remplace min-w-240px)
@@ -1029,11 +1015,11 @@ const dateWrapperStyle: React.CSSProperties = {
 
 const mainStyle: React.CSSProperties = {
   minHeight: '100vh',
-  backgroundColor: '#006039',
-  paddingTop: 90,
-  paddingBottom: 40,
-  paddingLeft: 12,
-  paddingRight: 12,
+  backgroundColor: '#f3f5f1',
+  paddingTop: 98,
+  paddingBottom: 56,
+  paddingLeft: 20,
+  paddingRight: 20,
 
   boxSizing: 'border-box',      // ✅ CRITIQUE (fix overflow iPhone)
   width: '100%',
@@ -1044,7 +1030,7 @@ const mainStyle: React.CSSProperties = {
 const subSectionTitle: React.CSSProperties = {
   fontSize: '1.1rem',
   fontWeight: 700,
-  color: 'white',
+  color: '#173f31',
   marginBottom: 6,
   opacity: 0.95,
 }
@@ -1053,7 +1039,7 @@ const subSectionTitle: React.CSSProperties = {
 const printLinkStyle: React.CSSProperties = {
   padding: '4px 10px',
   borderRadius: 8,
-  border: '1px solid rgba(255,255,255,0.7)',
+  border: '1px solid rgba(0,96,57,0.25)',
   backgroundColor: 'white',
   fontSize: '0.8rem',
   fontWeight: 700,
@@ -1073,17 +1059,20 @@ const subSectionHeaderRowStyle: React.CSSProperties = {
 
 const centeredHeaderRowStyle: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'center',  // ✅ centre le bloc entier
+  justifyContent: 'space-between',
   alignItems: 'center',
-  gap: 12,                   // ✅ espace entre texte et bouton
-  textAlign: 'center',
-  marginBottom: 10,
+  gap: 12,
+  textAlign: 'left',
+  marginTop: 30,
+  marginBottom: 14,
+  paddingBottom: 12,
+  borderBottom: '1px solid rgba(0,96,57,0.18)',
 }
 
 
 const centeredTitleStyle: React.CSSProperties = {
   fontSize: '1.6rem',
   fontWeight: 700,
-  color: 'white',
+  color: '#173f31',
   margin: 0,
 }

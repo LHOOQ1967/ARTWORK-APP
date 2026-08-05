@@ -112,14 +112,15 @@ export default function HeaderNav() {
 
 function navLink(active: boolean): React.CSSProperties {
   return {
-    color: 'white',
+    color: active ? '#ffffff' : 'rgba(255,255,255,0.78)',
     fontWeight: 700,
     textDecoration: 'none',
     textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    borderBottom: active
-      ? '2px solid #1f1f1f'
-      : '2px solid transparent',
-    paddingBottom: 2,
+    letterSpacing: '0.06em',
+    fontSize: '0.92rem',
+    borderRadius: 7,
+    background: active ? 'rgba(255,255,255,0.14)' : 'transparent',
+    padding: '9px 12px',
+    transition: 'background-color 120ms ease, color 120ms ease',
   }
 }

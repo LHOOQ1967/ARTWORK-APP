@@ -151,12 +151,14 @@ async function remove() {
 
   return (
     <section
+      className="referential-card"
       style={{
-        marginTop: 50,
         marginBottom: 30,
-        padding: 40,
-        backgroundColor: '#e6e5e5',
-        borderRadius: 6,
+        padding: 26,
+        border: '1px solid #d7dfda',
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        boxShadow: '0 10px 28px rgba(31,56,46,0.06)',
         color: 'black',
       }}
     >
@@ -168,8 +170,7 @@ async function remove() {
   style={{
     display: 'flex',
     justifyContent: 'flex-end',
-    gap: 8,
-    marginBottom: 16,
+    gap: 12,
   }}
 >
   {/* ✅ ADD ARTIST */}
@@ -217,17 +218,22 @@ async function remove() {
 
     
 
-<h2
-  style={{
-    fontSize: '1.6rem',
-    fontWeight: 700,
-    textAlign: 'center',
-    marginBottom: 24,
-    letterSpacing: '0.02em',
-  }}
->
-  Artists
-</h2>
+<div className="referential-card-heading" style={{ margin: '6px 0 24px', paddingBottom: 18, borderBottom: '1px solid #e4e9e6' }}>
+  <div>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 8,
+      }}
+    >
+      <h2 style={{ margin: 0, color: '#173f31', fontSize: '1.65rem' }}>Artists</h2>
+      <span className="referential-count-badge">{artists.length}</span>
+    </div>
+    <p style={{ margin: 0, color: '#62736c' }}>Search and maintain artist biographical information.</p>
+  </div>
+</div>
 
 
 <InlineRow label="Search">
@@ -236,7 +242,8 @@ async function remove() {
     placeholder="Search artist…"
     value={artistSearch}
     onChange={e => setArtistSearch(e.target.value)}
-    style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
+    className="referential-field"
+    style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
   />
 </InlineRow>
 
@@ -244,7 +251,8 @@ async function remove() {
       <InlineRow label="Artist">
         <select
           value={selectedId || ''}
-          onChange={e => setSelectedId(e.target.value || null)} style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
+          onChange={e => setSelectedId(e.target.value || null)} className="referential-field"
+          style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
         >
           <option value="">—</option>
           {filteredArtists.map(a => (
@@ -480,10 +488,13 @@ async function remove() {
 
   return (
     <section
+      className="referential-card"
       style={{
-        padding: 20,
-        backgroundColor: '#e6e5e5',
-        borderRadius: 6,
+        padding: 26,
+        border: '1px solid #d7dfda',
+        borderRadius: 12,
+        backgroundColor: '#fff',
+        boxShadow: '0 10px 28px rgba(31,56,46,0.06)',
         color: 'black',
       }}
     >
@@ -493,8 +504,7 @@ async function remove() {
   style={{
     display: 'flex',
     justifyContent: 'flex-end',
-    gap: 8,
-    marginBottom: 16,
+    gap: 12,
   }}
 >
   {/* ✅ ADD CONTACT */}
@@ -537,17 +547,22 @@ async function remove() {
   )}
 </div>
 
-<h2
-  style={{
-    fontSize: '1.6rem',
-    fontWeight: 700,
-    textAlign: 'center',
-    marginBottom: 24,
-    letterSpacing: '0.02em',
-  }}
->
-  Contacts
-</h2>
+<div className="referential-card-heading" style={{ margin: '6px 0 24px', paddingBottom: 18, borderBottom: '1px solid #e4e9e6' }}>
+  <div>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 8,
+      }}
+    >
+      <h2 style={{ margin: 0, color: '#173f31', fontSize: '1.65rem' }}>Contacts</h2>
+      <span className="referential-count-badge">{contacts.length}</span>
+    </div>
+    <p style={{ margin: 0, color: '#62736c' }}>Manage companies, institutions and individual contacts.</p>
+  </div>
+</div>
 
 
 <InlineRow label="Search">
@@ -556,7 +571,8 @@ async function remove() {
     placeholder="Search contact…"
     value={contactSearch}
     onChange={e => setContactSearch(e.target.value)}
-    style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
+    className="referential-field"
+    style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
   />
 </InlineRow>
 
@@ -565,7 +581,8 @@ async function remove() {
         <select
           value={selectedId || ''}
           onChange={e => setSelectedId(e.target.value || null)} 
-          style={{ width: '100%', backgroundColor: 'white', border: '2px solid #ccc' }}
+          className="referential-field"
+          style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
         >
           <option value="">—</option>
           {filteredContacts.map(c => (
@@ -722,15 +739,21 @@ export default function ReferentialsPage() {
   return (
     <main
       style={{
-        marginTop: 20,
-        padding: 40,
+        padding: '96px 20px 56px',
         minHeight: '100vh',
-        backgroundColor: '#006039',
-        color: 'white',
+        backgroundColor: '#f3f5f1',
+        color: '#171717',
       }}
     >
-      <ArtistsSection />
-      <ContactsSection />
+      <div className="referentials-shell" style={{ width: 'min(1280px, 100%)', margin: '0 auto' }}>
+        <header className="referentials-header" style={{ marginBottom: 28 }}>
+          <div className="referentials-eyebrow" style={{ marginBottom: 7, color: '#557067', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Collection data</div>
+          <h1 style={{ margin: 0, color: '#143b2d', fontSize: 'clamp(2rem, 4vw, 3.25rem)', lineHeight: 1, letterSpacing: '-0.035em' }}>Referentials</h1>
+          <p style={{ margin: '10px 0 0', color: '#62736c' }}>Manage the artists and contacts used throughout the application.</p>
+        </header>
+        <ArtistsSection />
+        <ContactsSection />
+      </div>
     </main>
   )
 }

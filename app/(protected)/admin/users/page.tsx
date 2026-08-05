@@ -16,20 +16,22 @@ type UserProfile = {
   last_activity_at: string | null
 }
 
+type UserSortKey = 'email' | 'role' | 'access' | 'status' | 'created' | 'activity'
+
 function formatLastActivity(value: string | null) {
-  if (!value) return 'Never'
+  if (!value) return { date: 'Never', time: '' }
 
   const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { date: '—', time: '' }
 
-  const diffDays = Math.floor(
-    (Date.now() - date.getTime()) / 86400000
-  )
-
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 30) return `${diffDays} days ago`
-
-  return date.toLocaleDateString('fr-CH')
+  return {
+    date: date.toLocaleDateString('fr-CH'),
+    time: date.toLocaleTimeString('fr-CH', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Zurich',
+    }),
+  }
 }
 
 
@@ -38,6 +40,8 @@ export default function UsersPage() {
   const [accesses, setAccesses] = useState<any[]>([])
 const [contacts, setContacts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<UserSortKey>('email')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 const router = useRouter()
   const { role } = useSessionProfile()
 
@@ -160,6 +164,21 @@ function getUserContactId(userId: string) {
 
   return access?.contact_id ?? ''
 }
+
+function handleSort(key: UserSortKey) {
+  if (sortKey === key) {
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    return
+  }
+
+  setSortKey(key)
+  setSortDirection(key === 'created' || key === 'activity' ? 'desc' : 'asc')
+}
+
+function sortIndicator(key: UserSortKey) {
+  if (sortKey !== key) return ' ↕'
+  return sortDirection === 'asc' ? ' ↑' : ' ↓'
+}
 function hasAccess(
   userId: string,
   contactId: string
@@ -254,6 +273,26 @@ if (
 
   return names.join(', ')
 }
+
+  const sortedUsers = [...users].sort((a, b) => {
+    const accessA = getAccessText(a.id, a.role, accesses, contacts)
+    const accessB = getAccessText(b.id, b.role, accesses, contacts)
+    const values: Record<UserSortKey, [string | number, string | number]> = {
+      email: [a.email ?? '', b.email ?? ''],
+      role: [a.role ?? '', b.role ?? ''],
+      access: [accessA, accessB],
+      status: [a.is_active ? 1 : 0, b.is_active ? 1 : 0],
+      created: [a.created_at ? new Date(a.created_at).getTime() : 0, b.created_at ? new Date(b.created_at).getTime() : 0],
+      activity: [a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0, b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0],
+    }
+    const [valueA, valueB] = values[sortKey]
+    const result = typeof valueA === 'number' && typeof valueB === 'number'
+      ? valueA - valueB
+      : String(valueA).localeCompare(String(valueB), 'fr', { sensitivity: 'base' })
+
+    return sortDirection === 'asc' ? result : -result
+  })
+
   return (
     <main
       style={{
@@ -261,13 +300,13 @@ if (
         paddingLeft: 20,
         paddingRight: 20,
         paddingBottom: 40,
-        backgroundColor: '#006039',
+        backgroundColor: '#f3f5f1',
         minHeight: '100vh',
       }}
     >
       <div
         style={{
-          maxWidth: 1200,
+          maxWidth: 1380,
           margin: '0 auto',
         }}
       >
@@ -275,20 +314,18 @@ if (
           style={{
             display: 'flex',
             justifyContent: 'space-between',
-            marginBottom: 20,
+            alignItems: 'flex-end',
+            marginBottom: 28,
           }}
         >
-          <h2
-            style={{
-              color: 'white',
-              margin: 0,
-            }}
-          >
-            Users ({users.length})
-          </h2>
+          <div>
+            <div className="users-page-eyebrow">Administration</div>
+            <h1 className="users-page-title">Users</h1>
+            <p className="users-page-subtitle">Manage roles, access and account status.</p>
+          </div>
 
           <Link href="/admin/users/new">
-            <button className="edit-button">
+            <button className="users-page-primary-button">
               + New User
             </button>
           </Link>
@@ -297,8 +334,10 @@ if (
         <div
           style={{
             backgroundColor: 'white',
-            borderRadius: 8,
-            overflow: 'hidden',
+            borderRadius: 12,
+            overflowX: 'auto',
+            boxShadow: '0 12px 30px rgba(31,56,46,0.07)',
+            border: '1px solid #d7dfda',
           }}
         >
           <table
@@ -309,18 +348,18 @@ if (
           >
             <thead>
               <tr>
-<th style={th}>Email</th>
-<th style={th}>Role</th>
-<th style={th}>Access</th>
-<th style={th}>Status</th>
-<th style={th}>Created</th>
-<th style={th}>Last Activity</th>
+<th style={th}><button className="users-sort-button" onClick={() => handleSort('email')}>Email{sortIndicator('email')}</button></th>
+<th style={th}><button className="users-sort-button" onClick={() => handleSort('role')}>Role{sortIndicator('role')}</button></th>
+<th style={th}><button className="users-sort-button" onClick={() => handleSort('access')}>Access{sortIndicator('access')}</button></th>
+<th style={th}><button className="users-sort-button" onClick={() => handleSort('status')}>Status{sortIndicator('status')}</button></th>
+<th style={th}><button className="users-sort-button" onClick={() => handleSort('created')}>Created{sortIndicator('created')}</button></th>
+<th style={th}><button className="users-sort-button" onClick={() => handleSort('activity')}>Last Activity{sortIndicator('activity')}</button></th>
 <th style={th}>Actions</th>
               </tr>
             </thead>
 
             <tbody>
-              {users.map(user => (
+              {sortedUsers.map(user => (
                 <tr key={user.id}>
                   <td style={td}>
                     {user.email}
@@ -379,9 +418,9 @@ if (
   )}
 </td>
                   <td style={td}>
-                    {user.is_active
-                      ? 'Active'
-                      : 'Disabled'}
+                    <span className={user.is_active ? 'users-status-active' : 'users-status-disabled'}>
+                      {user.is_active ? 'Active' : 'Disabled'}
+                    </span>
                   </td>
 
                   <td style={td}>
@@ -392,9 +431,15 @@ if (
                       : ''}
                   </td>
 <td style={td}>
-  {formatLastActivity(
-    user.last_activity_at
-  )}
+  {(() => {
+    const activity = formatLastActivity(user.last_activity_at)
+    return (
+      <div className="users-last-activity">
+        <span>{activity.date}</span>
+        {activity.time && <small>{activity.time}</small>}
+      </div>
+    )
+  })()}
 </td>
 
 <td style={td}>
@@ -431,12 +476,16 @@ if (
 
 const th: React.CSSProperties = {
   textAlign: 'left',
-  padding: 12,
-  backgroundColor: '#f5f5f5',
-  borderBottom: '1px solid #ddd',
+  padding: '14px 16px',
+  backgroundColor: '#f8faf8',
+  color: '#52645c',
+  fontSize: '0.78rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  borderBottom: '1px solid #e1e7e3',
 }
 
 const td: React.CSSProperties = {
-  padding: 12,
-  borderBottom: '1px solid #eee',
+  padding: '14px 16px',
+  borderBottom: '1px solid #edf0ee',
 }

@@ -453,16 +453,17 @@ function handleResetAll() {
   return (
     <main
       style={{
-        paddingTop: 80,
-        paddingLeft: 10,
-        paddingRight: 10,
-        paddingBottom: 10,
+        paddingTop: 96,
+        paddingLeft: 20,
+        paddingRight: 20,
+        paddingBottom: 56,
         minHeight: "100vh",
-        background: "#006039",
+        background: "#f3f5f1",
       }}
     >
       <div style={styles.container}>
         <div style={styles.headerCard}>
+          <div style={styles.eyebrow}>Import assisté</div>
           <h1 style={styles.title}>Importer une étiquette</h1>
           <p style={styles.subtitle}>
             Prenez une photo de l’étiquette avec l’iPhone, ou collez une image depuis le
@@ -985,23 +986,30 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "20px",
   },
   headerCard: {
-    background: "#ffffff",
-    border: "1px solid #d9e1e7",
-    borderRadius: "12px",
-    padding: "22px 24px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    background: "transparent",
+    borderBottom: "1px solid #d7dfda",
+    padding: "0 0 22px",
+  },
+  eyebrow: {
+    marginBottom: "7px",
+    color: "#557067",
+    fontSize: "12px",
+    fontWeight: 700,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
   },
   title: {
     margin: 0,
-    fontSize: "28px",
-    lineHeight: 1.2,
-    color: "#183247",
+    fontSize: "clamp(2rem, 4vw, 3.25rem)",
+    lineHeight: 1,
+    letterSpacing: "-0.035em",
+    color: "#143b2d",
   },
   subtitle: {
     margin: "10px 0 0 0",
     fontSize: "15px",
     lineHeight: 1.5,
-    color: "#4b5b68",
+    color: "#62736c",
   },
   messageBox: {
     borderRadius: "10px",
@@ -1026,10 +1034,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     background: "#ffffff",
-    border: "1px solid #d9e1e7",
+    border: "1px solid #d7dfda",
     borderRadius: "12px",
-    padding: "20px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    padding: "24px",
+    boxShadow: "0 10px 28px rgba(31,56,46,0.06)",
   },
   sectionHeaderInline: {
     display: "flex",
@@ -1042,12 +1050,12 @@ const styles: Record<string, React.CSSProperties> = {
   sectionTitle: {
     margin: "0 0 18px 0",
     fontSize: "20px",
-    color: "#183247",
+    color: "#173f31",
   },
   sectionTitleNoMargin: {
     margin: 0,
     fontSize: "20px",
-    color: "#183247",
+    color: "#173f31",
   },
   subTitle: {
     margin: "0 0 12px 0",
