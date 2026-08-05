@@ -406,7 +406,15 @@ if (
         -- Select company --
       </option>
 
-      {contacts.map(contact => (
+      {[...contacts]
+        .sort((a, b) =>
+          (a.company_name ?? '').localeCompare(
+            b.company_name ?? '',
+            'fr',
+            { sensitivity: 'base' }
+          )
+        )
+        .map(contact => (
         <option
           key={contact.id}
           value={contact.id}
