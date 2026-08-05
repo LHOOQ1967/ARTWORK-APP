@@ -15,31 +15,16 @@ export default function HeaderNav() {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/')
 
-  const canEdit = role === 'Administrator' || role === 'Editor'
   const isLoggedIn = !!role
 
   return (
 
 
-<header
-  className="no-print"
-  style={{
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '12px 24px',
-    backgroundColor: '#02804d',
-  }}
->
+<header className="no-print app-header">
 
 
       {/* LEFT NAV */}
-      <nav style={{ display: 'flex', gap: 16 }}>
+      <nav className="app-header-nav">
         {/* ✅ Home : seulement si logué */}
         {isLoggedIn && (
           <Link
@@ -55,9 +40,9 @@ export default function HeaderNav() {
           <Link
             href="/artworks/active"
             prefetch={false}
-            style={navLink(isActive('/artworks'))}
+            style={navLink(isActive('/artworks/active'))}
           >
-            Proposals
+            Active
           </Link>
         )}
 
@@ -65,7 +50,7 @@ export default function HeaderNav() {
           <Link
             href="/artworks"
             prefetch={false}
-            style={navLink(isActive('/artworks'))}
+            style={navLink(pathname === '/artworks')}
           >
             All
           </Link>
@@ -78,36 +63,17 @@ export default function HeaderNav() {
             prefetch={false}
             style={navLink(isActive('/artworks/updated'))}
           >
-            Update
+            Updated
           </Link>
         )}
 
         {isLoggedIn && (
           <Link
-            href="/artworks/print"
+            href="/artworks/import-label"
             prefetch={false}
-            style={navLink(isActive('/artworks/print'))}
+            style={navLink(isActive('/artworks/import-label'))}
           >
-            Factsheets
-          </Link>
-        )}
-
-          <Link
-            href="market"
-            prefetch={false}
-            style={navLink(isActive('market'))}
-          >
-            Market
-          </Link>
-
-
-        {!loading && isLoggedIn && canEdit && (
-          <Link
-            href="/referentials"
-            prefetch={false}
-            style={navLink(isActive('/referentials'))}
-          >
-            Referentials
+            Import
           </Link>
         )}
 
@@ -115,7 +81,7 @@ export default function HeaderNav() {
       </nav>
 
       {/* RIGHT ACTIONS */}
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div className="app-header-actions">
         {/* Chargement → rien */}
         {loading && null}
 

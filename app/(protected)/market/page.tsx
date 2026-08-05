@@ -210,7 +210,7 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: '1200px',
     marginTop: 50,
     padding: '24px 16px 40px',
-    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontFamily: 'inherit',
     color: 'white',
     background: "#006039",
   },

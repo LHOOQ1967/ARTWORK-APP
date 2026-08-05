@@ -1,239 +1,127 @@
-
 'use client'
 
 import Link from 'next/link'
+import styles from './HomeDashboard.module.css'
+
+type DashboardLink = {
+  href: string
+  title: string
+  subtitle: string
+  icon: string
+  external?: boolean
+}
+
+const proposals: DashboardLink[] = [
+  { href: '/artworks/active', title: 'Active proposals', subtitle: 'Sorted by priority', icon: '01' },
+  { href: '/artworks', title: 'All proposals', subtitle: 'Browse every proposal', icon: '02' },
+  { href: '/artworks/updated', title: 'Recently updated', subtitle: 'Latest changes first', icon: '03' },
+  { href: '/artworks/archived', title: 'Archives', subtitle: 'Past and declined proposals', icon: '04' },
+  { href: '/artworks/print', title: 'Factsheet', subtitle: 'Prepare and print records', icon: '05' },
+]
+
+const collection: DashboardLink[] = [
+  { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date', icon: 'CL' },
+  { href: '/inventory', title: 'Inventory', subtitle: 'Florac works', icon: 'IV' },
+  { href: '/commissions', title: 'Commissions', subtitle: 'Florac and Leopold Meyer', icon: 'CM' },
+  { href: '/valuations', title: 'Valuations', subtitle: 'Florac works', icon: 'VL' },
+]
+
+const tools: DashboardLink[] = [
+  { href: '/market', title: 'Market', subtitle: 'Fairs and auctions', icon: 'MK' },
+  {
+    href: 'https://buyerspremium.blondeau.ch/calculate.php',
+    title: 'Buyers premium',
+    subtitle: 'Open calculator',
+    icon: 'BP',
+    external: true,
+  },
+  {
+    href: 'https://buyerspremium.blondeau.ch/auction_time.php',
+    title: 'Auction time',
+    subtitle: 'Open calculator',
+    icon: 'AT',
+    external: true,
+  },
+]
 
 export default function ViewerHome() {
-return (
-  <main
-    style={{
-
-    paddingTop: 100,
-    paddingLeft: 10,
-    paddingRight: 10,
-    paddingBottom: 30,
-
-      minHeight: '100vh',
-      backgroundColor: '#006039',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      color: 'white',
-    }}
-  >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 20,
-          width: '100%',
-
-        }}
-      >
-
-      <EntryCardFlorac
-        href="/artworks/active"
-        title="Proposals"
-        subtitle="Sorted by Priority"
-      />
-        <EntryCardFlorac
-        href="/artworks/updated"
-        title="Update"
-        subtitle="Artworks Sorted by Date updated"
-      />
-
-            <EntryCardFlorac
-        href="/artworks"
-        title="All Proposals"
-        subtitle="Sorted by Date Proposed"
-      />
-
-            <EntryCardFlorac
-        href="/artworks/bought"
-        title="Collection"
-        subtitle="Sorted by Acquisition Date"
-      />
-
-
-            <EntryCardFlorac
-        href="/artworks/archived"
-        title="Archived"
-        subtitle="Sorted by Date Proposed"
-      />
-
-      
-      <EntryCardFlorac
-        href="/artworks/print"
-        title="Factsheets"
-        subtitle="All Artworks"
-      />
-
-      </div>
-
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 20,
-        width: '100%',
-        maxWidth: 700,
-        marginTop: 40,
-      }}
-    >
-      <EntryCardNew
-        href="market"
-        title="Market"
-        subtitle="Fairs and auctions"
-      />
-      <EntryCardNew
-        href="https://buyerspremium.blondeau.ch/calculate.php"
-        title="Buyers Premium"
-        subtitle="Calculator"
-      />
-      <EntryCardNew
-        href="https://buyerspremium.blondeau.ch/auction_time.php"
-        title="Auction Time"
-        subtitle="Calculator"
-      />
-    </div>
-
-    {/* ✅ Footer poussé en bas */}
-    <div style={{ marginTop: 'auto', paddingTop: 24, paddingBottom: 24 }}>
-      <a
-        href="https://www.blondeau.ch"
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          color: 'white',
-          textDecoration: 'none',
-          fontSize: '1.1rem',
-          
-          opacity: 0.9,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-        onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
-      >
-        www.blondeau.ch
-      </a>
-    </div>
-  </main>
-)
-}
-
-function EntryCard({
-  href,
-  title,
-  subtitle,
-}: {
-  href: string
-  title: string
-  subtitle: string
-}) {
   return (
-    <Link
-      href={href}
-      style={{
-        backgroundColor: 'white',
-        color: '#333',
-        padding: '24px 20px',
-        borderRadius: 8,
-        textDecoration: 'none',
-        textAlign: 'center',
-        transition: 'transform 0.15s, box-shadow 0.15s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow =
-          '0 6px 16px rgba(0,0,0,0.15)'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
-    >
-      <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>
-        {title}
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <section className={`${styles.section} ${styles.proposalsSection}`}>
+          <SectionHeading index="01" title="Proposals" description="Review and follow every proposal" />
+          <div className={styles.primaryGrid}>
+            {proposals.map((item) => <DashboardCard key={item.href} item={item} />)}
+          </div>
+        </section>
+
+        <div className={styles.viewerSectionGrid}>
+          <section className={`${styles.section} ${styles.collectionSection}`}>
+            <SectionHeading index="02" title="Collection" description="Browse acquired works" />
+            <div className={styles.toolsGrid}>
+              {collection.map((item) => <DashboardCard key={item.href} item={item} compact />)}
+            </div>
+          </section>
+
+          <section className={`${styles.section} ${styles.toolsSection}`}>
+            <SectionHeading index="03" title="Tools" description="Market and auction utilities" />
+            <div className={styles.viewerToolsGrid}>
+              {tools.map((item) => <DashboardCard key={item.href} item={item} compact />)}
+            </div>
+          </section>
+        </div>
+
+        <footer className={styles.footer}>
+          <span>ArtMuse</span>
+          <a href="https://www.blondeau.ch" target="_blank" rel="noopener noreferrer">
+            blondeau.ch ↗
+          </a>
+        </footer>
       </div>
-      <div style={{ marginTop: 6, color: '#666' }}>
-        {subtitle}
-      </div>
-    </Link>
+    </main>
   )
 }
 
-function EntryCardNew({
-  href,
+function SectionHeading({
+  index,
   title,
-  subtitle,
+  description,
 }: {
-  href: string
+  index: string
   title: string
-  subtitle: string
+  description: string
 }) {
-  const isExternal = href.startsWith('http')
-
   return (
-    <Link
-      href={href}
-      target={isExternal ? '_blank' : undefined} // ✅ ouvre nouvel onglet si externe
-      rel={isExternal ? 'noopener noreferrer' : undefined}
-      style={{
-        backgroundColor: 'white',
-        color: '#333',
-        padding: '24px 20px',
-        borderRadius: 8,
-        textDecoration: 'none',
-        textAlign: 'center',
-        transition: 'transform 0.15s, box-shadow 0.15s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.15)'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
-    >
-      <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{title}</div>
-      <div style={{ marginTop: 6, color: '#666' }}>{subtitle}</div>
-    </Link>
+    <div className={styles.sectionHeading}>
+      <span>{index}</span>
+      <div>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+    </div>
   )
 }
 
-function EntryCardFlorac({
-  href,
-  title,
-  subtitle,
+function DashboardCard({
+  item,
+  compact = false,
 }: {
-  href: string
-  title: string
-  subtitle: string
+  item: DashboardLink
+  compact?: boolean
 }) {
   return (
     <Link
-      href={href}
-      style={{
-        backgroundColor: '#4A5068',
-        color: 'white',
-        padding: '24px 20px',
-        border: '1px solid white',
-        borderRadius: 8,
-        textDecoration: 'none',
-        textAlign: 'center',
-        transition: 'transform 0.15s, box-shadow 0.15s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-2px)'
-        e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.15)'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
+      href={item.href}
+      target={item.external ? '_blank' : undefined}
+      rel={item.external ? 'noopener noreferrer' : undefined}
+      className={`${styles.card} ${compact ? styles.compactCard : ''}`}
     >
-      <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{title}</div>
-      <div style={{ marginTop: 6, color: 'white' }}>{subtitle}</div>
+      <span className={styles.cardIcon}>{item.icon}</span>
+      <div className={styles.cardCopy}>
+        <h3>{item.title}</h3>
+        <p>{item.subtitle}</p>
+      </div>
+      <span className={styles.arrow}>{item.external ? '↗' : '→'}</span>
     </Link>
   )
 }

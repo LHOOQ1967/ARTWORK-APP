@@ -1,6 +1,14 @@
 
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Akzidenz-Grotesk BQ';
+  src: url('/fonts/AkzidGroBQReg.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 /* =========================================================
    Variables
    ========================================================= */
@@ -46,7 +54,46 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Akzidenz-Grotesk BQ', 'Akzidenz Grotesk', Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@media screen {
+.app-header {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 24px;
+  background: #02804d;
+}
+
+.app-header-nav,
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-header-nav {
+  min-width: 0;
+}
+
+.app-header-actions {
+  flex-shrink: 0;
+  gap: 10px;
+}
 }
 
 /* =========================================================
@@ -460,6 +507,34 @@ body {
 }
 
 @media (max-width: 640px) {
+  .app-header {
+    min-height: 56px;
+    gap: 10px;
+    padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+  }
+
+  .app-header-nav {
+    overflow-x: auto;
+    gap: 18px;
+    padding: 8px 2px;
+    scrollbar-width: none;
+  }
+
+  .app-header-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-header-nav a {
+    flex: 0 0 auto;
+    font-size: 0.78rem;
+  }
+
+  .app-header-actions .edit-button {
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+  }
+
   .artwork-action-bar {
     padding: 10px 12px !important;
   }

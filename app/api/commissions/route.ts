@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireRole } from '@/lib/apiAuth'
+import { requireRole, requireUser } from '@/lib/apiAuth'
 import { logAuditEvent } from '@/lib/audit'
 
 const EDITOR_ROLES = ['Editor', 'Administrator'] as const
@@ -35,7 +35,7 @@ function isCommissionClient(contact: BuyerContact | null) {
 }
 
 export async function GET() {
-  const authorization = await requireRole(EDITOR_ROLES)
+  const authorization = await requireUser()
   if (authorization.response) return authorization.response
 
   const { supabase } = authorization
