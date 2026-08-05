@@ -501,7 +501,6 @@ const displayTitle = (() => {
 
 
 {images.length > 0 && (() => {
-  const mainMaxHeight = '12cm'
   const thumbnails = images.slice(1)
   const thumbnailCount = thumbnails.length
   const thumbColumns = thumbnailCount > 4 ? 3 : 2
@@ -523,10 +522,7 @@ const displayTitle = (() => {
         className="artwork-image-wrapper"
         style={{
           flex: '0 0 auto',
-          height: mainMaxHeight,
-          maxHeight: mainMaxHeight,
           maxWidth: 420,
-          overflow: 'hidden',
           display: 'flex',
           alignItems: 'flex-start',
           justifyContent: 'flex-start',
@@ -538,7 +534,6 @@ const displayTitle = (() => {
           rel="noopener noreferrer"
           style={{
             display: 'block',
-            height: '100%',
             width: 'auto',
             maxWidth: '100%',
           }}
@@ -548,9 +543,10 @@ const displayTitle = (() => {
             alt={artwork.title ?? 'Artwork image'}
             style={{
               display: 'block',
-              height: '100%',
+              height: 'auto',
               width: 'auto',
               maxWidth: '100%',
+              maxHeight: '12cm',
               objectFit: 'contain',
               objectPosition: 'left top',
               cursor: 'zoom-in',

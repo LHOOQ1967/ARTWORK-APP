@@ -130,12 +130,12 @@ useEffect(() => {
   return (
     <main
       style={{
-        paddingTop: 10,
+        paddingTop: 0,
         paddingLeft: 10,
         paddingRight: 10,
         paddingBottom: 10,
         minHeight: "100vh",
-        background: "#006039",
+        background: "#f3f5f1",
       }}
     >
 

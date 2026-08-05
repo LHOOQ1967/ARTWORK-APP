@@ -142,22 +142,14 @@ function normalizeStatus(status?: string | null): string {
 function SectionTitle({
   title,
   count,
-  color = 'white',
 }: {
   title: string
   count: number
-  color?: string
 }) {
   return (
-    <div
-      style={{
-        marginBottom: 10,
-        fontSize: '1.1rem',
-        fontWeight: 700,
-        color,
-      }}
-    >
-      {title} ({count})
+    <div className="updated-section-heading">
+      <h2>{title}</h2>
+      <span>{count}</span>
     </div>
   )
 }
@@ -337,37 +329,46 @@ const nonCreatedUpdates = useMemo(() => {
   }
 
   return (
-    <main className="min-h-screen bg-[#006039] px-3 pb-10 pt-24">
-      {/* Bandeau total */}
-      <section className="mb-4 rounded-[14px] border-[3px] border-black/60 bg-[#DCEFE7] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.10)]">
-        <div className="text-[1.05rem] font-bold text-[#006039]">
-          Total: {total} artworks
-        </div>
-      </section>
-
-      {/* Section spéciale buyer */}
-      <section className="mb-8 rounded-[14px] border-[3px] border-black/60 bg-[#4A5068] p-5 shadow-[0_2px_10px_rgba(0,0,0,0.10)]">
-        <div className="mb-2 text-[1.15rem] font-bold text-[#eaeaea]">
-          En attente de destination de factures
-        </div>
-
-        {specialBuyerArtworks.length > 0 ? (
-          <ArtworkListUpdated artworks={specialBuyerArtworks} />
-        ) : (
-          <div className="text-[0.95rem] text-white/80">
-            Aucun artwork en attente de destination de factures.
+    <main className="updated-page">
+      <div className="updated-page-shell">
+        <header className="updated-page-header">
+          <div>
+            <div className="updated-page-eyebrow">Collection activity</div>
+            <h1>Latest updates</h1>
+            <p>Track newly created artworks and recent changes across the collection.</p>
           </div>
-        )}
-      </section>
+          <div className="updated-page-total">
+            <strong>{total}</strong>
+            <span>artworks</span>
+          </div>
+        </header>
 
-      {/* Latest updates */}
-      <section>
-        <div className="mb-4 text-[1.2rem] font-bold text-white">
-          Latest updates
+        <section className="updated-attention-card">
+          <div className="updated-attention-copy">
+            <span className="updated-attention-icon">!</span>
+            <div>
+              <h2>En attente de destination de factures</h2>
+              <p>Œuvres nécessitant encore une destination de facturation.</p>
+            </div>
+          </div>
+
+          {specialBuyerArtworks.length > 0 ? (
+            <div className="updated-attention-list">
+              <ArtworkListUpdated artworks={specialBuyerArtworks} />
+            </div>
+          ) : (
+            <div className="updated-empty-state">
+              Aucun artwork en attente de destination de factures.
+            </div>
+          )}
+        </section>
+
+        <div className="updated-content-heading">
+          <h2>Recent activity</h2>
+          <p>Ordered from the most recent update.</p>
         </div>
 
-        {/* Newly created - last 7 days */}
-        <div className="mb-8">
+        <section className="updated-section">
           <SectionTitle
             title="Newly created (last 7 days)"
             count={newlyCreatedArtworks.length}
@@ -376,14 +377,13 @@ const nonCreatedUpdates = useMemo(() => {
           {newlyCreatedArtworks.length > 0 ? (
             <ArtworkListUpdated artworks={newlyCreatedArtworks} />
           ) : (
-            <div className="rounded-[14px] border-[3px] border-black/40 bg-white/90 p-5 text-[0.95rem] text-black/70">
+            <div className="updated-empty-state">
               Aucun artwork créé dans les 7 derniers jours.
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Updated — Draft / Viewed / Negotiation */}
-        <div className="mb-8">
+        <section className="updated-section">
           <SectionTitle
             title="Updated — Draft / Viewed / Negotiation"
             count={updatedPipelineArtworks.length}
@@ -392,14 +392,13 @@ const nonCreatedUpdates = useMemo(() => {
           {updatedPipelineArtworks.length > 0 ? (
             <ArtworkListUpdated artworks={updatedPipelineArtworks} />
           ) : (
-            <div className="rounded-[14px] border-[3px] border-black/40 bg-white/90 p-5 text-[0.95rem] text-black/70">
+            <div className="updated-empty-state">
               Aucun artwork mis à jour dans Draft / Viewed / Negotiation.
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Updated — Bought / Archived */}
-        <div className="mb-8">
+        <section className="updated-section">
           <SectionTitle
             title="Updated — Bought / Archived"
             count={updatedClosedArtworks.length}
@@ -408,23 +407,22 @@ const nonCreatedUpdates = useMemo(() => {
           {updatedClosedArtworks.length > 0 ? (
             <ArtworkListUpdated artworks={updatedClosedArtworks} />
           ) : (
-            <div className="rounded-[14px] border-[3px] border-black/40 bg-white/90 p-5 text-[0.95rem] text-black/70">
+            <div className="updated-empty-state">
               Aucun artwork mis à jour dans Bought / Archived.
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Other statuses */}
         {updatedOtherArtworks.length > 0 && (
-          <div className="mb-8">
+          <section className="updated-section">
             <SectionTitle
               title="Updated — Other statuses"
               count={updatedOtherArtworks.length}
             />
             <ArtworkListUpdated artworks={updatedOtherArtworks} />
-          </div>
+          </section>
         )}
-      </section>
+      </div>
     </main>
   )
 }

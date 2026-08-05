@@ -56,36 +56,30 @@ export default function NewContactPage() {
 
 <main
   style={{
-    paddingTop: 80,   // espace sous le menu
-    paddingLeft: 10,
-    paddingRight: 10,
-    paddingBottom: 10,
+    paddingTop: 96,
+    paddingLeft: 20,
+    paddingRight: 20,
+    paddingBottom: 56,
     minHeight: '100vh',
-    background: '#006039',
+    background: '#f3f5f1',
   }}
 >
   <section
     style={{
-      maxWidth: 640,
+      maxWidth: 760,
       margin: '0 auto',
-      padding: 24,
-      backgroundColor: '#e6e5e5',
-      borderRadius: 6,
+      padding: 30,
+      backgroundColor: '#fff',
+      border: '1px solid #d7dfda',
+      borderRadius: 12,
+      boxShadow: '0 12px 30px rgba(31,56,46,0.07)',
       color: 'black',
     }}
   >
 
-        <h1
-          style={{
-            fontSize: '1.6rem',
-            fontWeight: 700,
-            textAlign: 'center',
-            marginBottom: 24,
-            letterSpacing: '0.02em',
-          }}
-        >
-          New Contact
-        </h1>
+        <div className="entity-form-eyebrow" style={{ marginBottom: 7, color: '#557067', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Referentials</div>
+        <h1 className="entity-form-title" style={{ margin: 0, color: '#143b2d', fontSize: 42, lineHeight: 1, letterSpacing: '-0.035em' }}>New contact</h1>
+        <p className="entity-form-subtitle" style={{ margin: '10px 0 28px', paddingBottom: 20, borderBottom: '1px solid #e4e9e6', color: '#62736c' }}>Add a company, institution or individual contact.</p>
 
         {error && (
           <p style={{ color: 'red', marginBottom: 16 }}>
@@ -99,7 +93,8 @@ export default function NewContactPage() {
           <input
             value={companyName}
             onChange={e => setCompanyName(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -109,7 +104,8 @@ export default function NewContactPage() {
           <input
             value={firstName}
             onChange={e => setFirstName(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -119,7 +115,8 @@ export default function NewContactPage() {
           <input
             value={lastName}
             onChange={e => setLastName(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -129,7 +126,8 @@ export default function NewContactPage() {
           <input
             value={email}
             onChange={e => setEmail(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -139,7 +137,8 @@ export default function NewContactPage() {
           <input
             value={telephone}
             onChange={e => setTelephone(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -149,7 +148,8 @@ export default function NewContactPage() {
           <input
             value={city}
             onChange={e => setCity(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -159,7 +159,8 @@ export default function NewContactPage() {
           <input
             value={role}
             onChange={e => setRole(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -170,7 +171,8 @@ export default function NewContactPage() {
             rows={4}
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            style={{ border: '2px solid #ccc', width: '100%', backgroundColor: 'white' }}
+            className="entity-form-field"
+            style={fieldStyle}
           />
         </div>
 
@@ -180,11 +182,23 @@ export default function NewContactPage() {
             Cancel
           </button>
 
-          <button onClick={handleSubmit} disabled={loading} className="edit-button"> 
+          <button onClick={handleSubmit} disabled={loading} className="entity-form-primary-button">
             {loading ? 'Saving…' : 'Create contact'}
           </button>
         </div>
       </section>
     </main>
   )
+}
+
+const fieldStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  minHeight: 42,
+  marginTop: 6,
+  padding: '9px 12px',
+  border: '1px solid #c9d3cd',
+  borderRadius: 8,
+  backgroundColor: '#fff',
+  boxSizing: 'border-box',
 }

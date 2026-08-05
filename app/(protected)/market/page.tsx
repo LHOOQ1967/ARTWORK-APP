@@ -207,12 +207,11 @@ function makeEditState(item: MarketSectionItemView): EditState {
 
 const styles: Record<string, CSSProperties> = {
   page: {
-    maxWidth: '1200px',
-    marginTop: 50,
-    padding: '24px 16px 40px',
+    width: 'min(1380px, 100%)',
+    margin: '0 auto',
+    padding: '0 20px 56px',
     fontFamily: 'inherit',
-    color: 'white',
-    background: "#006039",
+    color: '#17231e',
   },
   pageInner: {
     display: 'flex',
@@ -228,9 +227,11 @@ const styles: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontSize: '28px',
-    fontWeight: 600,
-    lineHeight: 1.2,
+    color: '#143b2d',
+    fontSize: 'clamp(2rem, 4vw, 3.25rem)',
+    fontWeight: 700,
+    lineHeight: 1,
+    letterSpacing: '-0.035em',
   },
 
   pillRow: {
@@ -274,16 +275,17 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '14px',
   },
   card: {
-    border: '1px solid #cbd5e1',
+    border: '1px solid #d7dfda',
     borderRadius: '12px',
     background: '#ffffff',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    boxShadow: '0 10px 28px rgba(31,56,46,0.06)',
     overflow: 'hidden',
   },
 
   cardHeader: {
     borderBottom: '1px solid #e2e8f0',
-    padding: '18px 20px 14px',
+    padding: '20px 22px 16px',
+    background: '#fbfcfb',
   },
   cardTitle: {
     margin: 0,
@@ -345,9 +347,9 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: 'center',
     gap: '8px',
     padding: '10px 14px',
-    background: '#0f172a',
+    background: '#006039',
     color: '#ffffff',
-    border: '1px solid #0f172a',
+    border: '1px solid #006039',
     borderRadius: '8px',
     cursor: 'pointer',
     fontSize: '14px',
@@ -741,9 +743,9 @@ setSectionSortModes((prev) => {
     setExpandedSections((prev) => {
       const next: Record<string, boolean> = { ...prev };
 
-      merged.forEach((section, index) => {
+      merged.forEach((section) => {
         if (typeof next[section.id] === 'undefined') {
-          next[section.id] = index < 4;
+          next[section.id] = false;
         }
       });
 
@@ -1119,25 +1121,25 @@ const displaySections = useMemo(() => {
   return (
         <main
       style={{
-        paddingTop: 10,
+        paddingTop: 96,
         paddingLeft: 10,
         paddingRight: 10,
-        paddingBottom: 10,
+        paddingBottom: 56,
         minHeight: "100vh",
-        background: "#006039",
+        background: "#f3f5f1",
       }}
     >
     <div style={styles.page}>
       <div style={styles.pageInner}>
         <div style={styles.topBar}>
           <div>
-            <h1 style={styles.title}>Art Market - Previews and auctions catalogues</h1>
-
+            <div className="market-page-eyebrow">Research & opportunities</div>
+            <h1 style={styles.title}>Art Market</h1>
+            <p className="market-page-subtitle">Previews, fairs and auction catalogues in one workspace.</p>
           </div>
 
           <div style={styles.pillRow}>
-            <span style={styles.pill}>Role : {role ?? '—'}</span>
-            <span style={styles.pill}>{displaySections.length} sections</span>
+            <span className="market-page-count">{displaySections.length} sections</span>
           </div>
         </div>
 
@@ -1158,7 +1160,7 @@ const displaySections = useMemo(() => {
     </div>
   ) : (
     displaySections.map((section) => {
-      const isExpanded = expandedSections[section.id] ?? true;
+      const isExpanded = expandedSections[section.id] ?? false;
 
       return (
         <div key={section.id} style={styles.card}>

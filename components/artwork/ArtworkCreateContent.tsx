@@ -1256,31 +1256,57 @@ try {
   return (
     <main
       style={{
-        paddingTop: 80,
-        paddingLeft: 10,
-        paddingRight: 10,
-        paddingBottom: 100,
-        backgroundColor: '#006039',
-        color: 'white',
+        paddingTop: 96,
+        paddingLeft: 20,
+        paddingRight: 20,
+        paddingBottom: 120,
+        backgroundColor: '#f3f5f1',
+        color: '#171717',
         minHeight: '100vh',
       }}
     >
       <div
         style={{
-          maxWidth: 1040,
+          maxWidth: 1180,
           margin: '0 auto',
         }}
       >
-        <h3
+        <header
+          className="artwork-create-header"
           style={{
-            textAlign: 'center',
-            fontSize: '1.3rem',
-            marginTop: 0,
-            marginBottom: 12,
+            marginBottom: 28,
+            paddingBottom: 22,
+            borderBottom: '1px solid #d7dfda',
           }}
         >
-          Create Artwork
-        </h3>
+          <div
+            className="artwork-create-eyebrow"
+            style={{
+              marginBottom: 8,
+              color: '#557067',
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Collection management
+          </div>
+          <h1
+            style={{
+              margin: 0,
+              color: '#143b2d',
+              fontSize: 'clamp(2rem, 4vw, 3.25rem)',
+              lineHeight: 1,
+              letterSpacing: '-0.035em',
+            }}
+          >
+            Create artwork
+          </h1>
+          <p style={{ margin: '11px 0 0', color: '#62736c', fontSize: 16 }}>
+            Add a proposal, complete its details and save it to the collection.
+          </p>
+        </header>
 
         {importRow && (
           <div
@@ -1336,25 +1362,22 @@ try {
         )}
 
 <div
-  className="artwork-action-bar"
+  className="artwork-create-action-bar"
   style={{
     position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    top: 68,
+    right: 24,
 
-    zIndex: 999,
+    zIndex: 1100,
 
-    backgroundColor: '#006039',
+    backgroundColor: 'rgba(255,255,255,0.96)',
 
-    borderTop: '1px solid rgba(255,255,255,0.2)',
+    border: '1px solid #d7dfda',
+    borderRadius: 10,
 
-    paddingTop: 10,
-    paddingBottom: 10,
-    paddingLeft: 20,
-    paddingRight: 20,
+    padding: 12,
 
-    boxShadow: '0 -2px 10px rgba(0,0,0,0.25)',
+    boxShadow: '0 8px 24px rgba(31,56,46,0.14)',
   }}
 >
           <div
@@ -1362,7 +1385,7 @@ try {
               display: 'flex',
               justifyContent: 'flex-end',
               alignItems: 'center',
-              gap: 12,
+              gap: 18,
               flexWrap: 'wrap',
             }}
           >
@@ -1373,7 +1396,7 @@ try {
                   alignItems: 'center',
                   gap: 8,
                   fontSize: '0.95rem',
-                  color: '#eaf7ef',
+                  color: '#006039',
                 }}
               >
                 <Spinner size={16} />
@@ -1383,7 +1406,16 @@ try {
 
 
 <button
-  className="edit-button"
+  className="artwork-create-secondary-button"
+  style={{
+    border: '1px solid #b9c5bf',
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    color: '#35483f',
+    padding: '10px 18px',
+    fontWeight: 700,
+    boxShadow: '0 2px 5px rgba(31,56,46,0.10)',
+  }}
   type="button"
   onClick={() => {
     if (isMeaningfulArtworkDraft(artwork)) {
@@ -1403,7 +1435,7 @@ try {
 
 
             <button
-              className="edit-button"
+              className="artwork-create-primary-button"
               type="button"
               onClick={saveArtwork}
               disabled={saving}
@@ -1413,6 +1445,13 @@ try {
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 8,
+                border: '1px solid #006039',
+                borderRadius: 8,
+                backgroundColor: '#006039',
+                color: '#ffffff',
+                padding: '10px 20px',
+                fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(0,96,57,0.22)',
               }}
             >
               {saving ? (
