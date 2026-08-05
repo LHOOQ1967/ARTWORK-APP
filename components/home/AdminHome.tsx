@@ -28,9 +28,9 @@ const proposals: DashboardLink[] = [
 
 const collection: DashboardLink[] = [
   { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date', icon: 'CL' },
-  { href: '/inventory', title: 'Inventory', subtitle: 'Florac works', icon: 'IV' },
-  { href: '/commissions', title: 'Commissions', subtitle: 'Florac and Leopold Meyer', icon: 'CM' },
-  { href: '/valuations', title: 'Valuations', subtitle: 'Florac works', icon: 'VL' },
+  { href: '/inventory', title: 'Inventory', subtitle: '', icon: 'IV' },
+  { href: '/commissions', title: 'Commissions', subtitle: '', icon: 'CM' },
+  { href: '/valuations', title: 'Valuations', subtitle: '', icon: 'VL' },
 ]
 
 const management: DashboardLink[] = [
@@ -140,7 +140,7 @@ function DashboardCard({
       <span className={styles.cardIcon}>{item.icon}</span>
       <div className={styles.cardCopy}>
         <h3>{item.title}</h3>
-        <p>{item.subtitle}</p>
+        {item.subtitle && <p>{item.subtitle}</p>}
       </div>
       <span className={styles.arrow}>{item.external ? '↗' : '→'}</span>
     </Link>
