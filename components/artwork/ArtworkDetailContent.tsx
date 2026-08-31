@@ -22,6 +22,18 @@ import type {
   ArtworkDocument,
 } from '@/app/(protected)/types/artwork'
 
+const DOCUMENT_LABEL_SUGGESTIONS = [
+  'Fiche Blondeau',
+  'Facture',
+  'Facture Commission',
+  'Certificat',
+  'Condition Report Héritier',
+  'Résultat ventes',
+  'Dossier One Drive',
+]
+
+const NEW_DOCUMENT_LABEL_DATALIST_ID = 'new-document-label-suggestions'
+
 function isUUID(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
@@ -1327,6 +1339,11 @@ const artworkDocuments = useMemo(
 
             {isEditing && artwork.id && (
               <div style={{ marginBottom: 16 }}>
+                <datalist id={NEW_DOCUMENT_LABEL_DATALIST_ID}>
+                  {DOCUMENT_LABEL_SUGGESTIONS.map((suggestion) => (
+                    <option key={suggestion} value={suggestion} />
+                  ))}
+                </datalist>
                 <div
                   style={{
                     display: 'flex',
@@ -1340,6 +1357,7 @@ const artworkDocuments = useMemo(
                     placeholder="Label"
                     value={newDocLabel}
                     onChange={(e) => setNewDocLabel(e.target.value)}
+                    list={NEW_DOCUMENT_LABEL_DATALIST_ID}
                     style={{ ...editInputStyle, flex: 1 }}
                   />
 
@@ -1379,9 +1397,24 @@ const artworkDocuments = useMemo(
                     {artworkDocuments.map((doc) => (
                       <SortableDocument
                         key={doc.id}
+                        artworkId={artwork.id}
                         document={doc}
                         isEditing={isEditing}
                         onDelete={deleteDocument}
+                        labelSuggestions={DOCUMENT_LABEL_SUGGESTIONS}
+                        onLabelSaved={(documentId, label) =>
+                          setArtwork((previous) => {
+                            if (!previous) return previous
+                            return {
+                              ...previous,
+                              documents: (previous.documents ?? []).map((existingDocument) =>
+                                existingDocument.id === documentId
+                                  ? { ...existingDocument, label }
+                                  : existingDocument
+                              ),
+                            }
+                          })
+                        }
                       />
                     ))}
                   </div>

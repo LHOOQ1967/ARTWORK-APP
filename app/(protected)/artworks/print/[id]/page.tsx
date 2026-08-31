@@ -12,14 +12,24 @@ import { useSessionProfile } from '@/contexts/SessionContext'
 
 
 
-function logSupabaseError(context: string, error: any) {
+function logSupabaseError(context: string, error: unknown) {
   if (!error) return
-  console.error(context, {
-    message: error.message,
-    details: error.details,
-    hint: error.hint,
-    code: error.code,
-  })
+  if (typeof error === 'object' && error !== null) {
+    const details = error as {
+      message?: string
+      details?: string
+      hint?: string
+      code?: string
+    }
+    console.error(context, {
+      message: details.message,
+      details: details.details,
+      hint: details.hint,
+      code: details.code,
+    })
+    return
+  }
+  console.error(context, { message: String(error) })
 }
 
 
@@ -44,11 +54,21 @@ export default function ArtworkPrintPage() {
 
         const source = resolveSource('prints', role)
 
-        const { data, error } = await supabase
-          .from(source)
-          .select('*')
-          .eq('id', id)
-          .maybeSingle()
+        const [artworkResult, invoiceResult] = await Promise.all([
+          supabase.from(source).select('*').eq('id', id).maybeSingle(),
+          supabase
+            .from('artwork_commission_invoices')
+            .select('invoiced_at, invoice_url')
+            .eq('artwork_id', id)
+            .maybeSingle(),
+        ])
+
+        const { data, error } = artworkResult
+        const { data: invoiceData } = invoiceResult
+        if (error) logSupabaseError('factsheet: artwork load error', error)
+        if (invoiceResult.error) {
+          logSupabaseError('factsheet: commission invoice load error', invoiceResult.error)
+        }
 
         if (!isMounted) return
 
@@ -57,8 +77,13 @@ export default function ArtworkPrintPage() {
           return
         }
 
-        setArtwork(data as ArtworkPrint)
+        setArtwork({
+          ...(data as ArtworkPrint),
+          commission_invoiced_at: invoiceData?.invoiced_at ?? null,
+          commission_invoice_url: invoiceData?.invoice_url ?? null,
+        })
       } catch (err) {
+        logSupabaseError('factsheet: unexpected load error', err)
         if (isMounted) setArtwork(null)
       } finally {
         if (isMounted) setLoading(false)

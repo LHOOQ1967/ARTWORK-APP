@@ -222,6 +222,23 @@ const artworkDocuments =
       return pa - pb
     })
 
+const links = [
+  ...artworkDocuments.map((doc) => ({
+    id: doc.id,
+    url: doc.url,
+    label: doc.label || 'Open document',
+  })),
+  ...(artwork.commission_invoice_url
+    ? [
+        {
+          id: `commission-invoice-${artwork.id}`,
+          url: artwork.commission_invoice_url,
+          label: 'Facture Commission',
+        },
+      ]
+    : []),
+]
+
 
 
 const { role } = useSessionProfile()
@@ -892,12 +909,12 @@ const displayTitle = (() => {
 
 
 
-{artworkDocuments.length > 0 && (
+{links.length > 0 && (
   <InfoRow
     label="Links"
     value={
       <>
-        {artworkDocuments.map((doc: ArtworkDocument, index: number) => (
+        {links.map((doc, index: number) => (
           <span key={doc.id}>
             <a
               href={doc.url ?? undefined}
@@ -909,11 +926,11 @@ const displayTitle = (() => {
                 wordBreak: 'break-all',
               }}
             >
-              {doc.label || 'Open document'}
+              {doc.label}
             </a>
 
             {/* Séparateur sauf après le dernier */}
-            {index < artworkDocuments.length - 1 && ' / '}
+            {index < links.length - 1 && ' / '}
           </span>
         ))}
       </>

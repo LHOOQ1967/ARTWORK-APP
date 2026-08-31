@@ -293,3 +293,33 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ error: 'Facture invalide.' }, { status: 400 })
 }
+
+export async function DELETE(request: NextRequest) {
+  const authorization = await requireRole(EDITOR_ROLES)
+  if (authorization.response) return authorization.response
+
+  const body = await request.json()
+
+  if (body?.kind === 'artwork' && typeof body.artworkId === 'string') {
+    const { error } = await authorization.supabase
+      .from('artwork_commission_invoices')
+      .delete()
+      .eq('artwork_id', body.artworkId)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    await logAuditEvent({
+      actorId: authorization.userId,
+      action: 'artwork_commission_invoice_delete',
+      outcome: 'success',
+      subjectType: 'artwork',
+      subjectId: body.artworkId,
+    })
+
+    return NextResponse.json({ success: true })
+  }
+
+  return NextResponse.json({ error: 'Suppression de facture invalide.' }, { status: 400 })
+}

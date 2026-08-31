@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+const DOCUMENT_LABEL_DATALIST_ID = 'document-label-suggestions'
+
 
 type SortableArtworkDocument = {
   id: string
@@ -15,13 +17,19 @@ type SortableArtworkDocument = {
 }
 
 export function SortableDocument({
+  artworkId,
   document,
   isEditing,
   onDelete,
+  labelSuggestions,
+  onLabelSaved,
 }: {
+  artworkId: string
   document: SortableArtworkDocument
   isEditing: boolean
   onDelete: (id: string) => void
+  labelSuggestions: string[]
+  onLabelSaved?: (id: string, label: string) => void
 }) {
   const [label, setLabel] = useState('')
   const [saving, setSaving] = useState(false)
@@ -57,13 +65,24 @@ function handleOpen() {
 
     setSaving(true)
 
-    await fetch(`/api/documents/${document.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label }),
-    })
+    try {
+      const response = await fetch(
+        `/api/artworks/${artworkId}/documents/${document.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label }),
+        }
+      )
 
-    setSaving(false)
+      if (!response.ok) {
+        throw new Error('Failed to save document label')
+      }
+
+      onLabelSaved?.(document.id, label)
+    } finally {
+      setSaving(false)
+    }
   }
 
 
@@ -92,14 +111,22 @@ function handleOpen() {
         }}
       >
         {isEditing ? (
-          <input
-            value={label}
-            onChange={e => setLabel(e.target.value)}
-            onBlur={saveLabel}
-            placeholder={label ? '' : 'Document title'}
-            onFocus={e => e.target.select()}
-            style={{ flex: 1 }}
-          />
+          <>
+            <datalist id={DOCUMENT_LABEL_DATALIST_ID}>
+              {labelSuggestions.map((suggestion) => (
+                <option key={suggestion} value={suggestion} />
+              ))}
+            </datalist>
+            <input
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              onBlur={saveLabel}
+              placeholder={label ? '' : 'Document title'}
+              onFocus={e => e.target.select()}
+              list={DOCUMENT_LABEL_DATALIST_ID}
+              style={{ flex: 1 }}
+            />
+          </>
         ) : (
           <span style={{ fontWeight: 500 }}>
             {document.label || 'Untitled'}

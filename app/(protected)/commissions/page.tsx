@@ -10,6 +10,8 @@ const REDUCED_RATE = 0.07
 
 type Company = 'Florac' | 'Léopold Meyer'
 
+const DISPLAY_CURRENCIES = ['USD', 'GBP', 'EUR'] as const
+
 type Artwork = {
   id: string
   title: string | null
@@ -104,6 +106,17 @@ function formatNumber(value: number, maximumFractionDigits = 0) {
 
 function formatMoney(value: number | null, currency: string) {
   return value === null ? '—' : `${currency} ${formatNumber(value)}`
+}
+
+function totalsByCurrencyWithDefaults(totals: Record<string, number>) {
+  const preferred = DISPLAY_CURRENCIES.map(
+    (currency) => [currency, totals[currency] ?? 0] as const
+  )
+  const others = Object.entries(totals).filter(
+    ([currency]) =>
+      !DISPLAY_CURRENCIES.includes(currency as (typeof DISPLAY_CURRENCIES)[number])
+  )
+  return [...preferred, ...others]
 }
 
 function formatDate(value: string) {
@@ -448,6 +461,44 @@ export default function CommissionsPage() {
     [invoicedRows]
   )
 
+  const invoicedCommissionTotalsByCurrency = useMemo(
+    () =>
+      totalsByCurrencyWithDefaults(
+        invoicedRows.reduce<Record<string, number>>((totals, row) => {
+          totals[row.commissionCurrency] =
+            (totals[row.commissionCurrency] ?? 0) + (row.commission ?? 0)
+          return totals
+        }, {})
+      ),
+    [invoicedRows]
+  )
+
+  const commissionsToInvoiceRows = useMemo(
+    () => rows.filter((row) => row.invoicedAt === null),
+    [rows]
+  )
+
+  const commissionsToInvoiceUsdTotal = useMemo(
+    () =>
+      commissionsToInvoiceRows.reduce(
+        (sum, row) => sum + (row.commissionUsd ?? 0),
+        0
+      ),
+    [commissionsToInvoiceRows]
+  )
+
+  const commissionsToInvoiceTotalsByCurrency = useMemo(
+    () =>
+      totalsByCurrencyWithDefaults(
+        commissionsToInvoiceRows.reduce<Record<string, number>>((totals, row) => {
+          totals[row.commissionCurrency] =
+            (totals[row.commissionCurrency] ?? 0) + (row.commission ?? 0)
+          return totals
+        }, {})
+      ),
+    [commissionsToInvoiceRows]
+  )
+
   const commissionBasesUsdByRate = useMemo(
     () =>
       [REDUCED_RATE, STANDARD_RATE].map((rate) => ({
@@ -456,23 +507,6 @@ export default function CommissionsPage() {
           .filter((row) => row.appliedRate === rate)
           .reduce((sum, row) => sum + (row.commissionBaseUsd ?? 0), 0),
       })),
-    [rows]
-  )
-
-  const commissionBaseTotalsByCurrency = useMemo(
-    () =>
-      Object.entries(
-        rows.reduce<Record<string, number>>((totals, row) => {
-          totals[row.commissionCurrency] =
-            (totals[row.commissionCurrency] ?? 0) + (row.commissionBase ?? 0)
-          return totals
-        }, {})
-      ),
-    [rows]
-  )
-
-  const commissionBaseUsdTotal = useMemo(
-    () => rows.reduce((sum, row) => sum + (row.commissionBaseUsd ?? 0), 0),
     [rows]
   )
 
@@ -650,8 +684,47 @@ export default function CommissionsPage() {
   }
 
   async function saveArtworkInvoice(artworkId: string, commissionAmount: number | null) {
-    const invoicedAt = draftInvoiceDates[artworkId] ?? invoices[artworkId]?.invoiced_at
-    if (!invoicedAt) return
+    const hasDraftDate = Object.hasOwn(draftInvoiceDates, artworkId)
+    const invoicedAt = hasDraftDate
+      ? draftInvoiceDates[artworkId]
+      : invoices[artworkId]?.invoiced_at
+    if (!invoicedAt) {
+      if (!invoices[artworkId]) return
+
+      setError('')
+      setSavingInvoiceId(artworkId)
+      try {
+        const response = await fetch('/api/commissions', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: 'artwork', artworkId }),
+        })
+        const payload = (await response.json()) as { error?: string }
+        if (!response.ok) {
+          throw new Error(payload.error ?? 'Suppression de la facture impossible.')
+        }
+        setInvoices((previous) => {
+          const next = { ...previous }
+          delete next[artworkId]
+          return next
+        })
+        setDraftInvoiceDates((previous) => {
+          const next = { ...previous }
+          delete next[artworkId]
+          return next
+        })
+        setDraftInvoiceUrls((previous) => {
+          const next = { ...previous }
+          delete next[artworkId]
+          return next
+        })
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Suppression impossible.')
+      } finally {
+        setSavingInvoiceId(null)
+      }
+      return
+    }
     if (commissionAmount === null) {
       setError('La commission ne peut pas être calculée sans base de commission et taux de change.')
       return
@@ -920,7 +993,15 @@ export default function CommissionsPage() {
                         <tbody>
                           {correctionRows.map((row) => (
                             <tr key={row.id} className="border-t">
-                              <td className="py-2 pr-3 font-medium">{artistLabel(row) || '—'}</td>
+                              <td className="py-2 pr-3 font-medium">
+                                {artistLabel(row) ? (
+                                  <Link className="underline" href={`/artworks/print/${row.id}`}>
+                                    {artistLabel(row)}
+                                  </Link>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
                               <td className="py-2 pr-3">{titleLabel(row) || '—'}</td>
                               <td className="py-2 text-right tabular-nums">
                                 {formatMoney(-row.commissionBase! * 0.01, row.commissionCurrency)}
@@ -979,7 +1060,15 @@ export default function CommissionsPage() {
                   <tr key={row.id} className="border-b align-top">
                     <td className="p-3 whitespace-nowrap">{formatDate(row.date_acquisition)}</td>
                     <td className="p-3">{row.company}</td>
-                    <td className="p-3 font-medium">{artistLabel(row) || '—'}</td>
+                    <td className="p-3 font-medium">
+                      {artistLabel(row) ? (
+                        <Link className="underline" href={`/artworks/print/${row.id}`}>
+                          {artistLabel(row)}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="p-3">
                       <p>{titleLabel(row) || '—'}</p>
                       {row.medium && <p className="text-xs text-gray-600">{row.medium}</p>}
@@ -1133,25 +1222,13 @@ export default function CommissionsPage() {
                 <td className="p-3" colSpan={6}>Total facturé</td>
                 <td />
                 <td className="no-print" />
-                <td className="p-3 text-right tabular-nums">
-                  <p className="text-xs text-gray-600">Total bases commissions</p>
-                  {commissionBaseTotalsByCurrency.map(([currency, amount]) => (
-                    <p key={currency}>{formatMoney(amount, currency)}</p>
-                  ))}
-                  <p className="border-t pt-1">{formatMoney(commissionBaseUsdTotal, 'USD')}</p>
-                </td>
                 <td />
-                <td className="p-3 text-right tabular-nums">
-                  {Object.entries(
-                    invoicedRows.reduce<Record<string, number>>((totals, row) => {
-                      totals[row.commissionCurrency] =
-                        (totals[row.commissionCurrency] ?? 0) + (row.commission ?? 0)
-                      return totals
-                    }, {})
-                  ).map(([currency, amount]) => (
-                    <p key={currency}>{formatMoney(amount, currency)}</p>
+                <td />
+                <td className="p-3 text-right tabular-nums whitespace-nowrap">
+                  {invoicedCommissionTotalsByCurrency.map(([currency, amount]) => (
+                    <p key={currency} className="whitespace-nowrap">{formatMoney(amount, currency)}</p>
                   ))}
-                  <p className="border-t pt-1">
+                  <p className="border-t pt-1 whitespace-nowrap">
                     {formatMoney(invoicedCommissionUsdTotal + invoicedCorrectionUsdTotal, 'USD')}
                   </p>
                 </td>
@@ -1172,6 +1249,17 @@ export default function CommissionsPage() {
                   <td className="no-print" />
                 </tr>
               ))}
+              <tr>
+                <td className="p-3" colSpan={10}>Commissions à facturer</td>
+                <td className="p-3 text-right tabular-nums whitespace-nowrap">
+                  {commissionsToInvoiceTotalsByCurrency.map(([currency, amount]) => (
+                    <p key={currency} className="whitespace-nowrap">{formatMoney(amount, currency)}</p>
+                  ))}
+                  <p className="border-t pt-1 whitespace-nowrap">{formatMoney(commissionsToInvoiceUsdTotal, 'USD')}</p>
+                </td>
+                <td className="no-print" />
+                <td className="no-print" />
+              </tr>
             </tfoot>
           </table>
           {rows.some((row) => row.purchaseUsd === null) && (
