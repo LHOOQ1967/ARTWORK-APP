@@ -147,6 +147,7 @@ function hasValidNumber(value: unknown) {
 export default function ArtworkSheet({ artwork, isEditMode, canEdit }: Props) {
   console.log('artwork print data', artwork)
 const artworkId = artwork.id
+const commission = artwork.calculated_commission ?? artwork.commission_blondeau
 
  const statusKey = artwork.status ?? 'UNKNOWN' 
  
@@ -840,15 +841,11 @@ const displayTitle = (() => {
         />
         )}
 
-        {artwork.commission_blondeau && (
+        {commission !== null && commission !== undefined && (
         <InfoRowShort
           label="Commission B."
           value={
-            artwork.commission_blondeau
-              ? `${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(
-                  artwork.commission_blondeau
-                )}`
-              : null
+            `${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(commission)}`
           }
         />
         )}

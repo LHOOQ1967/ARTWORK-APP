@@ -54,17 +54,25 @@ export default function ArtworkPrintPage() {
 
         const source = resolveSource('prints', role)
 
-        const [artworkResult, invoiceResult] = await Promise.all([
+        const [artworkResult, invoiceResult, commissionResponse] = await Promise.all([
           supabase.from(source).select('*').eq('id', id).maybeSingle(),
           supabase
             .from('artwork_commission_invoices')
             .select('invoiced_at, invoice_url')
             .eq('artwork_id', id)
             .maybeSingle(),
+          fetch('/api/commissions'),
         ])
 
         const { data, error } = artworkResult
         const { data: invoiceData } = invoiceResult
+        const commissionPayload = (await commissionResponse.json()) as {
+          calculatedCommissions?: Record<string, number | null>
+        }
+        const hasCalculatedCommission = Object.hasOwn(
+          commissionPayload.calculatedCommissions ?? {},
+          id
+        )
         if (error) logSupabaseError('factsheet: artwork load error', error)
         if (invoiceResult.error) {
           logSupabaseError('factsheet: commission invoice load error', invoiceResult.error)
@@ -81,6 +89,9 @@ export default function ArtworkPrintPage() {
           ...(data as ArtworkPrint),
           commission_invoiced_at: invoiceData?.invoiced_at ?? null,
           commission_invoice_url: invoiceData?.invoice_url ?? null,
+          ...(hasCalculatedCommission
+            ? { calculated_commission: commissionPayload.calculatedCommissions![id] }
+            : {}),
         })
       } catch (err) {
         logSupabaseError('factsheet: unexpected load error', err)
