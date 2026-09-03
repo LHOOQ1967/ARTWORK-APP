@@ -592,11 +592,17 @@ export default function CommissionsPage() {
 
   async function saveExceptionalRate(artworkId: string) {
     const value = draftRates[artworkId] ?? ''
-    const rate = value.trim() === '' ? null : Number(value) / 100
-    if (rate !== null && (!Number.isFinite(rate) || rate < 0 || rate > 1)) {
+    const enteredRate = value.trim() === '' ? null : Number(value) / 100
+    if (
+      enteredRate !== null &&
+      (!Number.isFinite(enteredRate) || enteredRate < 0 || enteredRate > 1)
+    ) {
       setError('Le taux exceptionnel doit être compris entre 0 % et 100 %.')
       return
     }
+
+    const row = annualRows.find((annualRow) => annualRow.id === artworkId)
+    const rate = enteredRate === row?.standardRate ? null : enteredRate
 
     setError('')
     setSavingId(artworkId)

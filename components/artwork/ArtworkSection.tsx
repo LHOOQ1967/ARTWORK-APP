@@ -2241,7 +2241,7 @@ async function handleAddProposal() {
                     })
                   }
                   style={{ ...editInputStyle, width: 90 }}
-                  disabled={!isEditing}
+                  disabled={!isEditing || artwork.calculated_commission !== undefined}
                 >
                   <option value="">—</option>
                   {CURRENCY_OPTIONS.map((c) => (
@@ -2253,7 +2253,11 @@ async function handleAddProposal() {
                 <input
                   type="number"
                   placeholder="Amount"
-                  value={artwork.commission_blondeau ?? ''}
+                  value={
+                    artwork.calculated_commission !== undefined
+                      ? artwork.calculated_commission ?? ''
+                      : artwork.commission_blondeau ?? ''
+                  }
                   onChange={(e) =>
                     setArtwork({
                       ...artwork,
@@ -2262,7 +2266,7 @@ async function handleAddProposal() {
                     })
                   }
                   style={{ ...editInputStyle, width: 140 }}
-                  disabled={!isEditing}
+                  disabled={!isEditing || artwork.calculated_commission !== undefined}
                 />
               </div>
             </EditRow>

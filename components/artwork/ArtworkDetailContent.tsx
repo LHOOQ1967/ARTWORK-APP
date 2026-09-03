@@ -384,6 +384,15 @@ useEffect(() => {
 
 const documents = (documentsRes.data ?? []) as ArtworkDocument[]
 
+      const commissionResponse = await fetch('/api/commissions')
+      const commissionPayload = (await commissionResponse.json()) as {
+        calculatedCommissions?: Record<string, number | null>
+      }
+      const hasCalculatedCommission = Object.hasOwn(
+        commissionPayload.calculatedCommissions ?? {},
+        artworkRow.id
+      )
+
 const rapportHeritierDocument =
   documents.find((d) => d.id === artworkRow.rapport_heritier_document_id) ?? null
 
@@ -401,6 +410,9 @@ const fullArtwork = normalizeArtwork({
   rapport_heritier_document_id: artworkRow.rapport_heritier_document_id ?? null,
   rapport_heritier_document: rapportHeritierDocument,
   artwork_proposals: normalizedProposals,
+  ...(hasCalculatedCommission
+    ? { calculated_commission: commissionPayload.calculatedCommissions![artworkRow.id] }
+    : {}),
 })
 
 
@@ -595,7 +607,9 @@ const payload = {
   date_acquisition: artwork.date_acquisition,
   cost_amount: artwork.cost_amount,
   cost_currency: artwork.cost_currency,
-  commission_blondeau: artwork.commission_blondeau,
+  ...(artwork.calculated_commission === undefined
+    ? { commission_blondeau: artwork.commission_blondeau }
+    : {}),
   purchase_cost: artwork.purchase_cost,
   destination_contact_id: artwork.destination_contact_id,
   

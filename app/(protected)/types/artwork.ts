@@ -93,6 +93,7 @@ export type ArtworkFull = {
   cost_amount?: number | null
   cost_currency?: string | null
   commission_blondeau?: number | null
+  calculated_commission?: number | null
   commission_invoiced_at?: string | null
   commission_invoice_url?: string | null
   purchase_cost?: number | null

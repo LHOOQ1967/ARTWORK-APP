@@ -10,6 +10,10 @@ type BuyerContact = {
   last_name: string | null
 }
 
+const THRESHOLD_USD = 5_000_000
+const STANDARD_RATE = 0.08
+const REDUCED_RATE = 0.07
+
 function parseHttpUrl(value: unknown) {
   if (typeof value !== 'string' || value.trim() === '') return null
 
@@ -32,6 +36,14 @@ function isCommissionClient(contact: BuyerContact | null) {
   const companyName = normalize(contact?.company_name)
   const personName = `${normalize(contact?.first_name)} ${normalize(contact?.last_name)}`.trim()
   return companyName.includes('florac') || personName === 'leopold meyer'
+}
+
+function commissionCompany(contact: BuyerContact | null) {
+  const companyName = normalize(contact?.company_name)
+  const personName = `${normalize(contact?.first_name)} ${normalize(contact?.last_name)}`.trim()
+  if (companyName.includes('florac')) return 'Florac'
+  if (personName === 'leopold meyer') return 'Léopold Meyer'
+  return null
 }
 
 export async function GET() {
@@ -88,13 +100,68 @@ export async function GET() {
     const buyer = Array.isArray(artwork.buyer) ? artwork.buyer[0] : artwork.buyer
     return isCommissionClient(buyer ?? null)
   })
+  const fxRates = fxRatesResult.data ?? []
+  const commissionRates = commissionRatesResult.data ?? []
+  const invoices = invoicesResult.data ?? []
+  const correctionInvoices = correctionInvoicesResult.data ?? []
+  const ratesByArtworkId = new Map(
+    commissionRates.map((commissionRate) => [commissionRate.artwork_id, Number(commissionRate.rate)])
+  )
+  const fxRatesByKey = new Map(
+    fxRates.map((fxRate) => [
+      `${fxRate.rate_date}:${fxRate.from_currency}:${fxRate.to_currency}`,
+      Number(fxRate.rate),
+    ])
+  )
+  const invoicesByArtworkId = new Set(invoices.map((invoice) => invoice.artwork_id))
+  const correctionInvoiceKeys = new Set(
+    correctionInvoices.map((invoice) => `${invoice.calendar_year}:${invoice.company}`)
+  )
+  const calculatedCommissions: Record<string, number | null> = {}
+
+  for (const year of new Set(artworks.map((artwork) => artwork.date_acquisition.slice(0, 4)))) {
+    const annualArtworks = artworks
+      .filter((artwork) => artwork.date_acquisition.slice(0, 4) === year)
+      .sort((first, second) => first.date_acquisition.localeCompare(second.date_acquisition))
+    let qualifyingPurchaseTotal = 0
+
+    for (const artwork of annualArtworks) {
+      const exceptionalRate = ratesByArtworkId.get(artwork.id)
+      const conversionRate =
+        artwork.cost_currency === 'USD'
+          ? 1
+          : fxRatesByKey.get(
+              `${artwork.date_acquisition.slice(0, 10)}:${artwork.cost_currency}:USD`
+            ) ?? null
+      if (exceptionalRate === undefined && conversionRate !== null) {
+        qualifyingPurchaseTotal += Number(artwork.cost_amount) * conversionRate
+      }
+
+      const standardRate =
+        qualifyingPurchaseTotal >= THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
+      const appliedRate = exceptionalRate ?? standardRate
+      const commissionBase = artwork.auctions ? artwork.sold_hammer : artwork.cost_amount
+      const buyer = Array.isArray(artwork.buyer) ? artwork.buyer[0] : artwork.buyer
+      const company = commissionCompany(buyer ?? null)
+      const hasCorrection =
+        company !== null &&
+        exceptionalRate === undefined &&
+        appliedRate === STANDARD_RATE &&
+        invoicesByArtworkId.has(artwork.id) &&
+        correctionInvoiceKeys.has(`${year}:${company}`)
+
+      calculatedCommissions[artwork.id] =
+        commissionBase === null ? null : Number(commissionBase) * (hasCorrection ? REDUCED_RATE : appliedRate)
+    }
+  }
 
   return NextResponse.json({
     artworks,
-    fxRates: fxRatesResult.data ?? [],
-    commissionRates: commissionRatesResult.data ?? [],
-    invoices: invoicesResult.data ?? [],
-    correctionInvoices: correctionInvoicesResult.data ?? [],
+    fxRates,
+    commissionRates,
+    invoices,
+    correctionInvoices,
+    calculatedCommissions,
   })
 }
 
