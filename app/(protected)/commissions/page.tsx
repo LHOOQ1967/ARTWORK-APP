@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
+import { fetchWithAuth } from '@/lib/fetchWithAuth'
 
 const THRESHOLD_USD = 5_000_000
 const STANDARD_RATE = 0.08
@@ -289,7 +290,7 @@ export default function CommissionsPage() {
     let cancelled = false
 
     async function load() {
-      const response = await fetch('/api/commissions')
+      const response = await fetchWithAuth('/api/commissions')
       const payload = (await response.json()) as {
         artworks?: Artwork[]
         fxRates?: FxRate[]
@@ -607,7 +608,7 @@ export default function CommissionsPage() {
     setError('')
     setSavingId(artworkId)
     try {
-      const response = await fetch('/api/commissions', {
+      const response = await fetchWithAuth('/api/commissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ artworkId, rate }),
@@ -658,7 +659,7 @@ export default function CommissionsPage() {
 
     setError('')
     try {
-      const response = await fetch('/api/commissions', {
+      const response = await fetchWithAuth('/api/commissions', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rateDate, fromCurrency, rate }),
@@ -700,7 +701,7 @@ export default function CommissionsPage() {
       setError('')
       setSavingInvoiceId(artworkId)
       try {
-        const response = await fetch('/api/commissions', {
+        const response = await fetchWithAuth('/api/commissions', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ kind: 'artwork', artworkId }),
@@ -740,7 +741,7 @@ export default function CommissionsPage() {
     setError('')
     setSavingInvoiceId(artworkId)
     try {
-      const response = await fetch('/api/commissions', {
+      const response = await fetchWithAuth('/api/commissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind: 'artwork', artworkId, invoicedAt, invoiceUrl, commissionAmount }),
@@ -783,7 +784,7 @@ export default function CommissionsPage() {
 
     setError('')
     try {
-      const response = await fetch('/api/commissions', {
+      const response = await fetchWithAuth('/api/commissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -2,7 +2,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-export async function supabaseServer() {
+export async function supabaseServer(accessToken?: string) {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -20,6 +20,9 @@ export async function supabaseServer() {
           cookieStore.set({ name, value: '', ...options })
         },
       },
+      global: accessToken
+        ? { headers: { Authorization: `Bearer ${accessToken}` } }
+        : undefined,
     }
   )
 }

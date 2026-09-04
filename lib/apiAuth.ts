@@ -20,8 +20,12 @@ function isUserRole(value: unknown): value is UserRole {
   return value === 'Viewer' || value === 'Editor' || value === 'Administrator'
 }
 
-export async function requireUser(): Promise<AuthorizationResult> {
-  const supabase = await supabaseServer()
+export async function requireUser(request?: Request): Promise<AuthorizationResult> {
+  const authorizationHeader = request?.headers.get('authorization')
+  const accessToken = authorizationHeader?.startsWith('Bearer ')
+    ? authorizationHeader.slice('Bearer '.length)
+    : undefined
+  const supabase = await supabaseServer(accessToken)
   const {
     data: { user },
     error: userError,
@@ -54,9 +58,10 @@ export async function requireUser(): Promise<AuthorizationResult> {
 }
 
 export async function requireRole(
-  allowedRoles: readonly UserRole[]
+  allowedRoles: readonly UserRole[],
+  request?: Request
 ): Promise<AuthorizationResult> {
-  const authorization = await requireUser()
+  const authorization = await requireUser(request)
 
   if (authorization.response) {
     return authorization

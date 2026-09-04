@@ -46,8 +46,8 @@ function commissionCompany(contact: BuyerContact | null) {
   return null
 }
 
-export async function GET() {
-  const authorization = await requireUser()
+export async function GET(request: NextRequest) {
+  const authorization = await requireUser(request)
   if (authorization.response) return authorization.response
 
   const { supabase } = authorization
@@ -166,7 +166,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
-  const authorization = await requireRole(EDITOR_ROLES)
+  const authorization = await requireRole(EDITOR_ROLES, request)
   if (authorization.response) return authorization.response
 
   const body = await request.json()
@@ -223,7 +223,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const authorization = await requireRole(EDITOR_ROLES)
+  const authorization = await requireRole(EDITOR_ROLES, request)
   if (authorization.response) return authorization.response
 
   const body = await request.json()
@@ -275,7 +275,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authorization = await requireRole(EDITOR_ROLES)
+  const authorization = await requireRole(EDITOR_ROLES, request)
   if (authorization.response) return authorization.response
 
   const body = await request.json()
@@ -362,7 +362,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const authorization = await requireRole(EDITOR_ROLES)
+  const authorization = await requireRole(EDITOR_ROLES, request)
   if (authorization.response) return authorization.response
 
   const body = await request.json()
