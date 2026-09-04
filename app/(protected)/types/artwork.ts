@@ -96,6 +96,8 @@ export type ArtworkFull = {
   calculated_commission?: number | null
   commission_invoiced_at?: string | null
   commission_invoice_url?: string | null
+  commission_initial_amount?: number | null
+  commission_corrected_invoiced_at?: string | null
   purchase_cost?: number | null
 
   insurance_value?: number | null

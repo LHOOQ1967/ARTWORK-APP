@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
         date_acquisition,
         cost_amount,
         cost_currency,
+        commission_blondeau,
         auctions,
         sold_hammer,
         auction_currency,
@@ -114,10 +115,15 @@ export async function GET(request: NextRequest) {
     ])
   )
   const invoicesByArtworkId = new Set(invoices.map((invoice) => invoice.artwork_id))
-  const correctionInvoiceKeys = new Set(
-    correctionInvoices.map((invoice) => `${invoice.calendar_year}:${invoice.company}`)
+  const correctionInvoicesByKey = new Map(
+    correctionInvoices.map((invoice) => [
+      `${invoice.calendar_year}:${invoice.company}`,
+      invoice,
+    ])
   )
   const calculatedCommissions: Record<string, number | null> = {}
+  const initialCommissionAmounts: Record<string, number> = {}
+  const correctionInvoiceDates: Record<string, string> = {}
 
   for (const year of new Set(artworks.map((artwork) => artwork.date_acquisition.slice(0, 4)))) {
     const annualArtworks = artworks
@@ -143,15 +149,25 @@ export async function GET(request: NextRequest) {
       const commissionBase = artwork.auctions ? artwork.sold_hammer : artwork.cost_amount
       const buyer = Array.isArray(artwork.buyer) ? artwork.buyer[0] : artwork.buyer
       const company = commissionCompany(buyer ?? null)
-      const hasCorrection =
+      const correctionInvoice =
         company !== null &&
         exceptionalRate === undefined &&
         appliedRate === STANDARD_RATE &&
         invoicesByArtworkId.has(artwork.id) &&
-        correctionInvoiceKeys.has(`${year}:${company}`)
+        correctionInvoicesByKey.get(`${year}:${company}`)
+
+      if (correctionInvoice) {
+        correctionInvoiceDates[artwork.id] = correctionInvoice.invoiced_at
+        if (artwork.commission_blondeau !== null) {
+          initialCommissionAmounts[artwork.id] =
+            (Number(artwork.commission_blondeau) / REDUCED_RATE) * STANDARD_RATE
+        }
+      }
 
       calculatedCommissions[artwork.id] =
-        commissionBase === null ? null : Number(commissionBase) * (hasCorrection ? REDUCED_RATE : appliedRate)
+        commissionBase === null
+          ? null
+          : Number(commissionBase) * (correctionInvoice ? REDUCED_RATE : appliedRate)
     }
   }
 
@@ -162,6 +178,8 @@ export async function GET(request: NextRequest) {
     invoices,
     correctionInvoices,
     calculatedCommissions,
+    initialCommissionAmounts,
+    correctionInvoiceDates,
   })
 }
 

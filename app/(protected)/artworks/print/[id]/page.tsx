@@ -68,6 +68,8 @@ export default function ArtworkPrintPage() {
         const { data: invoiceData } = invoiceResult
         const commissionPayload = (await commissionResponse.json()) as {
           calculatedCommissions?: Record<string, number | null>
+          initialCommissionAmounts?: Record<string, number>
+          correctionInvoiceDates?: Record<string, string>
         }
         const hasCalculatedCommission = Object.hasOwn(
           commissionPayload.calculatedCommissions ?? {},
@@ -89,6 +91,10 @@ export default function ArtworkPrintPage() {
           ...(data as ArtworkPrint),
           commission_invoiced_at: invoiceData?.invoiced_at ?? null,
           commission_invoice_url: invoiceData?.invoice_url ?? null,
+          commission_initial_amount:
+            commissionPayload.initialCommissionAmounts?.[id] ?? null,
+          commission_corrected_invoiced_at:
+            commissionPayload.correctionInvoiceDates?.[id] ?? null,
           ...(hasCalculatedCommission
             ? { calculated_commission: commissionPayload.calculatedCommissions![id] }
             : {}),

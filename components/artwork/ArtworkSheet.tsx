@@ -223,21 +223,28 @@ const artworkDocuments =
       return pa - pb
     })
 
+const invoiceDocument = artworkDocuments.find(
+  (document) => document.label?.trim().toLowerCase() === 'facture'
+)
+const heirConditionReportDocument =
+  artwork.rapport_heritier_document ??
+  artworkDocuments.find(
+    (document) =>
+      document.label?.trim().toLowerCase() === 'condition report héritier'
+  )
+
 const links = [
-  ...artworkDocuments.map((doc) => ({
+  ...artworkDocuments
+    .filter(
+      (document) =>
+        document.id !== invoiceDocument?.id &&
+        document.id !== heirConditionReportDocument?.id
+    )
+    .map((doc) => ({
     id: doc.id,
     url: doc.url,
     label: doc.label || 'Open document',
-  })),
-  ...(artwork.commission_invoice_url
-    ? [
-        {
-          id: `commission-invoice-${artwork.id}`,
-          url: artwork.commission_invoice_url,
-          label: 'Facture Commission',
-        },
-      ]
-    : []),
+    })),
 ]
 
 
@@ -540,9 +547,11 @@ const displayTitle = (() => {
         className="artwork-image-wrapper"
         style={{
           flex: '0 0 auto',
+          width: 'min(420px, 100%)',
+          height: '10cm',
           maxWidth: 420,
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'flex-start',
         }}
       >
@@ -552,8 +561,8 @@ const displayTitle = (() => {
           rel="noopener noreferrer"
           style={{
             display: 'block',
-            width: 'auto',
-            maxWidth: '100%',
+            width: '100%',
+            height: '100%',
           }}
         >
           <img
@@ -561,12 +570,10 @@ const displayTitle = (() => {
             alt={artwork.title ?? 'Artwork image'}
             style={{
               display: 'block',
-              height: 'auto',
-              width: 'auto',
-              maxWidth: '100%',
-              maxHeight: '12cm',
+              width: '100%',
+              height: '100%',
               objectFit: 'contain',
-              objectPosition: 'left top',
+              objectPosition: 'left center',
               cursor: 'zoom-in',
             }}
           />
@@ -813,10 +820,27 @@ const displayTitle = (() => {
 )}
 
 
-{artwork.date_acquisition && (        
+{(artwork.date_acquisition || invoiceDocument) && (
 <InfoRow
   label="Acquisition on"
-  value={formatDate(artwork.date_acquisition ?? null)}
+  value={
+    <>
+      {formatDate(artwork.date_acquisition ?? null)}
+      {invoiceDocument && (
+        <>
+          {' · '}
+          <a
+            href={invoiceDocument.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#007a5e', textDecoration: 'underline' }}
+          >
+            Facture
+          </a>
+        </>
+      )}
+    </>
+  }
 />
  )}
 
@@ -841,11 +865,52 @@ const displayTitle = (() => {
         />
         )}
 
-        {commission !== null && commission !== undefined && (
+        {artwork.commission_initial_amount !== null &&
+          artwork.commission_initial_amount !== undefined &&
+          artwork.commission_corrected_invoiced_at &&
+          commission !== null &&
+          commission !== undefined ? (
         <InfoRowShort
           label="Commission B."
           value={
-            `${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(commission)}`
+            <>
+              {`${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(artwork.commission_initial_amount)} (${formatDate(artwork.commission_invoiced_at ?? null)}) / ${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(commission)} (${formatDate(artwork.commission_corrected_invoiced_at)})`}
+              {artwork.commission_invoice_url && (
+                <>
+                  {' · '}
+                  <a
+                    href={artwork.commission_invoice_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#007a5e', textDecoration: 'underline' }}
+                  >
+                    Facture Commission
+                  </a>
+                </>
+              )}
+            </>
+          }
+        />
+        ) : commission !== null && commission !== undefined && (
+        <InfoRowShort
+          label="Commission B."
+          value={
+            <>
+              {`${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(commission)}`}
+              {artwork.commission_invoice_url && (
+                <>
+                  {' · '}
+                  <a
+                    href={artwork.commission_invoice_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#007a5e', textDecoration: 'underline' }}
+                  >
+                    Facture Commission
+                  </a>
+                </>
+              )}
+            </>
           }
         />
         )}
@@ -878,15 +943,17 @@ const displayTitle = (() => {
 
 
 
-{(artwork.rapport_heritier === true || artwork.acquired === true) && (
+{(artwork.rapport_heritier === true ||
+  artwork.acquired === true ||
+  heirConditionReportDocument) && (
   <InfoRowShort
     label="Rapport H."
     value={
-      artwork.rapport_heritier === false ? (
+      artwork.rapport_heritier === false && !heirConditionReportDocument ? (
         'No'
-      ) : artwork.rapport_heritier_document ? (
+      ) : heirConditionReportDocument ? (
         <a
-          href={artwork.rapport_heritier_document.url}
+          href={heirConditionReportDocument.url}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -894,7 +961,7 @@ const displayTitle = (() => {
             textDecoration: 'underline',
           }}
         >
-          {artwork.rapport_heritier_document.label || 'Open document'}
+          Condition Report Héritier
         </a>
       ) : (
         'Yes'

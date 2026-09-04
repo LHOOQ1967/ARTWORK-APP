@@ -552,6 +552,13 @@ export default function CommissionsPage() {
     [displayedCorrections]
   )
 
+  const hasInvoicedCorrections = displayedCorrections.some(
+    (correction) => correction.invoicedAt !== null
+  )
+
+  const invoicedTotalAfterCorrectionsUsd =
+    invoicedCommissionUsdTotal + invoicedCorrectionUsdTotal
+
   const tableRows = useMemo<CommissionRow[]>(
     () =>
       rows.map((row) => {
@@ -577,6 +584,20 @@ export default function CommissionsPage() {
         }
       }),
     [correctionInvoices, rows, selectedYear, shownCorrectionCompanies]
+  )
+
+  const invoicedTotalsAfterCorrectionsByCurrency = useMemo(
+    () =>
+      totalsByCurrencyWithDefaults(
+        tableRows
+          .filter((row) => row.invoicedAt !== null)
+          .reduce<Record<string, number>>((totals, row) => {
+            totals[row.commissionCurrency] =
+              (totals[row.commissionCurrency] ?? 0) + (row.commission ?? 0)
+            return totals
+          }, {})
+      ),
+    [tableRows]
   )
 
   function correctionRowsForCompany(correctionCompany: Company) {
@@ -1236,12 +1257,29 @@ export default function CommissionsPage() {
                     <p key={currency} className="whitespace-nowrap">{formatMoney(amount, currency)}</p>
                   ))}
                   <p className="border-t pt-1 whitespace-nowrap">
-                    {formatMoney(invoicedCommissionUsdTotal + invoicedCorrectionUsdTotal, 'USD')}
+                    {formatMoney(invoicedCommissionUsdTotal, 'USD')}
                   </p>
                 </td>
                 <td className="no-print" />
                 <td className="no-print" />
               </tr>
+              {hasInvoicedCorrections && (
+                <tr>
+                  <td className="p-3" colSpan={10}>Total facturé après corrections</td>
+                  <td className="p-3 text-right tabular-nums whitespace-nowrap">
+                    {invoicedTotalsAfterCorrectionsByCurrency.map(([currency, amount]) => (
+                      <p key={currency} className="whitespace-nowrap">
+                        {formatMoney(amount, currency)}
+                      </p>
+                    ))}
+                    <p className="border-t pt-1 whitespace-nowrap">
+                    {formatMoney(invoicedTotalAfterCorrectionsUsd, 'USD')}
+                    </p>
+                  </td>
+                  <td className="no-print" />
+                  <td className="no-print" />
+                </tr>
+              )}
               {commissionBasesUsdByRate.map(({ rate, amount }) => (
                 <tr key={rate}>
                   <td className="p-3" colSpan={8}>
