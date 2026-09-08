@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
 import { logAuditEvent } from '@/lib/audit'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { findBestArtistMatch } from '@/lib/imports/findBestArtistMatch'
-import { runLabelOcr } from '@/lib/imports/ocr'
+import { runLabelOcr, runLabelOcrFromBuffer } from '@/lib/imports/ocr'
 import { parseLabelText } from '@/lib/imports/parseLabelText'
 
 export async function POST(
@@ -34,17 +35,17 @@ export async function POST(
     return NextResponse.json({ error: 'Import introuvable' }, { status: 404 })
   }
 
-  if (!importRow.image_url) {
+  if (!importRow.image_path && !importRow.image_url) {
     await logAuditEvent({
       actorId: authorization.userId,
       action: 'artwork_import_analysis',
       outcome: 'failure',
       subjectType: 'artwork_import',
       subjectId: id,
-      errorMessage: 'Aucune image_url sur cet import',
+      errorMessage: 'Aucune image sur cet import',
     })
     return NextResponse.json(
-      { error: 'Aucune image_url sur cet import' },
+      { error: 'Aucune image sur cet import' },
       { status: 400 }
     )
   }
@@ -70,7 +71,22 @@ export async function POST(
   }
 
   try {
-    const ocr = await runLabelOcr(importRow.image_url)
+    const ocr = importRow.image_path
+      ? await (async () => {
+          const { data: imageFile, error: downloadError } = await supabaseAdmin.storage
+            .from('artwork-imports')
+            .download(importRow.image_path)
+
+          if (downloadError || !imageFile) {
+            throw new Error(downloadError?.message ?? 'Téléchargement de l’image impossible')
+          }
+
+          return runLabelOcrFromBuffer(
+            Buffer.from(await imageFile.arrayBuffer()),
+            imageFile.type || 'application/octet-stream'
+          )
+        })()
+      : await runLabelOcr(importRow.image_url)
     const parsed = parseLabelText(ocr.text)
     const artistName = parsed.parsedData.normalized?.artist_name ?? null
     const artistMatch = artistName

@@ -36,6 +36,7 @@ migration canonique une fois celle-ci extraite.
 | `artworks` | Entite centrale; liee a `artists` et plusieurs fois a `contacts` (proposeur, maison de vente, acheteur, destination, localisation et localisation du certificat). |
 | `documents` | Documents d'une oeuvre: `artwork_id`, `document_type`, `label`, `url`, `position`, `created_at`. |
 | `artwork_proposals` | Propositions d'une oeuvre a un contact, avec `artwork_id`, `contact_id` et `proposed_at`. |
+| `buyer_search_requests` | Demandes souples de recherche d'oeuvres pour un contact, avec date, recherche, budget, statut et notes. |
 | `artwork_imports` | Import OCR d'etiquettes: createur, statut, chemin/URL d'image, resultat OCR, donnees analysees, score et artiste rapproche. |
 | `artwork_viewer_comments` | Commentaires des viewers associes aux oeuvres et aux profils. |
 | `contact_users` | Association entre un utilisateur Supabase et un contact, avec statut d'invitation. |
@@ -106,7 +107,7 @@ deployees.
 | Ressource | `Viewer` | `Editor` | `Administrator` |
 | --- | --- | --- | --- |
 | `profiles` | Lire les profils requis par l'UI; modifier seulement sa propre `last_activity_at`. | Idem. | Gerer les profils et les roles. |
-| `artists`, `contacts`, `artworks`, `documents`, `artwork_proposals` | Lecture. | Lecture et ecriture. | Lecture et ecriture. |
+| `artists`, `contacts`, `artworks`, `documents`, `artwork_proposals`, `buyer_search_requests` | Lecture. | Lecture et ecriture. | Lecture et ecriture. |
 | `artwork_imports` | Aucun acces direct necessaire. | Acces aux imports crees/utilises par l'outil d'import. | Acces complet. |
 | `artwork_viewer_comments` | Lire les commentaires autorises; inserer et supprimer uniquement les siens. | Moderation si requise par le produit. | Acces complet. |
 | `contact_users` | Aucun acces direct. | Aucun acces direct sauf besoin explicite. | Acces complet. |

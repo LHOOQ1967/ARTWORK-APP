@@ -7,6 +7,10 @@ import type { Session, User } from '@supabase/supabase-js'
 
 export type UserRole = 'Viewer' | 'Editor' | 'Administrator'
 
+function isUserRole(value: unknown): value is UserRole {
+  return value === 'Viewer' || value === 'Editor' || value === 'Administrator'
+}
+
 type SessionProfileContextValue = {
   session: Session | null
   user: User | null
@@ -33,7 +37,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       .eq('id', userId)
       .single()
 
-    return error ? undefined : (data?.role as UserRole | undefined)
+    return error || !isUserRole(data?.role) ? undefined : data.role
   }, [])
 
   const updateLastActivity = useCallback(
@@ -95,14 +99,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       void updateLastActivity(currentUser.id)
 
       const profileRole = await fetchRole(currentUser.id)
-      const metadataRole = currentUser.user_metadata?.role as
-        | UserRole
-        | undefined
-
-      setRole(profileRole ?? metadataRole)
+      setRole(profileRole)
       setLoading(false)
     },
-    [fetchRole]
+    [fetchRole, updateLastActivity]
   )
 
   useEffect(() => {

@@ -77,7 +77,6 @@ export default function HeaderNav() {
           </Link>
         )}
 
-
       </nav>
 
       {/* RIGHT ACTIONS */}

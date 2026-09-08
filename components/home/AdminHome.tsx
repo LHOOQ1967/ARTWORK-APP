@@ -14,46 +14,44 @@ type DashboardLink = {
   href: string
   title: string
   subtitle: string
-  icon: string
   external?: boolean
 }
 
 const proposals: DashboardLink[] = [
-  { href: '/artworks/active', title: 'Active proposals', subtitle: 'Sorted by priority', icon: '01' },
-  { href: '/artworks', title: 'All proposals', subtitle: 'Browse every proposal', icon: '02' },
-  { href: '/artworks/updated', title: 'Recently updated', subtitle: 'Latest changes first', icon: '03' },
-  { href: '/artworks/archived', title: 'Archives', subtitle: 'Past and declined proposals', icon: '04' },
-  { href: '/artworks/print', title: 'Factsheet', subtitle: 'Prepare and print records', icon: '05' },
+  { href: '/artworks/active', title: 'Active proposals', subtitle: 'Sorted by priority' },
+  { href: '/artworks', title: 'All proposals', subtitle: 'Browse every proposal' },
+  { href: '/artworks/updated', title: 'Recently updated', subtitle: 'Latest changes first' },
+  { href: '/artworks/archived', title: 'Archives', subtitle: 'Past and declined proposals' },
+  { href: '/artworks/print', title: 'Factsheet', subtitle: 'Prepare and print records' },
 ]
 
 const collection: DashboardLink[] = [
-  { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date', icon: 'CL' },
-  { href: '/inventory', title: 'Inventory', subtitle: '', icon: 'IV' },
-  { href: '/commissions', title: 'Commissions', subtitle: '', icon: 'CM' },
-  { href: '/valuations', title: 'Valuations', subtitle: '', icon: 'VL' },
+  { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date' },
+  { href: '/inventory', title: 'Inventory', subtitle: '' },
+  { href: '/commissions', title: 'Commissions', subtitle: '' },
+  { href: '/valuations', title: 'Valuations', subtitle: '' },
 ]
 
 const management: DashboardLink[] = [
-  { href: '/artworks/import-label', title: 'Import', subtitle: 'Import artwork labels', icon: 'IN' },
-  { href: '/artworks/new', title: 'Add proposal', subtitle: 'Create a new artwork', icon: '+' },
-  { href: '/referentials', title: 'Referentials', subtitle: 'Artists and contacts', icon: 'RF' },
-  { href: '/admin/users', title: 'Users', subtitle: 'Manage access and roles', icon: 'US' },
+  { href: '/artworks/import-label', title: 'Import', subtitle: 'Import artwork labels' },
+  { href: '/artworks/new', title: 'Add proposal', subtitle: 'Create a new artwork' },
+  { href: '/buyer-searches', title: 'Buyer searches', subtitle: 'Track collector requests' },
+  { href: '/referentials', title: 'Referentials', subtitle: 'Artists and contacts' },
+  { href: '/admin/users', title: 'Users', subtitle: 'Manage access and roles' },
 ]
 
 const tools: DashboardLink[] = [
-  { href: '/market', title: 'Market', subtitle: 'Fairs and auctions', icon: 'MK' },
+  { href: '/market', title: 'Market', subtitle: 'Fairs and auctions' },
   {
     href: 'https://buyerspremium.blondeau.ch/calculate.php',
     title: 'Buyers premium',
     subtitle: 'Open calculator',
-    icon: 'BP',
     external: true,
   },
   {
     href: 'https://buyerspremium.blondeau.ch/auction_time.php',
     title: 'Auction time',
     subtitle: 'Open calculator',
-    icon: 'AT',
     external: true,
   },
 ]
@@ -63,7 +61,7 @@ export default function AdminHome({}: AdminHomeProps) {
     <main className={styles.page}>
       <div className={styles.shell}>
         <section className={`${styles.section} ${styles.proposalsSection}`}>
-          <SectionHeading index="01" title="Proposals" description="Review and follow every proposal" />
+          <SectionHeading title="Proposals" description="Review and follow every proposal" />
           <div className={styles.primaryGrid}>
             {proposals.map((item) => <DashboardCard key={item.href} item={item} />)}
           </div>
@@ -71,21 +69,21 @@ export default function AdminHome({}: AdminHomeProps) {
 
         <div className={styles.sectionGrid}>
           <section className={`${styles.section} ${styles.collectionSection}`}>
-            <SectionHeading index="02" title="Collection" description="Track and value the collection" />
+            <SectionHeading title="Collection" description="Track and value the collection" />
             <div className={styles.toolsGrid}>
               {collection.map((item) => <DashboardCard key={item.href} item={item} compact />)}
             </div>
           </section>
 
           <section className={`${styles.section} ${styles.managementSection}`}>
-            <SectionHeading index="03" title="Management" description="Create, organize and administer" />
+            <SectionHeading title="Management" description="Create, organize and administer" />
             <div className={styles.compactGrid}>
               {management.map((item) => <DashboardCard key={item.href} item={item} compact />)}
             </div>
           </section>
 
           <section className={`${styles.section} ${styles.toolsSection}`}>
-            <SectionHeading index="04" title="Tools" description="Market and auction utilities" />
+            <SectionHeading title="Tools" description="Market and auction utilities" />
             <div className={styles.toolsGrid}>
               {tools.map((item) => <DashboardCard key={item.href} item={item} compact />)}
             </div>
@@ -104,17 +102,14 @@ export default function AdminHome({}: AdminHomeProps) {
 }
 
 function SectionHeading({
-  index,
   title,
   description,
 }: {
-  index: string
   title: string
   description: string
 }) {
   return (
     <div className={styles.sectionHeading}>
-      <span>{index}</span>
       <div>
         <h2>{title}</h2>
         <p>{description}</p>
@@ -137,7 +132,6 @@ function DashboardCard({
       rel={item.external ? 'noopener noreferrer' : undefined}
       className={`${styles.card} ${compact ? styles.compactCard : ''}`}
     >
-      <span className={styles.cardIcon}>{item.icon}</span>
       <div className={styles.cardCopy}>
         <h3>{item.title}</h3>
         {item.subtitle && <p>{item.subtitle}</p>}

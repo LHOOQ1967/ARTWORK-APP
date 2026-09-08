@@ -128,7 +128,7 @@ describe('critical artwork workflows', () => {
       )
       expect(updateQuery.update).toHaveBeenCalledWith({
         image_path: `${role.toLowerCase()}-1/import-1/label.jpg`,
-        image_url: 'https://cdn.example.com/label.jpg',
+        image_url: null,
         status: 'uploaded',
       })
       await expect(response.json()).resolves.toEqual({ import: uploadedImport })

@@ -4,6 +4,10 @@ import { createServerClient } from '@supabase/ssr'
 
 type UserRole = 'Viewer' | 'Editor' | 'Administrator'
 
+function isUserRole(value: unknown): value is UserRole {
+  return value === 'Viewer' || value === 'Editor' || value === 'Administrator'
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -33,8 +37,8 @@ export async function middleware(req: NextRequest) {
   )
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
   /* ---------------------------------------------------
      1️⃣ Routes PUBLIQUES
@@ -56,7 +60,7 @@ export async function middleware(req: NextRequest) {
   /* ---------------------------------------------------
      2️⃣ Non logué → LOGIN
      --------------------------------------------------- */
-  if (!session) {
+  if (!user) {
     const url = req.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
@@ -68,12 +72,10 @@ export async function middleware(req: NextRequest) {
   const { data: profileData } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
-  const profileRole = profileData?.role as UserRole | undefined
-  const metadataRole = session.user.user_metadata?.role as UserRole | undefined
-  const role = profileRole ?? metadataRole
+  const role = isUserRole(profileData?.role) ? profileData.role : undefined
 
   const redirectToHome = () => {
     const url = req.nextUrl.clone()

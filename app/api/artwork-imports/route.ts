@@ -75,15 +75,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
-  const { data: publicUrlData } = supabaseAdmin.storage
-    .from('artwork-imports')
-    .getPublicUrl(filePath)
-
   const { data: updatedImport, error: updateError } = await supabaseAdmin
     .from('artwork_imports')
     .update({
       image_path: filePath,
-      image_url: publicUrlData.publicUrl,
+      image_url: null,
       status: 'uploaded',
     })
     .eq('id', importRow.id)
