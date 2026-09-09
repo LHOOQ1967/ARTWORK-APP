@@ -22,6 +22,8 @@ type LibraryBook = {
 type LibraryArtist = { id: string; first_name: string | null; last_name: string | null; year_of_birth: number | null; year_of_death: number | null }
 type LibraryAuthor = { id: string; legacy_no: number; first_name: string | null; last_name: string | null }
 type RelatedName = { legacy_no: number; name: string | null; location: string | null }
+type BookType = { legacy_no: number; type_number: string | null; description: string | null; full_name: string | null }
+type LibraryStatus = { legacy_no: number; label: string }
 
 function personName(person: { first_name: string | null; last_name: string | null } | null) {
   return person ? [person.first_name, person.last_name].filter(Boolean).join(' ') : ''
@@ -35,7 +37,8 @@ export default function LibraryPage() {
   const [artists, setArtists] = useState<LibraryArtist[]>([])
   const [authors, setAuthors] = useState<LibraryAuthor[]>([])
   const [relatedNames, setRelatedNames] = useState<RelatedName[]>([])
-  const [referenceValues, setReferenceValues] = useState<number[]>([])
+  const [bookTypes, setBookTypes] = useState<BookType[]>([])
+  const [statuses, setStatuses] = useState<LibraryStatus[]>([])
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -48,13 +51,14 @@ export default function LibraryPage() {
       const response = await fetch(`/api/library?view=${view}&order=${order}&offset=${offset}&q=${encodeURIComponent(query)}`, {
         signal: controller.signal,
       })
-      const payload = (await response.json()) as { books?: LibraryBook[]; artists?: LibraryArtist[]; authors?: LibraryAuthor[]; relatedNames?: RelatedName[]; values?: number[]; hasMore?: boolean; error?: string }
+      const payload = (await response.json()) as { books?: LibraryBook[]; artists?: LibraryArtist[]; authors?: LibraryAuthor[]; relatedNames?: RelatedName[]; types?: BookType[]; statuses?: LibraryStatus[]; hasMore?: boolean; error?: string }
       if (!controller.signal.aborted) {
         setBooks((current) => offset === 0 ? payload.books ?? [] : [...current, ...(payload.books ?? [])])
         setArtists((current) => offset === 0 ? payload.artists ?? [] : [...current, ...(payload.artists ?? [])])
         setAuthors((current) => offset === 0 ? payload.authors ?? [] : [...current, ...(payload.authors ?? [])])
         setRelatedNames((current) => offset === 0 ? payload.relatedNames ?? [] : [...current, ...(payload.relatedNames ?? [])])
-        setReferenceValues(payload.values ?? [])
+        setBookTypes(payload.types ?? [])
+        setStatuses(payload.statuses ?? [])
         setHasMore(payload.hasMore ?? false)
         setError(response.ok ? '' : payload.error ?? 'Impossible de charger la bibliothèque.')
         setLoading(false)
@@ -123,7 +127,7 @@ export default function LibraryPage() {
           </div>
 
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-800">{error}</p>}
-          {loading ? <p>Chargement...</p> : <p className="text-sm text-gray-600">{view === 'artists' ? artists.length : view === 'authors' ? authors.length : view === 'related-names' || view === 'types' || view === 'status' ? (view === 'related-names' ? relatedNames.length : referenceValues.length) : books.length} résultat(s)</p>}
+          {loading ? <p>Chargement...</p> : <p className="text-sm text-gray-600">{view === 'artists' ? artists.length : view === 'authors' ? authors.length : view === 'related-names' ? relatedNames.length : view === 'types' ? bookTypes.length : view === 'status' ? statuses.length : books.length} résultat(s)</p>}
 
       {view === 'artists' ? (
         <div className="overflow-x-auto rounded border bg-white">
@@ -149,7 +153,7 @@ export default function LibraryPage() {
       ) : view === 'types' || view === 'status' ? (
         <div className="rounded border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">{view === 'types' ? 'Type of books' : 'Status'}</h2>
-          <div className="flex flex-wrap gap-2">{referenceValues.map((value) => <span key={value} className="rounded bg-gray-100 px-3 py-2 text-sm">{value}</span>)}</div>
+          <div className="grid gap-2">{(view === 'types' ? bookTypes : statuses).map((value) => <span key={value.legacy_no} className="rounded bg-gray-100 px-3 py-2 text-sm">{'full_name' in value ? value.full_name || value.description || value.legacy_no : value.label}</span>)}</div>
         </div>
       ) : (
       <div className="overflow-x-auto rounded border bg-white">

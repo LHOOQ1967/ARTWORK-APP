@@ -16,6 +16,8 @@ function Invoke-Supabase([string]$table, [object[]]$rows, [string]$query = '') {
   if ($rows.Count -eq 0) { return @() }
   if ([string]::IsNullOrEmpty($query)) {
     $query = switch ($table) {
+      'library_book_types' { '?on_conflict=legacy_no' }
+      'library_statuses' { '?on_conflict=legacy_no' }
       'library_authors' { '?on_conflict=legacy_no' }
       'library_related_names' { '?on_conflict=legacy_no' }
       'library_books' { '?on_conflict=legacy_no' }
@@ -147,6 +149,19 @@ try {
     param($rs)
     [ordered]@{ legacy_no = [int](Value $rs 'TDRNo'); name = Value $rs 'TDRNom'; location = Value $rs 'TDRLieu' }
   }
+  $bookTypes = Get-AccessRows $db 'TDITypeLivres' {
+    param($rs)
+    [ordered]@{
+      legacy_no = [int](Value $rs 'TDTNo')
+      type_number = Value $rs 'TDTNum'
+      description = Value $rs 'TDTDescription'
+      full_name = Value $rs 'TDTNomComplet'
+    }
+  }
+  $statuses = Get-AccessRows $db 'TDIStatus' {
+    param($rs)
+    [ordered]@{ legacy_no = [int](Value $rs 'TSTNo'); label = Value $rs 'TSTLibelle' }
+  }
   $books = Get-AccessRows $db 'TLILivres' {
     param($rs)
     [ordered]@{
@@ -195,7 +210,7 @@ try {
   Remove-Item -LiteralPath $script:accessExportDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Access source: $($books.Count) books, $($artists.Count) artists, $($authors.Count) authors"
+Write-Host "Access source: $($books.Count) books, $($artists.Count) artists, $($authors.Count) authors, $($bookTypes.Count) book types, $($statuses.Count) statuses"
 if ($DryRun) { exit 0 }
 
 $restHeaders = @{ apikey = $serviceRoleKey; Authorization = "Bearer $serviceRoleKey" }
@@ -217,6 +232,8 @@ $legacyArtistIds = @{}
 foreach ($artist in $artists) { $legacyArtistIds[[int]$artist.legacy_no] = $artistIds[(NameKey $artist.last_name $artist.first_name)] }
 
 foreach ($definition in @(
+  @{ Name = 'library_book_types'; Rows = $bookTypes },
+  @{ Name = 'library_statuses'; Rows = $statuses },
   @{ Name = 'library_authors'; Rows = $authors },
   @{ Name = 'library_related_names'; Rows = $relatedNames },
   @{ Name = 'library_books'; Rows = $books }

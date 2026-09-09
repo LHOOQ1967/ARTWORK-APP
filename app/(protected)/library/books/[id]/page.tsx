@@ -23,6 +23,8 @@ type Person = { first_name: string | null; last_name: string | null }
 type AuthorLink = { is_default: boolean; author: (Person & { legacy_no: number }) | null }
 type ArtistLink = { is_default: boolean; legacy_artist_no: number; artist: (Person & { id: string; year_of_birth: number | null; year_of_death: number | null }) | null }
 type Exhibition = { legacy_no: number; starts_on: string | null; ends_on: string | null; related_name: { name: string | null; location: string | null } | null }
+type BookType = { legacy_no: number; type_number: string | null; description: string | null; full_name: string | null }
+type LibraryStatus = { legacy_no: number; label: string }
 
 function nameOf(person: Person | null) {
   return person ? [person.first_name, person.last_name].filter(Boolean).join(' ') : '—'
@@ -38,6 +40,8 @@ export default function LibraryBookPage() {
   const [authors, setAuthors] = useState<AuthorLink[]>([])
   const [artists, setArtists] = useState<ArtistLink[]>([])
   const [exhibitions, setExhibitions] = useState<Exhibition[]>([])
+  const [bookTypes, setBookTypes] = useState<BookType[]>([])
+  const [statuses, setStatuses] = useState<LibraryStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -45,12 +49,14 @@ export default function LibraryBookPage() {
     const controller = new AbortController()
     fetch(`/api/library/books/${id}`, { signal: controller.signal })
       .then(async (response) => {
-        const payload = await response.json() as { book?: Book; authors?: AuthorLink[]; artists?: ArtistLink[]; exhibitions?: Exhibition[]; error?: string }
+        const payload = await response.json() as { book?: Book; authors?: AuthorLink[]; artists?: ArtistLink[]; exhibitions?: Exhibition[]; types?: BookType[]; statuses?: LibraryStatus[]; error?: string }
         if (!response.ok) throw new Error(payload.error ?? 'Impossible de charger le livre.')
         setBook(payload.book ?? null)
         setAuthors(payload.authors ?? [])
         setArtists(payload.artists ?? [])
         setExhibitions(payload.exhibitions ?? [])
+        setBookTypes(payload.types ?? [])
+        setStatuses(payload.statuses ?? [])
       })
       .catch((loadError) => { if (!controller.signal.aborted) setError(loadError instanceof Error ? loadError.message : 'Erreur de chargement.') })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
@@ -79,8 +85,8 @@ export default function LibraryBookPage() {
           <Field label="Volume" value={book.volume} />
           <Field label="Copy" value={book.copy} />
           <Field label="Entered at" value={book.entered_at} />
-          <Field label="Type no." value={book.type_no} />
-          <Field label="Status no." value={book.status_no} />
+          <Field label="Type" value={bookTypes.find((item) => item.legacy_no === book.type_no)?.full_name || bookTypes.find((item) => item.legacy_no === book.type_no)?.description || book.type_no} />
+          <Field label="Status" value={statuses.find((item) => item.legacy_no === book.status_no)?.label || book.status_no} />
         </dl>
       </section>
 

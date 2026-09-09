@@ -52,13 +52,13 @@ export async function GET(request: NextRequest) {
 
   if (view === 'types' || view === 'status') {
     if (view === 'types') {
-      const { data, error } = await authorization.supabase.from('library_books').select('type_no').not('type_no', 'is', null).order('type_no', { ascending: true }).limit(1000)
+      const { data, error } = await authorization.supabase.from('library_book_types').select('legacy_no, type_number, description, full_name').order('legacy_no', { ascending: true })
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ values: Array.from(new Set((data ?? []).map((row) => row.type_no))) })
+      return NextResponse.json({ types: data ?? [] })
     }
-    const { data, error } = await authorization.supabase.from('library_books').select('status_no').not('status_no', 'is', null).order('status_no', { ascending: true }).limit(1000)
+    const { data, error } = await authorization.supabase.from('library_statuses').select('legacy_no, label').order('legacy_no', { ascending: true })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ values: Array.from(new Set((data ?? []).map((row) => row.status_no))) })
+    return NextResponse.json({ statuses: data ?? [] })
   }
 
   let booksQuery = authorization.supabase
