@@ -508,6 +508,25 @@ button:focus-visible {
     outline: 3px solid rgba(0,96,57,0.12);
   }
 
+  .referential-card input:not(.referential-field),
+  .referential-card textarea {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid #c9d3cd;
+    border-radius: 8px;
+    background: #fff;
+    color: #171717;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+
+  .referential-card input:not(.referential-field):focus,
+  .referential-card textarea:focus {
+    border-color: #006039;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,96,57,0.12);
+  }
+
   .artwork-create-secondary-button {
     border: 1px solid #cbd5cf;
     background: #fff;
