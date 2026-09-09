@@ -72,6 +72,7 @@ const editableFieldStyle: React.CSSProperties = {
 
 function ArtistsSection() {
   const [artists, setArtists] = useState<Artist[]>([])
+  const [artistCategories, setArtistCategories] = useState<Array<{ legacy_no: number; description: string; definition: string | null }>>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [artist, setArtist] = useState<Artist | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -101,6 +102,16 @@ useEffect(() => {
       } else {
         setArtists(data ?? [])
       }
+    })
+}, [])
+
+useEffect(() => {
+  supabase
+    .from('artist_categories')
+    .select('legacy_no, description, definition')
+    .order('legacy_no', { ascending: true })
+    .then(({ data, error }) => {
+      if (!error) setArtistCategories(data ?? [])
     })
 }, [])
 
@@ -347,6 +358,31 @@ async function remove() {
     />
   ) : (
     artist.year_of_death ?? '—'
+  )}
+</InlineRow>
+
+<InlineRow label="Category">
+  {isEditing ? (
+    <select
+      className="referential-edit-field"
+      style={editableFieldStyle}
+      value={artist.artist_category_no ?? ''}
+      onChange={e =>
+        setArtist({
+          ...artist,
+          artist_category_no: e.target.value ? Number(e.target.value) : null,
+        })
+      }
+    >
+      <option value="">—</option>
+      {artistCategories.map(category => (
+        <option key={category.legacy_no} value={category.legacy_no}>
+          {category.description}
+        </option>
+      ))}
+    </select>
+  ) : (
+    artistCategories.find(category => category.legacy_no === artist.artist_category_no)?.description ?? '—'
   )}
 </InlineRow>
 

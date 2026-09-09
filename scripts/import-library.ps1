@@ -16,6 +16,7 @@ function Invoke-Supabase([string]$table, [object[]]$rows, [string]$query = '') {
   if ($rows.Count -eq 0) { return @() }
   if ([string]::IsNullOrEmpty($query)) {
     $query = switch ($table) {
+      'artist_categories' { '?on_conflict=legacy_no' }
       'library_book_types' { '?on_conflict=legacy_no' }
       'library_statuses' { '?on_conflict=legacy_no' }
       'library_authors' { '?on_conflict=legacy_no' }
@@ -139,6 +140,15 @@ try {
       place_of_birth = Value $rs 'TDALieuNaissance'
       place_of_death = Value $rs 'TDALieuDeces'
       notes = $notes
+      artist_category_no = IntegerValue $rs 'TDACategorie'
+    }
+  }
+  $artistCategories = Get-AccessRows $db 'TDICategorieArtistes' {
+    param($rs)
+    [ordered]@{
+      legacy_no = [int](Value $rs 'TDCNo')
+      description = Value $rs 'TDCDescription'
+      definition = Value $rs 'TDCDefinition'
     }
   }
   $authors = Get-AccessRows $db 'TDIAuteurs' {
@@ -210,17 +220,21 @@ try {
   Remove-Item -LiteralPath $script:accessExportDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "Access source: $($books.Count) books, $($artists.Count) artists, $($authors.Count) authors, $($bookTypes.Count) book types, $($statuses.Count) statuses"
+Write-Host "Access source: $($books.Count) books, $($artists.Count) artists, $($authors.Count) authors, $($artistCategories.Count) artist categories, $($bookTypes.Count) book types, $($statuses.Count) statuses"
 if ($DryRun) { exit 0 }
 
 $restHeaders = @{ apikey = $serviceRoleKey; Authorization = "Bearer $serviceRoleKey" }
+for ($offset = 0; $offset -lt $artistCategories.Count; $offset += $BatchSize) {
+  $batch = @($artistCategories | Select-Object -Skip $offset -First $BatchSize)
+  [void](Invoke-Supabase 'artist_categories' $batch)
+}
 $existingArtists = @(Get-SupabaseRows "$supabaseUrl/rest/v1/artists?select=id,first_name,last_name")
 $artistIds = @{}
 foreach ($artist in $existingArtists) { $artistIds[(NameKey $artist.last_name $artist.first_name)] = $artist.id }
 
 $newArtists = @($artists | Where-Object { -not $artistIds.ContainsKey((NameKey $_.last_name $_.first_name)) } | ForEach-Object {
   $lastName = if ([string]::IsNullOrWhiteSpace($_.last_name)) { 'Unknown' } else { $_.last_name }
-  [ordered]@{ first_name = $_.first_name; last_name = $lastName; year_of_birth = $_.year_of_birth; year_of_death = $_.year_of_death; place_of_birth = $_.place_of_birth; place_of_death = $_.place_of_death; notes = $_.notes }
+  [ordered]@{ first_name = $_.first_name; last_name = $lastName; year_of_birth = $_.year_of_birth; year_of_death = $_.year_of_death; place_of_birth = $_.place_of_birth; place_of_death = $_.place_of_death; notes = $_.notes; artist_category_no = $_.artist_category_no }
 })
 for ($offset = 0; $offset -lt $newArtists.Count; $offset += $BatchSize) {
   $batch = @($newArtists | Select-Object -Skip $offset -First $BatchSize)
@@ -228,10 +242,23 @@ for ($offset = 0; $offset -lt $newArtists.Count; $offset += $BatchSize) {
 }
 $existingArtists = @(Get-SupabaseRows "$supabaseUrl/rest/v1/artists?select=id,first_name,last_name")
 foreach ($artist in $existingArtists) { $artistIds[(NameKey $artist.last_name $artist.first_name)] = $artist.id }
+$artistCategoryByName = @{}
+foreach ($artist in $artists) {
+  $artistCategoryByName[(NameKey $artist.last_name $artist.first_name)] = $artist.artist_category_no
+}
+$artistHeaders = @{ apikey = $serviceRoleKey; Authorization = "Bearer $serviceRoleKey"; 'Content-Type' = 'application/json' }
+foreach ($artist in $existingArtists) {
+  $categoryNo = $artistCategoryByName[(NameKey $artist.last_name $artist.first_name)]
+  if ($null -ne $categoryNo) {
+    $body = ConvertTo-Json @{ artist_category_no = $categoryNo } -Compress
+    Invoke-RestMethod -Method Patch -Uri "$supabaseUrl/rest/v1/artists?id=eq.$($artist.id)" -Headers $artistHeaders -Body ([Text.Encoding]::UTF8.GetBytes($body)) | Out-Null
+  }
+}
 $legacyArtistIds = @{}
 foreach ($artist in $artists) { $legacyArtistIds[[int]$artist.legacy_no] = $artistIds[(NameKey $artist.last_name $artist.first_name)] }
 
 foreach ($definition in @(
+  @{ Name = 'artist_categories'; Rows = $artistCategories },
   @{ Name = 'library_book_types'; Rows = $bookTypes },
   @{ Name = 'library_statuses'; Rows = $statuses },
   @{ Name = 'library_authors'; Rows = $authors },

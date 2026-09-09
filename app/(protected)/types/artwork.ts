@@ -29,6 +29,7 @@ export type Artist = {
   place_of_death?: string | null
 
   notes?: string | null
+  artist_category_no?: number | null
 }
 
 export type ArtworkDocument = {
