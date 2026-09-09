@@ -36,6 +36,8 @@ export default function LibraryPage() {
   const [authors, setAuthors] = useState<LibraryAuthor[]>([])
   const [relatedNames, setRelatedNames] = useState<RelatedName[]>([])
   const [referenceValues, setReferenceValues] = useState<number[]>([])
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -43,16 +45,17 @@ export default function LibraryPage() {
     const controller = new AbortController()
     const timer = window.setTimeout(async () => {
       setLoading(true)
-      const response = await fetch(`/api/library?view=${view}&order=${order}&q=${encodeURIComponent(query)}`, {
+      const response = await fetch(`/api/library?view=${view}&order=${order}&offset=${offset}&q=${encodeURIComponent(query)}`, {
         signal: controller.signal,
       })
-      const payload = (await response.json()) as { books?: LibraryBook[]; artists?: LibraryArtist[]; authors?: LibraryAuthor[]; relatedNames?: RelatedName[]; values?: number[]; error?: string }
+      const payload = (await response.json()) as { books?: LibraryBook[]; artists?: LibraryArtist[]; authors?: LibraryAuthor[]; relatedNames?: RelatedName[]; values?: number[]; hasMore?: boolean; error?: string }
       if (!controller.signal.aborted) {
-        setBooks(payload.books ?? [])
-        setArtists(payload.artists ?? [])
-        setAuthors(payload.authors ?? [])
-        setRelatedNames(payload.relatedNames ?? [])
+        setBooks((current) => offset === 0 ? payload.books ?? [] : [...current, ...(payload.books ?? [])])
+        setArtists((current) => offset === 0 ? payload.artists ?? [] : [...current, ...(payload.artists ?? [])])
+        setAuthors((current) => offset === 0 ? payload.authors ?? [] : [...current, ...(payload.authors ?? [])])
+        setRelatedNames((current) => offset === 0 ? payload.relatedNames ?? [] : [...current, ...(payload.relatedNames ?? [])])
         setReferenceValues(payload.values ?? [])
+        setHasMore(payload.hasMore ?? false)
         setError(response.ok ? '' : payload.error ?? 'Impossible de charger la bibliothèque.')
         setLoading(false)
       }
@@ -62,7 +65,7 @@ export default function LibraryPage() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [query, view, order])
+  }, [query, view, order, offset])
 
   const menu = [
     ['books', 'Books'],
@@ -95,7 +98,7 @@ export default function LibraryPage() {
                 key={key}
                 type="button"
                 className={`rounded px-3 py-2 text-left text-sm ${view === key ? 'bg-gray-800 font-semibold text-white' : 'hover:bg-gray-200'}`}
-                onClick={() => { setView(key); setQuery('') }}
+                onClick={() => { setView(key); setQuery(''); setOffset(0) }}
               >
                 {label}
               </button>
@@ -109,12 +112,12 @@ export default function LibraryPage() {
               className="min-w-[240px] flex-1 rounded border bg-white px-3 py-2"
               placeholder={view === 'books' ? 'Title, ISBN, series or remarks' : 'Search'}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => { setQuery(event.target.value); setOffset(0) }}
             />
             {(view === 'books' || view === 'by-artists' || view === 'by-authors') && (
               <>
-                <button type="button" className={order === 'title' ? 'edit-button' : 'rounded border px-3 py-2 text-sm'} onClick={() => setOrder('title')}>Order by title</button>
-                <button type="button" className={order === 'artist' ? 'edit-button' : 'rounded border px-3 py-2 text-sm'} onClick={() => setOrder('artist')}>Order by artist</button>
+                <button type="button" className={order === 'title' ? 'edit-button' : 'rounded border px-3 py-2 text-sm'} onClick={() => { setOrder('title'); setOffset(0) }}>Order by title</button>
+                <button type="button" className={order === 'artist' ? 'edit-button' : 'rounded border px-3 py-2 text-sm'} onClick={() => { setOrder('artist'); setOffset(0) }}>Order by artist</button>
               </>
             )}
           </div>
@@ -173,6 +176,11 @@ export default function LibraryPage() {
           </tbody>
         </table>
       </div>
+      )}
+      {hasMore && (view === 'books' || view === 'by-artists' || view === 'by-authors') && (
+        <button type="button" className="edit-button" onClick={() => setOffset((current) => current + 50)}>
+          Load more results
+        </button>
       )}
         </section>
       </div>

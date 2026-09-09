@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   const view = request.nextUrl.searchParams.get('view') ?? 'books'
   const order = request.nextUrl.searchParams.get('order') ?? 'title'
   const limit = Math.min(Number(request.nextUrl.searchParams.get('limit') ?? 50), 100)
+  const offset = Math.max(Number(request.nextUrl.searchParams.get('offset') ?? 0), 0)
 
   if (view === 'artists') {
     const artistsQuery = authorization.supabase
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
       library_book_artists(artist:artists(id, first_name, last_name))
     `)
     .order(order === 'artist' ? 'search_artist' : 'title', { ascending: true, nullsFirst: false })
-    .limit(Number.isFinite(limit) && limit > 0 ? limit : 50)
+    .range(offset, offset + (Number.isFinite(limit) && limit > 0 ? limit : 50) - 1)
 
   if (query) {
     const searchColumn = view === 'by-artists' ? 'search_artist' : view === 'by-authors' ? 'search_author' : null
@@ -86,5 +87,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ books: data ?? [] })
+  return NextResponse.json({ books: data ?? [], hasMore: (data ?? []).length === limit })
 }
