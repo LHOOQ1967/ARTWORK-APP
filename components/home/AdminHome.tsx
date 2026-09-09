@@ -27,10 +27,12 @@ const proposals: DashboardLink[] = [
 
 const collection: DashboardLink[] = [
   { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date' },
-  { href: '/inventory', title: 'Inventory', subtitle: '' },
-  { href: '/commissions', title: 'Commissions', subtitle: '' },
-  { href: '/valuations', title: 'Valuations', subtitle: '' },
+  { href: '/inventory', title: 'Inventory', subtitle: 'Florac' },
+  { href: '/valuations', title: 'Valuations', subtitle: 'Florac' },
+  { href: '/commissions', title: 'Commissions', subtitle: 'Florac + GLM' },
 ]
+
+const library: DashboardLink = { href: '/library', title: 'Library', subtitle: 'Bibliothèque' }
 
 const management: DashboardLink[] = [
   { href: '/artworks/import-label', title: 'Import', subtitle: 'Import artwork labels' },
@@ -86,6 +88,13 @@ export default function AdminHome({}: AdminHomeProps) {
             <SectionHeading title="Tools" description="Market and auction utilities" />
             <div className={styles.toolsGrid}>
               {tools.map((item) => <DashboardCard key={item.href} item={item} compact />)}
+            </div>
+          </section>
+
+          <section className={`${styles.section} ${styles.toolsSection}`}>
+            <SectionHeading title="Library" description="Books and exhibition references" />
+            <div className={styles.toolsGrid}>
+              <DashboardCard item={library} compact />
             </div>
           </section>
         </div>

@@ -56,7 +56,7 @@ function InfoRow({
   label,
   value,
 }: {
-  label: string
+  label: React.ReactNode
   value?: React.ReactNode
 }) {
   return (
@@ -83,7 +83,7 @@ function InfoRowShort({
   label,
   value,
 }: {
-  label: string
+  label: React.ReactNode
   value?: React.ReactNode
 }) {
   return (
@@ -238,7 +238,6 @@ const links = [
   ...artworkDocuments
     .filter(
       (document) =>
-        document.id !== invoiceDocument?.id &&
         document.id !== heirConditionReportDocument?.id
     )
     .map((doc) => ({
@@ -246,6 +245,16 @@ const links = [
     url: doc.url,
     label: doc.label || 'Open document',
     })),
+  ...(artwork.commission_invoice_url &&
+  !artworkDocuments.some(
+    (document) => document.label?.trim().toLowerCase() === 'facture commission'
+  )
+    ? [{
+        id: 'commission-invoice',
+        url: artwork.commission_invoice_url,
+        label: 'Facture Commission',
+      }]
+    : []),
 ]
 
 
@@ -823,24 +832,22 @@ const displayTitle = (() => {
 
 {(artwork.date_acquisition || invoiceDocument) && (
 <InfoRow
-  label="Acquisition on"
+  label={
+    invoiceDocument?.url ? (
+      <a
+        href={invoiceDocument.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: '#007a5e', textDecoration: 'underline' }}
+      >
+        Acquisition on
+      </a>
+    ) : (
+      'Acquisition on'
+    )
+  }
   value={
-    <>
-      {formatDate(artwork.date_acquisition ?? null)}
-      {invoiceDocument && (
-        <>
-          {' · '}
-          <a
-            href={invoiceDocument.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: '#007a5e', textDecoration: 'underline' }}
-          >
-            Facture
-          </a>
-        </>
-      )}
-    </>
+    formatDate(artwork.date_acquisition ?? null)
   }
 />
  )}
@@ -872,44 +879,47 @@ const displayTitle = (() => {
           commission !== null &&
           commission !== undefined ? (
         <InfoRowShort
-          label="Commission B."
+          label={
+            artwork.commission_invoice_url ? (
+              <a
+                href={artwork.commission_invoice_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#007a5e', textDecoration: 'underline' }}
+              >
+                Commission B.
+              </a>
+            ) : (
+              'Commission B.'
+            )
+          }
           value={
             <>
               {`${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(artwork.commission_initial_amount)} (${formatDate(artwork.commission_invoiced_at ?? null)}) / ${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(commission)} (${formatDate(artwork.commission_corrected_invoiced_at)})`}
-              {artwork.commission_invoice_url && (
-                <>
-                  {' · '}
-                  <a
-                    href={artwork.commission_invoice_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: '#007a5e', textDecoration: 'underline' }}
-                  >
-                    Facture Commission
-                  </a>
-                </>
-              )}
             </>
           }
         />
         ) : commission !== null && commission !== undefined && (
         <InfoRowShort
-          label="Commission B."
+          label={
+            artwork.commission_invoice_url ? (
+              <a
+                href={artwork.commission_invoice_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#007a5e', textDecoration: 'underline' }}
+              >
+                Commission B.
+              </a>
+            ) : (
+              'Commission B.'
+            )
+          }
           value={
             <>
               {`${artwork.cost_currency} ${new Intl.NumberFormat('fr-CH').format(commission)}`}
-              {artwork.commission_invoice_url && (
-                <>
-                  {' · '}
-                  <a
-                    href={artwork.commission_invoice_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: '#007a5e', textDecoration: 'underline' }}
-                  >
-                    Facture Commission
-                  </a>
-                </>
+              {artwork.commission_invoiced_at && (
+                ` (${formatDate(artwork.commission_invoiced_at)})`
               )}
             </>
           }

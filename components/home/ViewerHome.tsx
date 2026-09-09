@@ -21,10 +21,12 @@ const proposals: DashboardLink[] = [
 
 const collection: DashboardLink[] = [
   { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date', icon: 'CL' },
-  { href: '/inventory', title: 'Inventory', subtitle: '', icon: 'IV' },
-  { href: '/commissions', title: 'Commissions', subtitle: '', icon: 'CM' },
-  { href: '/valuations', title: 'Valuations', subtitle: '', icon: 'VL' },
+  { href: '/inventory', title: 'Inventory', subtitle: 'Florac', icon: 'IV' },
+  { href: '/valuations', title: 'Valuations', subtitle: 'Florac', icon: 'VL' },
+  { href: '/commissions', title: 'Commissions', subtitle: 'Florac + GLM', icon: 'CM' },
 ]
+
+const library: DashboardLink = { href: '/library', title: 'Library', subtitle: 'Bibliothèque', icon: 'LB' }
 
 const tools: DashboardLink[] = [
   { href: '/market', title: 'Market', subtitle: 'Fairs and auctions', icon: 'MK' },
@@ -67,6 +69,13 @@ export default function ViewerHome() {
             <SectionHeading index="03" title="Tools" description="Market and auction utilities" />
             <div className={styles.viewerToolsGrid}>
               {tools.map((item) => <DashboardCard key={item.href} item={item} compact />)}
+            </div>
+          </section>
+
+          <section className={`${styles.section} ${styles.toolsSection}`}>
+            <SectionHeading index="04" title="Library" description="Books and exhibition references" />
+            <div className={styles.viewerToolsGrid}>
+              <DashboardCard item={library} compact />
             </div>
           </section>
         </div>
