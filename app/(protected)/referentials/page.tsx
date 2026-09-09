@@ -260,8 +260,9 @@ async function remove() {
       <InlineRow label="Artist">
         <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
           {filteredArtists.slice(0, 100).map(a => (
-            <Link key={a.id} href={`/artists/${a.id}/edit`} style={{ display: 'block', width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none' }}>
-              {[a.last_name, a.first_name].filter(Boolean).join(' ') || '—'}
+            <Link key={a.id} href={`/artists/${a.id}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 16, width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}>
+              <span>{[a.last_name, a.first_name].filter(Boolean).join(' ') || '—'}</span>
+              <span style={{ color: '#62736c', textAlign: 'right' }}>{artistCategories.find(category => category.legacy_no === a.artist_category_no)?.description ?? '—'} · {a.year_of_birth ?? '—'}–{a.year_of_death ?? '—'}</span>
             </Link>
           ))}
           {filteredArtists.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
@@ -609,8 +610,9 @@ async function remove() {
       <InlineRow label="Contact">
         <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
           {filteredContacts.slice(0, 100).map(c => (
-            <Link key={c.id} href={`/contacts/${c.id}/edit`} style={{ display: 'block', width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none' }}>
-              {c.company_name || [c.last_name, c.first_name].filter(Boolean).join(' ') || '—'}
+            <Link key={c.id} href={`/contacts/${c.id}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 16, width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}>
+              <span>{c.company_name || [c.last_name, c.first_name].filter(Boolean).join(' ') || '—'}</span>
+              <span style={{ color: '#62736c', textAlign: 'right' }}>{[c.city, c.role].filter(Boolean).join(' · ') || '—'}</span>
             </Link>
           ))}
           {filteredContacts.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
@@ -813,7 +815,7 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
         <p>Browse the library reference data.</p>
       </div>
       <InlineRow label="Search">
-        <input className="referential-field" type="search" placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input className="referential-field" style={{ width: '100%' }} type="search" placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} />
       </InlineRow>
       {loading ? <p style={{ marginTop: 18 }}>Loading…</p> : (
         <div style={{ marginTop: 18, maxHeight: 620, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8 }}>
@@ -824,7 +826,8 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
                 ? row.name || '—'
                 : row.full_name || row.description || row.type_number || '—'
             const path = kind === 'authors' ? 'authors' : kind === 'related-names' ? 'related-names' : kind === 'types' ? 'types' : 'artist-categories'
-            return <Link key={`${String(row.legacy_no)}-${index}`} href={`/${path}/${row.legacy_no}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 16, color: '#173f31', textDecoration: 'none' }}><span>{String(label)}</span><span style={{ color: '#62736c', textAlign: 'right' }}>{recordLabel}</span></Link>
+            const detail = kind === 'authors' ? row.legacy_no : kind === 'related-names' ? row.location : kind === 'types' ? row.description : row.definition
+            return <Link key={`${String(row.legacy_no)}-${index}`} href={`/${path}/${row.legacy_no}/edit`} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(160px, 1fr) 180px', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 16, color: '#173f31', textDecoration: 'none' }}><span>{String(label)}</span><span style={{ color: '#62736c' }}>{String(detail ?? '—')}</span><span style={{ color: '#62736c', textAlign: 'right' }}>{recordLabel}</span></Link>
           })}
           {filteredRows.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching records.</p>}
         </div>
