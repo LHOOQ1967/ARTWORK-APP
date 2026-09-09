@@ -737,6 +737,10 @@ async function remove() {
    ====================== */
 
 export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | 'contacts' | 'both' }) {
+  const [activeSection, setActiveSection] = useState<'artists' | 'contacts'>(
+    section === 'contacts' ? 'contacts' : 'artists'
+  )
+  const isCombined = section === 'both'
   return (
     <main
       style={{
@@ -751,14 +755,41 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
           <div className="referentials-eyebrow" style={{ marginBottom: 7, color: '#557067', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Collection data</div>
           <h1 style={{ margin: 0, color: '#143b2d', fontSize: 'clamp(2rem, 4vw, 3.25rem)', lineHeight: 1, letterSpacing: '-0.035em' }}>Referentials</h1>
           <p style={{ margin: '10px 0 0', color: '#62736c' }}>Manage the artists and contacts used throughout the application.</p>
-          <nav style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }} aria-label="Referential pages">
-            <Link className="edit-button" href="/artists">Artists</Link>
-            <Link className="edit-button" href="/contacts">Contacts</Link>
-            <Link className="edit-button" href="/referentials">Combined view</Link>
-          </nav>
+          {isCombined && (
+            <p style={{ margin: '16px 0 0', color: '#62736c', fontSize: 14 }}>
+              Select a referential from the panel.
+            </p>
+          )}
         </header>
-        {(section === 'artists' || section === 'both') && <ArtistsSection />}
-        {(section === 'contacts' || section === 'both') && <ContactsSection />}
+        {isCombined ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)', gap: 22, alignItems: 'start' }}>
+            <aside
+              aria-label="Referentials"
+              style={{ position: 'sticky', top: 86, padding: 12, border: '1px solid #d7dfda', borderRadius: 12, backgroundColor: '#eef3ef' }}
+            >
+              <div style={{ margin: '4px 8px 10px', color: '#62736c', fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                Referentials
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {(['artists', 'contacts'] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setActiveSection(item)}
+                    aria-pressed={activeSection === item}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '11px 12px', border: 0, borderRadius: 8, backgroundColor: activeSection === item ? '#173f31' : 'transparent', color: activeSection === item ? '#fff' : '#173f31', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
+                  >
+                    <span>{item === 'artists' ? 'Artists' : 'Contacts'}</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+            <div>{activeSection === 'artists' ? <ArtistsSection /> : <ContactsSection />}</div>
+          </div>
+        ) : (
+          <>{section === 'artists' ? <ArtistsSection /> : <ContactsSection />}</>
+        )}
       </div>
     </main>
   )
