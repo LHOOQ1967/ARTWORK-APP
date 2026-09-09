@@ -166,7 +166,7 @@ export default function LibraryPage() {
           <tbody>
             {books.map((book) => (
               <tr key={book.id} className="border-b align-top">
-                <td className="p-3 font-medium">{book.title || '—'}</td>
+                <td className="p-3 font-medium"><Link className="underline" href={`/library/books/${book.id}`}>{book.title || '—'}</Link></td>
                 <td className="p-3">{book.library_book_authors?.map((item) => personName(item.author)).filter(Boolean).join(', ') || '—'}</td>
                 <td className="p-3">{book.library_book_artists?.map((item) => personName(item.artist)).filter(Boolean).join(', ') || '—'}</td>
                 <td className="p-3">{book.publication_year ?? '—'}</td>
