@@ -271,18 +271,14 @@ async function remove() {
 
 
       <InlineRow label="Artist">
-        <select
-          value={selectedId || ''}
-          onChange={e => setSelectedId(e.target.value || null)} className="referential-field"
-          style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
-        >
-          <option value="">—</option>
-          {filteredArtists.map(a => (
-            <option key={a.id} value={a.id}>
-              {a.last_name} {a.first_name}
-            </option>
+        <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
+          {filteredArtists.slice(0, 100).map(a => (
+            <button key={a.id} type="button" onClick={() => setSelectedId(a.id)} style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid #e4e9e6', background: selectedId === a.id ? '#e5efe8' : '#fff', color: '#173f31', textAlign: 'left', cursor: 'pointer' }}>
+              {[a.last_name, a.first_name].filter(Boolean).join(' ') || '—'}
+            </button>
           ))}
-        </select>
+          {filteredArtists.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
+        </div>
       </InlineRow>
 
       {artist && (
@@ -637,20 +633,14 @@ async function remove() {
 
 
       <InlineRow label="Contact">
-        <select
-          value={selectedId || ''}
-          onChange={e => setSelectedId(e.target.value || null)} 
-          className="referential-field"
-          style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
-        >
-          <option value="">—</option>
-          {filteredContacts.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.company_name ||
-                [c.last_name, c.first_name].filter(Boolean).join(' ')}
-            </option>
-          ))} 
-        </select>
+        <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
+          {filteredContacts.slice(0, 100).map(c => (
+            <button key={c.id} type="button" onClick={() => setSelectedId(c.id)} style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid #e4e9e6', background: selectedId === c.id ? '#e5efe8' : '#fff', color: '#173f31', textAlign: 'left', cursor: 'pointer' }}>
+              {c.company_name || [c.last_name, c.first_name].filter(Boolean).join(' ') || '—'}
+            </button>
+          ))}
+          {filteredContacts.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
+        </div>
       </InlineRow>
 
       {contact && (
@@ -805,7 +795,7 @@ async function remove() {
   )
 }
 
-function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' | 'types' }) {
+function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' | 'types' | 'artist-categories' }) {
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
   const [loading, setLoading] = useState(true)
@@ -818,7 +808,9 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
         ? await supabase.from('library_authors').select('legacy_no, first_name, last_name').order('legacy_no', { ascending: true }).limit(10000)
         : kind === 'related-names'
           ? await supabase.from('library_related_names').select('legacy_no, name, location').order('legacy_no', { ascending: true }).limit(10000)
-          : await supabase.from('library_book_types').select('legacy_no, type_number, description, full_name').order('legacy_no', { ascending: true }).limit(10000)
+          : kind === 'types'
+            ? await supabase.from('library_book_types').select('legacy_no, type_number, description, full_name').order('legacy_no', { ascending: true }).limit(10000)
+            : await supabase.from('artist_categories').select('legacy_no, description, definition').order('legacy_no', { ascending: true }).limit(10000)
       if (!cancelled) {
         setRows((result.data ?? []) as Array<Record<string, unknown>>)
         setLoading(false)
@@ -831,7 +823,7 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
   const filteredRows = rows.filter((row) =>
     Object.values(row).some((value) => String(value ?? '').toLowerCase().includes(query.toLowerCase()))
   )
-  const title = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : 'Type of books'
+  const title = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : kind === 'types' ? 'Type of books' : 'Artist categories'
 
   return (
     <section className="referential-card" style={{ padding: 26, border: '1px solid #d7dfda', borderRadius: 12, backgroundColor: '#fff', boxShadow: '0 10px 28px rgba(31,56,46,0.06)', color: 'black' }}>
@@ -866,7 +858,7 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
    ====================== */
 
 export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | 'contacts' | 'both' }) {
-  const [activeSection, setActiveSection] = useState<'artists' | 'contacts' | 'authors' | 'related-names' | 'types'>(
+  const [activeSection, setActiveSection] = useState<'artists' | 'contacts' | 'authors' | 'related-names' | 'types' | 'artist-categories'>(
     section === 'contacts' ? 'contacts' : 'artists'
   )
   const isCombined = section === 'both'
@@ -900,7 +892,7 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
                 Referentials
               </div>
               <div style={{ display: 'grid', gap: 6 }}>
-                {(['artists', 'contacts', 'authors', 'related-names', 'types'] as const).map((item) => (
+                {(['artists', 'contacts', 'authors', 'related-names', 'types', 'artist-categories'] as const).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -908,7 +900,7 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
                     aria-pressed={activeSection === item}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '11px 12px', border: 0, borderRadius: 8, backgroundColor: activeSection === item ? '#173f31' : 'transparent', color: activeSection === item ? '#fff' : '#173f31', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
                   >
-                    <span>{{ artists: 'Artists', contacts: 'Contacts', authors: 'Authors', 'related-names': 'Related names', types: 'Type of books' }[item]}</span>
+                    <span>{{ artists: 'Artists', contacts: 'Contacts', authors: 'Authors', 'related-names': 'Related names', types: 'Type of books', 'artist-categories': 'Artist categories' }[item]}</span>
                     <span aria-hidden="true">→</span>
                   </button>
                 ))}
