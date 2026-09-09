@@ -844,7 +844,8 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
                 ? row.name || '—'
                 : row.full_name || row.description || row.type_number || '—'
             const detail = kind === 'related-names' ? row.location : kind === 'types' ? row.description : row.legacy_no
-            return <div key={`${String(row.legacy_no)}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 14 }}><span>{String(label)}</span><span style={{ color: '#62736c' }}>{String(detail ?? '')}</span></div>
+            const path = kind === 'authors' ? 'authors' : kind === 'related-names' ? 'related-names' : kind === 'types' ? 'types' : 'artist-categories'
+            return <Link key={`${String(row.legacy_no)}-${index}`} href={`/${path}/${row.legacy_no}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 14, color: '#173f31', textDecoration: 'none' }}><span>{String(label)}</span><span style={{ color: '#62736c' }}>{String(detail ?? '')}</span></Link>
           })}
           {filteredRows.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching records.</p>}
         </div>
