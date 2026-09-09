@@ -129,8 +129,7 @@ try {
       if ($birthYear -and $null -eq (IntegerValue $rs 'TDAAnneeNaissance')) { "Birth year: $birthYear" }
       if ($deathYear -and $null -eq (IntegerValue $rs 'TDAAnneeDeces')) { "Death year: $deathYear" }
     ) -join '; '
-    $noteParts = @((Value $rs 'TDACategorie'), $historicalYears) | Where-Object { $_ }
-    $notes = $noteParts -join '; '
+    $notes = $historicalYears
     [ordered]@{
       legacy_no = [int](Value $rs 'TDANo')
       last_name = Value $rs 'TDAArtiste'
