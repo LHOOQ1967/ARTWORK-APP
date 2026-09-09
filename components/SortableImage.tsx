@@ -4,6 +4,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { ArtworkDocument } from '@/app/(protected)/types/artwork'
+import { privateImageUrl } from '@/lib/privateImageUrl'
 
 
 type Props = {
@@ -54,7 +55,7 @@ export function SortableImage({
       <div
         onClick={() => {
           if (!isEditing) {
-            onOpen(image.url)
+            onOpen(privateImageUrl(image.url))
           }
         }}
         style={{
@@ -62,7 +63,7 @@ export function SortableImage({
         }}
       >
         <img
-          src={image.url}
+          src={privateImageUrl(image.url)}
           alt={image.label || ''}
           style={{
 

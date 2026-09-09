@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseBrowser";
+import { privateImageUrl } from "@/lib/privateImageUrl";
 
 type ProfileRole = "Administrator" | "Editor" | "Viewer" | null;
 
@@ -788,7 +789,7 @@ export default function FloracBoughtInventoryPage() {
                   <td className="w-[70px] px-3 py-2 align-middle">
                     {r.image_url ? (
                       <img
-                        src={r.image_url}
+                        src={privateImageUrl(r.image_url)}
                         alt={r.title ?? "Artwork"}
                         className="w-12 h-12 object-cover rounded"
                       />

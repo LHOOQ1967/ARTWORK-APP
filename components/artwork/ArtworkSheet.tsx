@@ -7,6 +7,7 @@ import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
 import { LinkedText } from '@/components/ui/LinkedText'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { canEditArtworks } from '@/lib/permissions'
+import { privateImageUrl } from '@/lib/privateImageUrl'
 
 
 type Props = {
@@ -556,7 +557,7 @@ const displayTitle = (() => {
         }}
       >
         <a
-          href={images[0].url ?? ''}
+          href={privateImageUrl(images[0].url)}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -566,7 +567,7 @@ const displayTitle = (() => {
           }}
         >
           <img
-            src={images[0].url ?? ''}
+            src={privateImageUrl(images[0].url)}
             alt={artwork.title ?? 'Artwork image'}
             style={{
               display: 'block',
@@ -596,7 +597,7 @@ const displayTitle = (() => {
           {thumbnails.map((image, index) => (
             <a
               key={image.id ?? `${image.url}-${index}`}
-              href={image.url ?? ''}
+              href={privateImageUrl(image.url)}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -608,7 +609,7 @@ const displayTitle = (() => {
               }}
             >
               <img
-                src={image.url ?? ''}
+                src={privateImageUrl(image.url)}
                 alt={artwork.title ?? 'Artwork thumbnail'}
                 style={{
                   display: 'block',

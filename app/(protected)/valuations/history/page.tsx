@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { privateImageUrl } from '@/lib/privateImageUrl'
 
 type Contact = {
   id: string
@@ -409,7 +410,7 @@ export default function ValuationsHistoryPage() {
                 <td className="p-3">
                   {artwork.image_url ? (
                     <img
-                      src={artwork.image_url}
+                      src={privateImageUrl(artwork.image_url)}
                       alt={artwork.title ?? 'Œuvre'}
                       className="h-12 w-12 rounded object-cover"
                     />

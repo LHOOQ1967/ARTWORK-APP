@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { SortableImage } from '@/components/SortableImage'
 import { SortableDocument } from '@/components/SortableDocument'
+import { privateImageUrl } from '@/lib/privateImageUrl'
 import type {
   ArtworkWithRelations,
   ArtworkProposal,
@@ -1453,7 +1454,7 @@ const artworkDocuments = useMemo(
             }}
           >
             <img
-              src={openImage}
+              src={privateImageUrl(openImage)}
               alt=""
               style={{
                 maxWidth: '90vw',

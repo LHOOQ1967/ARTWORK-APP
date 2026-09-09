@@ -4,6 +4,7 @@
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
+import { privateImageUrl } from '@/lib/privateImageUrl'
 
 type UpdatedArtworkItem = ArtworkListItem & {
   updated_at?: string | null
@@ -493,7 +494,7 @@ const mainImage = images
 
 return mainImage?.url ? (
   <img
-    src={mainImage.url ?? ''}
+    src={privateImageUrl(mainImage.url)}
     alt=""
     style={{
       width: 60,

@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { privateImageUrl } from '@/lib/privateImageUrl'
 import {
   formatAsking,
   formatCost,
@@ -423,7 +424,7 @@ const proposedToText = getProposedToText(a)
 <td style={{ ...td, width: 80 }}>
   {mainImage?.url ? (
       <img
-        src={mainImage.url}
+        src={privateImageUrl(mainImage.url)}
         alt=""
         style={{
           width: 80,
