@@ -798,6 +798,7 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
     Object.values(row).some((value) => String(value ?? '').toLowerCase().includes(query.toLowerCase()))
   )
   const title = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : kind === 'types' ? 'Type of books' : 'Artist categories'
+  const recordLabel = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : kind === 'types' ? 'Type of books' : 'Artist categories'
 
   return (
     <section className="referential-card" style={{ padding: 26, border: '1px solid #d7dfda', borderRadius: 12, backgroundColor: '#fff', boxShadow: '0 10px 28px rgba(31,56,46,0.06)', color: 'black' }}>
@@ -811,7 +812,9 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
         </div>
         <p>Browse the library reference data.</p>
       </div>
-      <input className="referential-field" type="search" placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} />
+      <InlineRow label="Search">
+        <input className="referential-field" type="search" placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} />
+      </InlineRow>
       {loading ? <p style={{ marginTop: 18 }}>Loading…</p> : (
         <div style={{ marginTop: 18, maxHeight: 620, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8 }}>
           {filteredRows.map((row, index) => {
@@ -820,9 +823,8 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
               : kind === 'related-names'
                 ? row.name || '—'
                 : row.full_name || row.description || row.type_number || '—'
-            const detail = kind === 'related-names' ? row.location : kind === 'types' ? row.description : row.legacy_no
             const path = kind === 'authors' ? 'authors' : kind === 'related-names' ? 'related-names' : kind === 'types' ? 'types' : 'artist-categories'
-            return <Link key={`${String(row.legacy_no)}-${index}`} href={`/${path}/${row.legacy_no}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 14, color: '#173f31', textDecoration: 'none' }}><span>{String(label)}</span><span style={{ color: '#62736c' }}>{String(detail ?? '')}</span></Link>
+            return <Link key={`${String(row.legacy_no)}-${index}`} href={`/${path}/${row.legacy_no}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 16, color: '#173f31', textDecoration: 'none' }}><span>{String(label)}</span><span style={{ color: '#62736c', textAlign: 'right' }}>{recordLabel}</span></Link>
           })}
           {filteredRows.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching records.</p>}
         </div>
