@@ -203,19 +203,6 @@ async function remove() {
     + Add artist
   </button>
 
-  <button
-    onClick={() => {
-      if (isEditing) {
-        setIsEditing(false)
-      } else {
-        if (!artist || !artist.id) return
-        setIsEditing(true)
-      }
-    }} className="edit-button"
-  >
-    {isEditing ? 'Cancel' : 'Edit'}
-  </button>
-
   {isEditing && (
     <button
       onClick={remove}
@@ -569,19 +556,6 @@ async function remove() {
     + Add contact
   </button>
 
-  <button
-    onClick={() => {
-      if (isEditing) {
-        setIsEditing(false)
-      } else {
-        if (!contact || !contact.id) return
-        setIsEditing(true)
-      }
-    }} className="edit-button"
-  >
-    {isEditing ? 'Cancel' : 'Edit'}
-  </button>
-
   {isEditing && (
     <button
       onClick={remove}
@@ -828,9 +802,12 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
   return (
     <section className="referential-card" style={{ padding: 26, border: '1px solid #d7dfda', borderRadius: 12, backgroundColor: '#fff', boxShadow: '0 10px 28px rgba(31,56,46,0.06)', color: 'black' }}>
       <div className="referential-card-heading" style={{ margin: '6px 0 24px', paddingBottom: 18, borderBottom: '1px solid #e4e9e6' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h2 style={{ margin: 0, color: '#173f31', fontSize: '1.65rem' }}>{title}</h2>
-          <span className="referential-count-badge">{rows.length}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h2 style={{ margin: 0, color: '#173f31', fontSize: '1.65rem' }}>{title}</h2>
+            <span className="referential-count-badge">{rows.length}</span>
+          </div>
+          <Link className="edit-button" href={`/referentials/new?kind=${kind}`}>+ Add {title.toLowerCase()}</Link>
         </div>
         <p>Browse the library reference data.</p>
       </div>
