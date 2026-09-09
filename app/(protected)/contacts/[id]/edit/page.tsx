@@ -30,6 +30,13 @@ export default function EditContactPage() {
     setSaving(false)
   }
 
+  async function remove() {
+    if (!confirm('Delete this contact?')) return
+    const { error: deleteError } = await supabase.from('contacts').delete().eq('id', id)
+    if (deleteError) setError(deleteError.message)
+    else router.push('/referentials')
+  }
+
   if (!contact) return <main style={{ padding: 96 }}>{error || 'Loading…'}</main>
   const update = (patch: Partial<Contact>) => setContact({ ...contact, ...patch })
   const row = (label: string, control: React.ReactNode) => <label style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 12, alignItems: 'center', marginBottom: 12 }}><span>{label}</span>{control}</label>

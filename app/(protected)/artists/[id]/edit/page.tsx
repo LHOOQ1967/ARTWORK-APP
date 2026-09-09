@@ -37,6 +37,13 @@ export default function EditArtistPage() {
     setSaving(false)
   }
 
+  async function remove() {
+    if (!confirm('Delete this artist?')) return
+    const { error: deleteError } = await supabase.from('artists').delete().eq('id', id)
+    if (deleteError) setError(deleteError.message)
+    else router.push('/referentials')
+  }
+
   if (!artist) return <main style={{ padding: 96 }}>{error || 'Loading…'}</main>
   const update = (patch: Partial<Artist>) => setArtist({ ...artist, ...patch })
   const row = (label: string, control: React.ReactNode) => <label style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 12, alignItems: 'center', marginBottom: 12 }}><span>{label}</span>{control}</label>
