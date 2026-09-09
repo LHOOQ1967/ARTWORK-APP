@@ -273,9 +273,9 @@ async function remove() {
       <InlineRow label="Artist">
         <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
           {filteredArtists.slice(0, 100).map(a => (
-            <button key={a.id} type="button" onClick={() => setSelectedId(a.id)} style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid #e4e9e6', background: selectedId === a.id ? '#e5efe8' : '#fff', color: '#173f31', textAlign: 'left', cursor: 'pointer' }}>
+            <Link key={a.id} href={`/artists/${a.id}/edit`} style={{ display: 'block', width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none' }}>
               {[a.last_name, a.first_name].filter(Boolean).join(' ') || '—'}
-            </button>
+            </Link>
           ))}
           {filteredArtists.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
         </div>
@@ -635,9 +635,9 @@ async function remove() {
       <InlineRow label="Contact">
         <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
           {filteredContacts.slice(0, 100).map(c => (
-            <button key={c.id} type="button" onClick={() => setSelectedId(c.id)} style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid #e4e9e6', background: selectedId === c.id ? '#e5efe8' : '#fff', color: '#173f31', textAlign: 'left', cursor: 'pointer' }}>
+            <Link key={c.id} href={`/contacts/${c.id}/edit`} style={{ display: 'block', width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none' }}>
               {c.company_name || [c.last_name, c.first_name].filter(Boolean).join(' ') || '—'}
-            </button>
+            </Link>
           ))}
           {filteredContacts.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
         </div>
