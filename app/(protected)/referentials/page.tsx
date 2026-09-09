@@ -53,6 +53,16 @@ function InlineRow({
   )
 }
 
+const editableFieldStyle: React.CSSProperties = {
+  width: '100%',
+  minHeight: 42,
+  padding: '9px 12px',
+  border: '1px solid #aabdb3',
+  borderRadius: 8,
+  backgroundColor: '#fbfdfb',
+  boxShadow: 'inset 0 1px 2px rgba(23, 63, 49, 0.05)',
+}
+
 
 
 
@@ -270,6 +280,7 @@ async function remove() {
             {isEditing ? (
           <input
             className="referential-edit-field"
+            style={editableFieldStyle}
             value={artist.first_name ?? ''}
             onChange={e =>
               setArtist({ ...artist, first_name: e.target.value })
@@ -285,6 +296,7 @@ async function remove() {
             {isEditing ? (
               <input
                 className="referential-edit-field"
+                style={editableFieldStyle}
                 value={artist.last_name ?? ''}
                 onChange={e =>
                   setArtist({ ...artist, last_name: e.target.value })
@@ -300,6 +312,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       type="number"
       value={artist.year_of_birth ?? ''}
       onChange={e =>
@@ -320,6 +333,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       type="number"
       value={artist.year_of_death ?? ''}
       onChange={e =>
@@ -341,6 +355,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={artist.place_of_birth ?? ''}
       onChange={e =>
         setArtist({
@@ -358,6 +373,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={artist.place_of_death ?? ''}
       onChange={e =>
         setArtist({
@@ -376,6 +392,7 @@ async function remove() {
   {isEditing ? (
     <textarea
       className="referential-edit-field"
+      style={editableFieldStyle}
       rows={4}
       value={artist.notes ?? ''}
       onChange={e =>
@@ -384,7 +401,6 @@ async function remove() {
           notes: e.target.value,
         })
       }
-      style={{ width: '100%' }}
     />
   ) : (
     artist.notes ? <LinkedText text={artist.notes} /> : '—'
@@ -608,6 +624,7 @@ async function remove() {
             {isEditing ? (
               <input
                 className="referential-edit-field"
+                style={editableFieldStyle}
                 value={contact.company_name || ''}
                 onChange={e =>
                   setContact({ ...contact, company_name: e.target.value })
@@ -622,6 +639,7 @@ async function remove() {
             {isEditing ? (
               <input
                 className="referential-edit-field"
+                style={editableFieldStyle}
                 value={contact.email || ''}
                 onChange={e =>
                   setContact({ ...contact, email: e.target.value })
@@ -637,6 +655,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={contact.first_name ?? ''}
       onChange={e =>
         setContact({
@@ -654,6 +673,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={contact.last_name ?? ''}
       onChange={e =>
         setContact({
@@ -672,6 +692,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={contact.city ?? ''}
       onChange={e =>
         setContact({
@@ -690,6 +711,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={contact.telephone ?? ''}
       onChange={e =>
         setContact({
@@ -708,6 +730,7 @@ async function remove() {
   {isEditing ? (
     <input
       className="referential-edit-field"
+      style={editableFieldStyle}
       value={contact.role ?? ''}
       onChange={e =>
         setContact({
@@ -726,6 +749,7 @@ async function remove() {
   {isEditing ? (
     <textarea
       className="referential-edit-field"
+      style={editableFieldStyle}
       rows={4}
       value={contact.notes ?? ''}
       onChange={e =>
@@ -734,7 +758,6 @@ async function remove() {
           notes: e.target.value,
         })
       }
-      style={{ width: '100%' }}
     />
   ) : (
     contact.notes ? <LinkedText text={contact.notes} /> : '—'
