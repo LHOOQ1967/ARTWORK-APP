@@ -58,7 +58,8 @@ function Get-SupabaseRows([string]$uri) {
 function Get-AccessRows($db, [string]$table, [scriptblock]$map) {
   $csvPath = Join-Path $script:accessExportDir "$table.csv"
   $script:accessApp.DoCmd.TransferText(2, $null, $table, $csvPath, $true)
-  $recordset = Import-Csv -LiteralPath $csvPath
+  $csvText = [Text.Encoding]::GetEncoding(1252).GetString([IO.File]::ReadAllBytes($csvPath))
+  $recordset = ConvertFrom-Csv -InputObject $csvText
   $rows = [System.Collections.Generic.List[object]]::new()
   try {
     foreach ($row in $recordset) {
