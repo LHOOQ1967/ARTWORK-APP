@@ -177,7 +177,7 @@ export default function LibraryPage() {
         </table>
       </div>
       )}
-      {hasMore && (view === 'books' || view === 'by-artists' || view === 'by-authors') && (
+      {hasMore && (view === 'books' || view === 'by-artists' || view === 'by-authors' || view === 'artists' || view === 'authors' || view === 'related-names') && (
         <button type="button" className="edit-button" onClick={() => setOffset((current) => current + 50)}>
           Load more results
         </button>

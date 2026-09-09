@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
       .from('artists')
       .select('id, first_name, last_name, year_of_birth, year_of_death')
       .order('last_name', { ascending: true })
-      .limit(Number.isFinite(limit) && limit > 0 ? limit : 50)
+      .range(offset, offset + (Number.isFinite(limit) && limit > 0 ? limit : 50) - 1)
     const { data, error } = query
       ? await artistsQuery.or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
       : await artistsQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ artists: data ?? [] })
+    return NextResponse.json({ artists: data ?? [], hasMore: (data ?? []).length === limit })
   }
 
   if (view === 'authors') {
@@ -29,12 +29,12 @@ export async function GET(request: NextRequest) {
       .from('library_authors')
       .select('id, legacy_no, first_name, last_name')
       .order('last_name', { ascending: true })
-      .limit(Number.isFinite(limit) && limit > 0 ? limit : 50)
+      .range(offset, offset + (Number.isFinite(limit) && limit > 0 ? limit : 50) - 1)
     const { data, error } = query
       ? await authorsQuery.or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
       : await authorsQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ authors: data ?? [] })
+    return NextResponse.json({ authors: data ?? [], hasMore: (data ?? []).length === limit })
   }
 
   if (view === 'related-names') {
@@ -42,12 +42,12 @@ export async function GET(request: NextRequest) {
       .from('library_related_names')
       .select('legacy_no, name, location')
       .order('name', { ascending: true })
-      .limit(Number.isFinite(limit) && limit > 0 ? limit : 50)
+      .range(offset, offset + (Number.isFinite(limit) && limit > 0 ? limit : 50) - 1)
     const { data, error } = query
       ? await namesQuery.or(`name.ilike.%${query}%,location.ilike.%${query}%`)
       : await namesQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ relatedNames: data ?? [] })
+    return NextResponse.json({ relatedNames: data ?? [], hasMore: (data ?? []).length === limit })
   }
 
   if (view === 'types' || view === 'status') {
