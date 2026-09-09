@@ -98,7 +98,11 @@ function IntegerValue($recordset, [string]$field) {
 }
 
 function NameKey([string]$lastName, [string]$firstName) {
-  return (($lastName + '|' + $firstName).Trim().ToLowerInvariant())
+  $lastValue = if ($null -eq $lastName) { '' } else { $lastName }
+  $firstValue = if ($null -eq $firstName) { '' } else { $firstName }
+  $last = ([regex]::Replace($lastValue, '\s+', ' ')).Trim().ToLowerInvariant()
+  $first = ([regex]::Replace($firstValue, '\s+', ' ')).Trim().ToLowerInvariant()
+  return "$last|$first"
 }
 
 $script:supabaseUrl = Get-EnvValue 'NEXT_PUBLIC_SUPABASE_URL'
