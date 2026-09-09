@@ -477,7 +477,6 @@ async function save() {
   setIsEditing(false)
 }
 
-
 async function remove() {
   if (!contact || !confirm('Delete this contact?')) return
 
@@ -770,12 +769,68 @@ async function remove() {
   )
 }
 
+function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' | 'types' }) {
+  const [query, setQuery] = useState('')
+  const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      const result = kind === 'authors'
+        ? await supabase.from('library_authors').select('legacy_no, first_name, last_name').order('legacy_no', { ascending: true }).limit(10000)
+        : kind === 'related-names'
+          ? await supabase.from('library_related_names').select('legacy_no, name, location').order('legacy_no', { ascending: true }).limit(10000)
+          : await supabase.from('library_book_types').select('legacy_no, type_number, description, full_name').order('legacy_no', { ascending: true }).limit(10000)
+      if (!cancelled) {
+        setRows((result.data ?? []) as Array<Record<string, unknown>>)
+        setLoading(false)
+      }
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [kind])
+
+  const filteredRows = rows.filter((row) =>
+    Object.values(row).some((value) => String(value ?? '').toLowerCase().includes(query.toLowerCase()))
+  )
+  const title = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : 'Type of books'
+
+  return (
+    <section className="referential-card" style={{ padding: 26, border: '1px solid #d7dfda', borderRadius: 12, backgroundColor: '#fff', boxShadow: '0 10px 28px rgba(31,56,46,0.06)', color: 'black' }}>
+      <div className="referential-card-heading" style={{ margin: '6px 0 24px', paddingBottom: 18, borderBottom: '1px solid #e4e9e6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h2 style={{ margin: 0, color: '#173f31', fontSize: '1.65rem' }}>{title}</h2>
+          <span className="referential-count-badge">{rows.length}</span>
+        </div>
+        <p>Browse the library reference data.</p>
+      </div>
+      <input className="referential-field" type="search" placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} />
+      {loading ? <p style={{ marginTop: 18 }}>Loading…</p> : (
+        <div style={{ marginTop: 18, maxHeight: 620, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8 }}>
+          {filteredRows.map((row, index) => {
+            const label = kind === 'authors'
+              ? [row.last_name, row.first_name].filter(Boolean).join(' ')
+              : kind === 'related-names'
+                ? row.name || '—'
+                : row.full_name || row.description || row.type_number || '—'
+            const detail = kind === 'related-names' ? row.location : kind === 'types' ? row.description : row.legacy_no
+            return <div key={`${String(row.legacy_no)}-${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 14 }}><span>{String(label)}</span><span style={{ color: '#62736c' }}>{String(detail ?? '')}</span></div>
+          })}
+          {filteredRows.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching records.</p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
 /* ======================
    Page
    ====================== */
 
 export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | 'contacts' | 'both' }) {
-  const [activeSection, setActiveSection] = useState<'artists' | 'contacts'>(
+  const [activeSection, setActiveSection] = useState<'artists' | 'contacts' | 'authors' | 'related-names' | 'types'>(
     section === 'contacts' ? 'contacts' : 'artists'
   )
   const isCombined = section === 'both'
@@ -792,7 +847,7 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
         <header className="referentials-header" style={{ marginBottom: 28 }}>
           <div className="referentials-eyebrow" style={{ marginBottom: 7, color: '#557067', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Collection data</div>
           <h1 style={{ margin: 0, color: '#143b2d', fontSize: 'clamp(2rem, 4vw, 3.25rem)', lineHeight: 1, letterSpacing: '-0.035em' }}>Referentials</h1>
-          <p style={{ margin: '10px 0 0', color: '#62736c' }}>Manage the artists and contacts used throughout the application.</p>
+          <p style={{ margin: '10px 0 0', color: '#62736c' }}>Manage artists, contacts and library reference data.</p>
           {isCombined && (
             <p style={{ margin: '16px 0 0', color: '#62736c', fontSize: 14 }}>
               Select a referential from the panel.
@@ -809,7 +864,7 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
                 Referentials
               </div>
               <div style={{ display: 'grid', gap: 6 }}>
-                {(['artists', 'contacts'] as const).map((item) => (
+                {(['artists', 'contacts', 'authors', 'related-names', 'types'] as const).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -817,13 +872,15 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
                     aria-pressed={activeSection === item}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '11px 12px', border: 0, borderRadius: 8, backgroundColor: activeSection === item ? '#173f31' : 'transparent', color: activeSection === item ? '#fff' : '#173f31', fontWeight: 700, textAlign: 'left', cursor: 'pointer' }}
                   >
-                    <span>{item === 'artists' ? 'Artists' : 'Contacts'}</span>
+                    <span>{{ artists: 'Artists', contacts: 'Contacts', authors: 'Authors', 'related-names': 'Related names', types: 'Type of books' }[item]}</span>
                     <span aria-hidden="true">→</span>
                   </button>
                 ))}
               </div>
             </aside>
-            <div>{activeSection === 'artists' ? <ArtistsSection /> : <ContactsSection />}</div>
+            <div>
+              {activeSection === 'artists' ? <ArtistsSection /> : activeSection === 'contacts' ? <ContactsSection /> : <LibraryReferenceSection kind={activeSection} />}
+            </div>
           </div>
         ) : (
           <>{section === 'artists' ? <ArtistsSection /> : <ContactsSection />}</>
