@@ -2,6 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabaseBrowser'
 import type { Artist, Contact } from '@/app/(protected)/types/artwork'
 import { LinkedText } from '@/components/ui/LinkedText'
@@ -735,7 +736,7 @@ async function remove() {
    Page
    ====================== */
 
-export default function ReferentialsPage() {
+export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | 'contacts' | 'both' }) {
   return (
     <main
       style={{
@@ -750,10 +751,19 @@ export default function ReferentialsPage() {
           <div className="referentials-eyebrow" style={{ marginBottom: 7, color: '#557067', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Collection data</div>
           <h1 style={{ margin: 0, color: '#143b2d', fontSize: 'clamp(2rem, 4vw, 3.25rem)', lineHeight: 1, letterSpacing: '-0.035em' }}>Referentials</h1>
           <p style={{ margin: '10px 0 0', color: '#62736c' }}>Manage the artists and contacts used throughout the application.</p>
+          <nav style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }} aria-label="Referential pages">
+            <Link className="edit-button" href="/artists">Artists</Link>
+            <Link className="edit-button" href="/contacts">Contacts</Link>
+            <Link className="edit-button" href="/referentials">Combined view</Link>
+          </nav>
         </header>
-        <ArtistsSection />
-        <ContactsSection />
+        {(section === 'artists' || section === 'both') && <ArtistsSection />}
+        {(section === 'contacts' || section === 'both') && <ContactsSection />}
       </div>
     </main>
   )
+}
+
+export default function ReferentialsPageDefault() {
+  return <ReferentialsPage />
 }
