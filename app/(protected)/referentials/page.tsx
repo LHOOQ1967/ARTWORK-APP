@@ -269,6 +269,7 @@ async function remove() {
           <InlineRow label="First name">
             {isEditing ? (
           <input
+            className="referential-edit-field"
             value={artist.first_name ?? ''}
             onChange={e =>
               setArtist({ ...artist, first_name: e.target.value })
@@ -283,6 +284,7 @@ async function remove() {
           <InlineRow label="Last name">
             {isEditing ? (
               <input
+                className="referential-edit-field"
                 value={artist.last_name ?? ''}
                 onChange={e =>
                   setArtist({ ...artist, last_name: e.target.value })
@@ -297,6 +299,7 @@ async function remove() {
 <InlineRow label="Year of birth">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       type="number"
       value={artist.year_of_birth ?? ''}
       onChange={e =>
@@ -316,6 +319,7 @@ async function remove() {
 <InlineRow label="Year of death">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       type="number"
       value={artist.year_of_death ?? ''}
       onChange={e =>
@@ -336,6 +340,7 @@ async function remove() {
 <InlineRow label="Place of birth">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={artist.place_of_birth ?? ''}
       onChange={e =>
         setArtist({
@@ -352,6 +357,7 @@ async function remove() {
 <InlineRow label="Place of death">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={artist.place_of_death ?? ''}
       onChange={e =>
         setArtist({
@@ -369,6 +375,7 @@ async function remove() {
 <InlineRow label="Notes">
   {isEditing ? (
     <textarea
+      className="referential-edit-field"
       rows={4}
       value={artist.notes ?? ''}
       onChange={e =>
@@ -600,6 +607,7 @@ async function remove() {
           <InlineRow label="Company">
             {isEditing ? (
               <input
+                className="referential-edit-field"
                 value={contact.company_name || ''}
                 onChange={e =>
                   setContact({ ...contact, company_name: e.target.value })
@@ -613,6 +621,7 @@ async function remove() {
           <InlineRow label="Email">
             {isEditing ? (
               <input
+                className="referential-edit-field"
                 value={contact.email || ''}
                 onChange={e =>
                   setContact({ ...contact, email: e.target.value })
@@ -627,6 +636,7 @@ async function remove() {
 <InlineRow label="First name">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={contact.first_name ?? ''}
       onChange={e =>
         setContact({
@@ -643,6 +653,7 @@ async function remove() {
 <InlineRow label="Last name">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={contact.last_name ?? ''}
       onChange={e =>
         setContact({
@@ -660,6 +671,7 @@ async function remove() {
 <InlineRow label="City">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={contact.city ?? ''}
       onChange={e =>
         setContact({
@@ -677,6 +689,7 @@ async function remove() {
 <InlineRow label="Telephone">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={contact.telephone ?? ''}
       onChange={e =>
         setContact({
@@ -694,6 +707,7 @@ async function remove() {
 <InlineRow label="Role">
   {isEditing ? (
     <input
+      className="referential-edit-field"
       value={contact.role ?? ''}
       onChange={e =>
         setContact({
@@ -711,6 +725,7 @@ async function remove() {
 <InlineRow label="Notes">
   {isEditing ? (
     <textarea
+      className="referential-edit-field"
       rows={4}
       value={contact.notes ?? ''}
       onChange={e =>

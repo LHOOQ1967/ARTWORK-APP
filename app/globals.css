@@ -508,8 +508,7 @@ button:focus-visible {
     outline: 3px solid rgba(0,96,57,0.12);
   }
 
-  .referential-card input:not(.referential-field),
-  .referential-card textarea {
+  .referential-edit-field {
     width: 100%;
     min-height: 42px;
     padding: 9px 12px;
@@ -520,8 +519,7 @@ button:focus-visible {
     transition: border-color 120ms ease, box-shadow 120ms ease;
   }
 
-  .referential-card input:not(.referential-field):focus,
-  .referential-card textarea:focus {
+  .referential-edit-field:focus {
     border-color: #006039;
     outline: none;
     box-shadow: 0 0 0 3px rgba(0,96,57,0.12);
