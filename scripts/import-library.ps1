@@ -17,6 +17,7 @@ function Invoke-Supabase([string]$table, [object[]]$rows, [string]$query = '') {
   if ([string]::IsNullOrEmpty($query)) {
     $query = switch ($table) {
       'artist_categories' { '?on_conflict=legacy_no' }
+      'artists' { '?on_conflict=legacy_no' }
       'library_book_types' { '?on_conflict=legacy_no' }
       'library_statuses' { '?on_conflict=legacy_no' }
       'library_authors' { '?on_conflict=legacy_no' }
@@ -227,13 +228,15 @@ for ($offset = 0; $offset -lt $artistCategories.Count; $offset += $BatchSize) {
   $batch = @($artistCategories | Select-Object -Skip $offset -First $BatchSize)
   [void](Invoke-Supabase 'artist_categories' $batch)
 }
-$existingArtists = @(Get-SupabaseRows "$supabaseUrl/rest/v1/artists?select=id,first_name,last_name")
+$existingArtists = @(Get-SupabaseRows "$supabaseUrl/rest/v1/artists?select=id,first_name,last_name,legacy_no")
 $artistIds = @{}
-foreach ($artist in $existingArtists) { $artistIds[(NameKey $artist.last_name $artist.first_name)] = $artist.id }
+foreach ($artist in $existingArtists) {
+  $artistIds[(NameKey $artist.last_name $artist.first_name)] = $artist.id
+}
 
 $newArtists = @($artists | Where-Object { -not $artistIds.ContainsKey((NameKey $_.last_name $_.first_name)) } | ForEach-Object {
   $lastName = if ([string]::IsNullOrWhiteSpace($_.last_name)) { 'Unknown' } else { $_.last_name }
-  [ordered]@{ first_name = $_.first_name; last_name = $lastName; year_of_birth = $_.year_of_birth; year_of_death = $_.year_of_death; place_of_birth = $_.place_of_birth; place_of_death = $_.place_of_death; notes = $_.notes; artist_category_no = $_.artist_category_no }
+  [ordered]@{ legacy_no = $_.legacy_no; first_name = $_.first_name; last_name = $lastName; year_of_birth = $_.year_of_birth; year_of_death = $_.year_of_death; place_of_birth = $_.place_of_birth; place_of_death = $_.place_of_death; notes = $_.notes; artist_category_no = $_.artist_category_no }
 })
 for ($offset = 0; $offset -lt $newArtists.Count; $offset += $BatchSize) {
   $batch = @($newArtists | Select-Object -Skip $offset -First $BatchSize)

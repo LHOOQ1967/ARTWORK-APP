@@ -13,6 +13,7 @@ type Props = {
   placeholder?: string
   valueId: string // 'all' ou l'id sélectionné
   onChangeId: (id: string) => void
+  onQueryChange?: (value: string) => void
   options: SearchOption[]
   allLabel?: string // texte pour "All"
   maxSuggestions?: number
@@ -28,6 +29,7 @@ export default function SearchSelect({
   placeholder,
   valueId,
   onChangeId,
+  onQueryChange,
   options,
   allLabel = 'All',
   maxSuggestions = 25,
@@ -98,7 +100,9 @@ export default function SearchSelect({
           value={query}
           placeholder={placeholder ?? 'Type to search…'}
           onChange={e => {
-            setQuery(e.target.value)
+            const nextValue = e.target.value
+            setQuery(nextValue)
+            onQueryChange?.(nextValue)
             setOpen(true)
             setActiveIndex(-1)
             // si l’utilisateur modifie, on repasse en "all" jusqu’à sélection
@@ -139,6 +143,7 @@ export default function SearchSelect({
           type="button"
           onClick={() => {
             setQuery('')
+            onQueryChange?.('')
             commit('all')
           }}
           className="absolute right-2 top-1.5 rounded-lg border border-black/15 bg-white px-2 py-1.5 text-[12px] font-semibold hover:bg-black/5"

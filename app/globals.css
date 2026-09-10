@@ -65,6 +65,34 @@ body {
   font-family: 'Akzidenz-Grotesk BQ', 'Akzidenz Grotesk', Arial, Helvetica, sans-serif;
 }
 
+.protected-page-shell {
+  --section-page-bg: #f3f5f1;
+  min-height: 100vh;
+  background: var(--section-page-bg);
+}
+
+.protected-page-shell[data-page-section='proposals'] {
+  --section-page-bg: #deeee8;
+}
+
+.protected-page-shell[data-page-section='collection'] {
+  --section-page-bg: #f4e6d5;
+}
+
+.protected-page-shell[data-page-section='management'] {
+  --section-page-bg: #e1e8f4;
+}
+
+.protected-page-shell[data-page-section='tools'] {
+  --section-page-bg: #e3d2ef;
+}
+
+.protected-page-shell > main,
+.protected-page-shell main {
+  min-height: 100vh;
+  background: var(--section-page-bg) !important;
+}
+
 button,
 input,
 select,
@@ -1004,6 +1032,18 @@ button:focus-visible {
   color: #243a31;
   box-shadow: 0 2px 5px rgba(31, 56, 46, 0.10);
   transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s ease;
+}
+ 
+.edit-button-danger {
+  background-color: #cc0000;
+  border-color: #cc0000;
+  color: #ffffff;
+}
+
+.edit-button-danger:hover:not(:disabled) {
+  background-color: #a80000;
+  border-color: #a80000;
+  color: #ffffff;
 }
 
 .edit-button:hover {

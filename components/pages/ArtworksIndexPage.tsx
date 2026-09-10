@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import ArtworkList from '@/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
@@ -63,6 +64,7 @@ export default function ArtworksIndexPage({
   forcedStatus,   // ✅ AJOUT ICI
 }: Props)
  {
+  const searchParams = useSearchParams()
   const [artworks, setArtworks] = useState<ArtworkIndexItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -112,6 +114,13 @@ const canEditStatusPriority =
 
 
 const [fromDateProposed, setFromDateProposed] = useState<string>('')
+
+  useEffect(() => {
+    const artistId = searchParams.get('artistId')?.trim()
+    if (artistId) {
+      setArtistIdFilter(artistId)
+    }
+  }, [searchParams])
 
   // Load artworks
   useEffect(() => {

@@ -26,10 +26,9 @@ const collection: DashboardLink[] = [
   { href: '/commissions', title: 'Commissions', subtitle: 'Florac + GLM', icon: 'CM' },
 ]
 
-const library: DashboardLink = { href: '/library', title: 'Library', subtitle: 'Bibliothèque', icon: 'LB' }
-
 const tools: DashboardLink[] = [
   { href: '/market', title: 'Market', subtitle: 'Fairs and auctions', icon: 'MK' },
+  { href: '/library', title: 'Library', subtitle: 'Blondeau & Cie', icon: 'LB' },
   {
     href: 'https://buyerspremium.blondeau.ch/calculate.php',
     title: 'Buyers premium',
@@ -72,12 +71,6 @@ export default function ViewerHome() {
             </div>
           </section>
 
-          <section className={`${styles.section} ${styles.toolsSection}`}>
-            <SectionHeading index="04" title="Library" description="Books and exhibition references" />
-            <div className={styles.viewerToolsGrid}>
-              <DashboardCard item={library} compact />
-            </div>
-          </section>
         </div>
 
         <footer className={styles.footer}>
@@ -95,11 +88,11 @@ function SectionHeading({
   index,
   title,
   description,
-}: {
+}: Readonly<{
   index: string
   title: string
   description: string
-}) {
+}>) {
   return (
     <div className={styles.sectionHeading}>
       <span>{index}</span>
@@ -114,10 +107,10 @@ function SectionHeading({
 function DashboardCard({
   item,
   compact = false,
-}: {
+}: Readonly<{
   item: DashboardLink
   compact?: boolean
-}) {
+}>) {
   return (
     <Link
       href={item.href}

@@ -77,6 +77,16 @@ export default function HeaderNav() {
           </Link>
         )}
 
+        {isLoggedIn && (
+          <Link
+            href="/library"
+            prefetch={false}
+            style={navLink(isActive('/library'))}
+          >
+            Library
+          </Link>
+        )}
+
       </nav>
 
       {/* RIGHT ACTIONS */}

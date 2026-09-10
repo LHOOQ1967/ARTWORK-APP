@@ -37,6 +37,7 @@ export default function NewArtistPage() {
         place_of_birth: placeOfBirth.trim() || null,
         place_of_death: placeOfDeath.trim() || null,
         notes: notes.trim() || null,
+        source: 'manual',
       })
 
     if (supabaseError) {
@@ -84,8 +85,9 @@ export default function NewArtistPage() {
 
         {/* First Name */}
         <div style={{ marginBottom: 12 }}>
-          <label>First Name</label>
+          <label htmlFor="artist-first-name">First Name</label>
           <input
+            id="artist-first-name"
             value={firstName}
             onChange={e => setFirstName(e.target.value)}
             className="entity-form-field"
@@ -95,8 +97,9 @@ export default function NewArtistPage() {
 
         {/* Last Name */}
         <div style={{ marginBottom: 12 }}>
-          <label>Last Name</label>
+          <label htmlFor="artist-last-name">Last Name</label>
           <input
+            id="artist-last-name"
             value={lastName}
             onChange={e => setLastName(e.target.value)}
             className="entity-form-field"
@@ -106,8 +109,9 @@ export default function NewArtistPage() {
 
         {/* Year of Birth */}
         <div style={{ marginBottom: 12 }}>
-          <label>Year of Birth</label>
+          <label htmlFor="artist-year-of-birth">Year of Birth</label>
           <input
+            id="artist-year-of-birth"
             type="number"
             value={yearOfBirth}
             onChange={e => setYearOfBirth(e.target.value)}
@@ -118,8 +122,9 @@ export default function NewArtistPage() {
 
         {/* Year of Death */}
         <div style={{ marginBottom: 12 }}>
-          <label>Year of Death</label>
+          <label htmlFor="artist-year-of-death">Year of Death</label>
           <input
+            id="artist-year-of-death"
             type="number"
             value={yearOfDeath}
             onChange={e => setYearOfDeath(e.target.value)}
@@ -130,8 +135,9 @@ export default function NewArtistPage() {
 
         {/* Place of Birth */}
         <div style={{ marginBottom: 12 }}>
-          <label>Place of Birth</label>
+          <label htmlFor="artist-place-of-birth">Place of Birth</label>
           <input
+            id="artist-place-of-birth"
             value={placeOfBirth}
             onChange={e => setPlaceOfBirth(e.target.value)}
             className="entity-form-field"
@@ -141,8 +147,9 @@ export default function NewArtistPage() {
 
         {/* Place of Death */}
         <div style={{ marginBottom: 12 }}>
-          <label>Place of Death</label>
+          <label htmlFor="artist-place-of-death">Place of Death</label>
           <input
+            id="artist-place-of-death"
             value={placeOfDeath}
             onChange={e => setPlaceOfDeath(e.target.value)}
             className="entity-form-field"
@@ -152,8 +159,9 @@ export default function NewArtistPage() {
 
         {/* Notes */}
         <div style={{ marginBottom: 12 }}>
-          <label>Notes</label>
+          <label htmlFor="artist-notes">Notes</label>
           <textarea
+            id="artist-notes"
             rows={4}
             value={notes}
             onChange={e => setNotes(e.target.value)}
@@ -166,12 +174,12 @@ export default function NewArtistPage() {
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           
-            <button onClick={() => router.back()} className="edit-button">
+            <button type="button" onClick={() => router.back()} className="edit-button">
             Cancel
           </button>
 
-        <button onClick={handleSubmit} disabled={loading} className="entity-form-primary-button">
-          {loading ? 'Saving…' : 'Create artist'}
+        <button type="button" onClick={handleSubmit} disabled={loading} className="entity-form-primary-button">
+          {loading ? 'Saving…' : 'Save'}
         </button>
         </div>
 

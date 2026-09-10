@@ -3,13 +3,6 @@
 import Link from 'next/link'
 import styles from './HomeDashboard.module.css'
 
-type Artwork = { id: string; title?: string; artist?: string }
-
-type AdminHomeProps = {
-  artworks: Artwork[]
-  loadingArtworks: boolean
-}
-
 type DashboardLink = {
   href: string
   title: string
@@ -32,8 +25,6 @@ const collection: DashboardLink[] = [
   { href: '/commissions', title: 'Commissions', subtitle: 'Florac + GLM' },
 ]
 
-const library: DashboardLink = { href: '/library', title: 'Library', subtitle: 'Bibliothèque' }
-
 const management: DashboardLink[] = [
   { href: '/artworks/import-label', title: 'Import', subtitle: 'Import artwork labels' },
   { href: '/artworks/new', title: 'Add proposal', subtitle: 'Create a new artwork' },
@@ -44,6 +35,7 @@ const management: DashboardLink[] = [
 
 const tools: DashboardLink[] = [
   { href: '/market', title: 'Market', subtitle: 'Fairs and auctions' },
+  { href: '/library', title: 'Library', subtitle: 'Blondeau & Cie' },
   {
     href: 'https://buyerspremium.blondeau.ch/calculate.php',
     title: 'Buyers premium',
@@ -58,7 +50,7 @@ const tools: DashboardLink[] = [
   },
 ]
 
-export default function AdminHome({}: AdminHomeProps) {
+export default function AdminHome() {
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -91,12 +83,6 @@ export default function AdminHome({}: AdminHomeProps) {
             </div>
           </section>
 
-          <section className={`${styles.section} ${styles.toolsSection}`}>
-            <SectionHeading title="Library" description="Books and exhibition references" />
-            <div className={styles.toolsGrid}>
-              <DashboardCard item={library} compact />
-            </div>
-          </section>
         </div>
 
         <footer className={styles.footer}>
@@ -113,10 +99,10 @@ export default function AdminHome({}: AdminHomeProps) {
 function SectionHeading({
   title,
   description,
-}: {
+}: Readonly<{
   title: string
   description: string
-}) {
+}>) {
   return (
     <div className={styles.sectionHeading}>
       <div>
@@ -130,10 +116,10 @@ function SectionHeading({
 function DashboardCard({
   item,
   compact = false,
-}: {
+}: Readonly<{
   item: DashboardLink
   compact?: boolean
-}) {
+}>) {
   return (
     <Link
       href={item.href}

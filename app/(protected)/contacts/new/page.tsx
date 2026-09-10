@@ -183,7 +183,7 @@ export default function NewContactPage() {
           </button>
 
           <button onClick={handleSubmit} disabled={loading} className="entity-form-primary-button">
-            {loading ? 'Saving…' : 'Create contact'}
+            {loading ? 'Saving…' : 'Save'}
           </button>
         </div>
       </section>

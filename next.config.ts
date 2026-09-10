@@ -8,6 +8,11 @@ const nextConfig = {
         hostname: 'cdbtgjhbgswpdehqwjnn.supabase.co',
         pathname: '/storage/v1/object/public/artwork-images/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'covers.openlibrary.org',
+        pathname: '/b/isbn/**',
+      },
     ],
   },
   // 🔥 IMPORTANT → empêche génération statique

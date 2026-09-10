@@ -3,9 +3,38 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 import type { Artist, Contact } from '@/app/(protected)/types/artwork'
 import { LinkedText } from '@/components/ui/LinkedText'
+type ProfileRow = { id: string; email: string | null }
+type EntryRow = { created_at?: string | null; created_by?: string | null }
+type ContactSortKey = 'company' | 'first' | 'last' | 'city'
+type ReferenceSortKey = 'label' | 'detail' | 'secondary' | 'created_at' | 'created_by'
+type ReferenceKind = 'authors' | 'related-names' | 'types' | 'artist-categories'
+
+async function fetchProfileEmails(userIds: string[]) {
+  if (userIds.length === 0) return {} as Record<string, string>
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, email')
+    .in('id', userIds)
+
+  const rows = (data ?? []) as ProfileRow[]
+  return Object.fromEntries(rows.map((row) => [row.id, row.email ?? 'Utilisateur inconnu']))
+}
+
+function formatEntryMeta(
+  row: EntryRow,
+  emailById: Record<string, string>,
+  sourceLabel?: string,
+  legacyNo?: number | null
+) {
+  const legacyImported = typeof legacyNo === 'number' && legacyNo < 1000000
+  const enteredAt = legacyImported ? 'Import' : row.created_at ? new Date(row.created_at).toLocaleDateString('fr-CH') : 'Import'
+  const enteredBy = legacyImported ? 'Import' : row.created_by ? (emailById[row.created_by] ?? 'Utilisateur inconnu') : 'Import'
+  return `Entered at ${enteredAt} by ${enteredBy}${sourceLabel ? ` (${sourceLabel})` : ''}`
+}
 
 
 /* ======================
@@ -63,6 +92,52 @@ const editableFieldStyle: React.CSSProperties = {
   boxShadow: 'inset 0 1px 2px rgba(23, 63, 49, 0.05)',
 }
 
+const floatingActionBarStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 68,
+  right: 24,
+  zIndex: 1100,
+  display: 'flex',
+  gap: 12,
+  padding: 12,
+  borderRadius: 10,
+  backgroundColor: '#f3f5f1',
+  boxShadow: '0 8px 24px rgba(31,56,46,0.16)',
+}
+
+type ArtistSortKey = 'name' | 'category' | 'birth' | 'death' | 'record'
+const REFERENTIAL_PAGE_SIZE = 50
+
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, 'fr', { numeric: true, sensitivity: 'base' })
+}
+
+function compareMaybeNumber(left: number | null | undefined, right: number | null | undefined) {
+  if (left == null && right == null) return 0
+  if (left == null) return 1
+  if (right == null) return -1
+  return left - right
+}
+
+function getArtistDisplayName(artist: { first_name?: string | null; last_name?: string | null }) {
+  return [artist.last_name, artist.first_name].filter(Boolean).join(' ') || '—'
+}
+
+function getArtistRecordLabel(artist: { id: string }) {
+  const number = (artist as { legacy_no?: number | null }).legacy_no
+  if (typeof number !== 'number') return '—'
+  return String(number)
+}
+
+function getArtistRecordNumber(artist: { legacy_no?: number | null }) {
+  return typeof artist.legacy_no === 'number' ? artist.legacy_no : null
+}
+
+function sortLabel(label: string, isActive: boolean, direction: 'asc' | 'desc') {
+  if (!isActive) return label
+  return `${label} ${direction === 'asc' ? '↑' : '↓'}`
+}
+
 
 
 
@@ -71,39 +146,82 @@ const editableFieldStyle: React.CSSProperties = {
    ====================== */
 
 function ArtistsSection() {
-  const [artists, setArtists] = useState<Artist[]>([])
+  const [artists, setArtists] = useState<Array<Artist & { legacy_no?: number | null; created_at?: string | null; created_by?: string | null; source?: string | null }>>([])
   const [artistCategories, setArtistCategories] = useState<Array<{ legacy_no: number; description: string; definition: string | null }>>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [artist, setArtist] = useState<Artist | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
   const [artistSearch, setArtistSearch] = useState('')
+  const [artistSortKey, setArtistSortKey] = useState<ArtistSortKey>('name')
+  const [artistSortDirection, setArtistSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [visibleCount, setVisibleCount] = useState(REFERENTIAL_PAGE_SIZE)
 
-const filteredArtists = artists.filter(a => {
-  const label = [a.last_name, a.first_name]
+const filteredArtists = artists.filter((artistRow) => {
+  const searchable = [
+    artistRow.last_name,
+    artistRow.first_name,
+    String(artistRow.year_of_birth ?? ''),
+    String(artistRow.year_of_death ?? ''),
+    String(artistRow.artist_category_no ?? ''),
+    artistRow.id,
+  ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
 
-  return label.includes(artistSearch.toLowerCase())
+  return searchable.includes(artistSearch.toLowerCase())
 })
 
+const sortedArtists = [...filteredArtists].sort((left, right) => {
+  const direction = artistSortDirection === 'asc' ? 1 : -1
 
+  let comparison = 0
+  if (artistSortKey === 'name') {
+    comparison = compareText(getArtistDisplayName(left), getArtistDisplayName(right))
+  } else if (artistSortKey === 'category') {
+    const leftCategory = artistCategories.find((category) => category.legacy_no === left.artist_category_no)?.description ?? ''
+    const rightCategory = artistCategories.find((category) => category.legacy_no === right.artist_category_no)?.description ?? ''
+    comparison = compareText(leftCategory || '—', rightCategory || '—')
+  } else if (artistSortKey === 'birth') {
+    comparison = compareMaybeNumber(left.year_of_birth ?? null, right.year_of_birth ?? null)
+  } else if (artistSortKey === 'death') {
+    comparison = compareMaybeNumber(left.year_of_death ?? null, right.year_of_death ?? null)
+  } else {
+    comparison = compareMaybeNumber(getArtistRecordNumber(left), getArtistRecordNumber(right))
+  }
 
+  if (comparison === 0) {
+    comparison = compareText(getArtistDisplayName(left), getArtistDisplayName(right))
+  }
+
+  return comparison * direction
+})
+
+function toggleArtistSort(key: ArtistSortKey) {
+  if (artistSortKey === key) {
+    setArtistSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    return
+  }
+
+  setArtistSortKey(key)
+  setArtistSortDirection(key === 'record' ? 'desc' : 'asc')
+}
 
 useEffect(() => {
   supabase
     .from('artists')
-    .select('*')
+    .select('id, legacy_no, first_name, last_name, year_of_birth, year_of_death, place_of_birth, place_of_death, notes, artist_category_no, created_at, source')
     .order('last_name', { ascending: true })
     .then(({ data, error }) => {
       if (error) {
         console.error(error)
         setArtists([])
       } else {
-        setArtists(data ?? [])
+        setArtists((data ?? []) as Array<Artist & { created_at?: string | null; created_by?: string | null; source?: string | null }>)
       }
     })
 }, [])
+
+useEffect(() => {
+  setVisibleCount(REFERENTIAL_PAGE_SIZE)
+}, [artistSearch, artistSortKey, artistSortDirection])
 
 useEffect(() => {
   supabase
@@ -114,60 +232,6 @@ useEffect(() => {
       if (!error) setArtistCategories(data ?? [])
     })
 }, [])
-
-
-
-
-  useEffect(() => {
-    if (!isEditing) {
-      setArtist(
-        artists.find(a => a.id === selectedId) || null
-      )
-    }
-  }, [selectedId, artists, isEditing])
-
-async function save() {
-  if (!artist || !artist.id) return
-
-  const { id, ...payload } = artist
-
-  const { error } = await supabase
-    .from('artists')
-    .update(payload)
-    .eq('id', id)
-
-  if (error) {
-    console.error('Update artist failed:', error)
-    alert('Save failed')
-    return
-  }
-
-  setArtists(list =>
-    list.map(a => (a.id === id ? artist : a))
-  )
-  setIsEditing(false)
-}
-
-
-async function remove() {
-  if (!artist || !confirm('Delete this artist?')) return
-
-  const { error } = await supabase
-    .from('artists')
-    .delete()
-    .eq('id', artist.id)
-
-  if (error) {
-    console.error('Delete artist failed:', error)
-    alert('Delete failed')
-    return
-  }
-
-  setArtists(list => list.filter(a => a.id !== artist.id))
-  setSelectedId(null)
-  setArtist(null)
-  setIsEditing(false)
-}
 
 
 
@@ -188,41 +252,14 @@ async function remove() {
 
 
 
-<div
-  style={{
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 12,
-  }}
->
-  {/* ✅ ADD ARTIST */}
+<div style={floatingActionBarStyle}>
   <button
+    type="button"
     onClick={() => window.open('/artists/new', '_self')}
     className="edit-button"
   >
-    + Add artist
+    Add artist
   </button>
-
-  {isEditing && (
-    <button
-      onClick={remove}
-      
-      disabled={!artist || !artist.id}
-      className="edit-button"
-    >
-      Delete
-    </button>
-  )}
-
-  {isEditing && (
-    <button
-      onClick={save}
-      disabled={!artist || !artist.id}
-      className="edit-button"
-    >
-      Save
-    </button>
-  )}
 </div>
 
     
@@ -245,191 +282,113 @@ async function remove() {
 </div>
 
 
-<InlineRow label="Search">
-  <input
-    type="text"
-    placeholder="Search artist…"
-    value={artistSearch}
-    onChange={e => setArtistSearch(e.target.value)}
-    className="referential-field"
-    style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
-  />
-</InlineRow>
-
-
-      <InlineRow label="Artist">
-        <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
-          {filteredArtists.slice(0, 100).map(a => (
-            <Link key={a.id} href={`/artists/${a.id}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 16, width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}>
-              <span>{[a.last_name, a.first_name].filter(Boolean).join(' ') || '—'}</span>
-              <span style={{ color: '#62736c', textAlign: 'right' }}>{artistCategories.find(category => category.legacy_no === a.artist_category_no)?.description ?? '—'} · {a.year_of_birth ?? '—'}–{a.year_of_death ?? '—'}</span>
-            </Link>
-          ))}
-          {filteredArtists.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
-        </div>
-      </InlineRow>
-
-      {artist && (
-        <>
-          <InlineRow label="First name">
-            {isEditing ? (
+      <div style={{ marginBottom: 18, display: 'grid', gap: 14 }}>
+        <InlineRow label="Search">
           <input
-            className="referential-edit-field"
-            style={editableFieldStyle}
-            value={artist.first_name ?? ''}
-            onChange={e =>
-              setArtist({ ...artist, first_name: e.target.value })
-            }
+            type="text"
+            placeholder="Search artist, year, category or record…"
+            value={artistSearch}
+            onChange={(event) => setArtistSearch(event.target.value)}
+            className="referential-field"
+            style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
           />
+        </InlineRow>
 
-            ) : (
-              artist.first_name
-            )}
-          </InlineRow>
+        <div style={{ overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
+          <div role="table" aria-label="Artists" style={{ minWidth: 840 }}>
+            <div role="row" style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 1.4fr) minmax(180px, 1fr) 110px 110px 130px' }}>
+              {([
+                ['name', 'Name'],
+                ['category', 'Category'],
+                ['birth', 'Birth'],
+                ['death', 'Death'],
+                ['record', 'Record'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => toggleArtistSort(key)}
+                  className="referential-field"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px',
+                    border: 'none',
+                    borderBottom: '1px solid #e4e9e6',
+                    background: '#f8fbf8',
+                    color: '#173f31',
+                    fontWeight: 700,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>{label}</span>
+                  {artistSortKey === key && <span aria-hidden="true">{artistSortDirection === 'asc' ? '↑' : '↓'}</span>}
+                </button>
+              ))}
+            </div>
 
-          <InlineRow label="Last name">
-            {isEditing ? (
-              <input
-                className="referential-edit-field"
-                style={editableFieldStyle}
-                value={artist.last_name ?? ''}
-                onChange={e =>
-                  setArtist({ ...artist, last_name: e.target.value })
-                }
-              />
-            ) : (
-              artist.last_name
-            )}
-          </InlineRow>
+            {sortedArtists.slice(0, visibleCount).map((artistRow) => {
+              const categoryLabel = artistCategories.find((category) => category.legacy_no === artistRow.artist_category_no)?.description ?? '—'
 
-          
-<InlineRow label="Year of birth">
-  {isEditing ? (
-    <input
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      type="number"
-      value={artist.year_of_birth ?? ''}
-      onChange={e =>
-        setArtist({
-          ...artist,
-          year_of_birth: e.target.value
-            ? Number(e.target.value)
-            : null,
-        })
-      }
-    />
-  ) : (
-    artist.year_of_birth ?? '—'
-  )}
-</InlineRow>
+              return (
+                <Link
+                  key={artistRow.id}
+                  href={`/artists/${artistRow.id}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(240px, 1.4fr) minmax(180px, 1fr) 110px 110px 130px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    width: '100%',
+                    border: 'none',
+                    padding: 0,
+                    background: 'transparent',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#173f31', background: '#fff' }}>
+                    {getArtistDisplayName(artistRow)}
+                  </span>
+                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }}>
+                    {categoryLabel}
+                  </span>
+                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }}>
+                    {artistRow.year_of_birth ?? '—'}
+                  </span>
+                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }}>
+                    {artistRow.year_of_death ?? '—'}
+                  </span>
+                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }} title={artistRow.id}>
+                    {getArtistRecordLabel(artistRow)}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
 
-<InlineRow label="Year of death">
-  {isEditing ? (
-    <input
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      type="number"
-      value={artist.year_of_death ?? ''}
-      onChange={e =>
-        setArtist({
-          ...artist,
-          year_of_death: e.target.value
-            ? Number(e.target.value)
-            : null,
-        })
-      }
-    />
-  ) : (
-    artist.year_of_death ?? '—'
-  )}
-</InlineRow>
-
-<InlineRow label="Category">
-  {isEditing ? (
-    <select
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      value={artist.artist_category_no ?? ''}
-      onChange={e =>
-        setArtist({
-          ...artist,
-          artist_category_no: e.target.value ? Number(e.target.value) : null,
-        })
-      }
-    >
-      <option value="">—</option>
-      {artistCategories.map(category => (
-        <option key={category.legacy_no} value={category.legacy_no}>
-          {category.description}
-        </option>
-      ))}
-    </select>
-  ) : (
-    artistCategories.find(category => category.legacy_no === artist.artist_category_no)?.description ?? '—'
-  )}
-</InlineRow>
-
-
-<InlineRow label="Place of birth">
-  {isEditing ? (
-    <input
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      value={artist.place_of_birth ?? ''}
-      onChange={e =>
-        setArtist({
-          ...artist,
-          place_of_birth: e.target.value,
-        })
-      }
-    />
-  ) : (
-    artist.place_of_birth ?? '—'
-  )}
-</InlineRow>
-
-<InlineRow label="Place of death">
-  {isEditing ? (
-    <input
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      value={artist.place_of_death ?? ''}
-      onChange={e =>
-        setArtist({
-          ...artist,
-          place_of_death: e.target.value,
-        })
-      }
-    />
-  ) : (
-    artist.place_of_death ?? '—'
-  )}
-</InlineRow>
-
-
-<InlineRow label="Notes">
-  {isEditing ? (
-    <textarea
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      rows={4}
-      value={artist.notes ?? ''}
-      onChange={e =>
-        setArtist({
-          ...artist,
-          notes: e.target.value,
-        })
-      }
-    />
-  ) : (
-    artist.notes ? <LinkedText text={artist.notes} /> : '—'
-  )}
-</InlineRow>
-
-
-        </>
-      )}
+          {sortedArtists.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching artists.</p>}
+          {visibleCount < sortedArtists.length && (
+            <div className="no-print" style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: 12, borderTop: '1px solid #e4e9e6' }}>
+              <button
+                type="button"
+                className="edit-button"
+                onClick={() => setVisibleCount((current) => Math.min(current + REFERENTIAL_PAGE_SIZE, sortedArtists.length))}
+              >
+                {`Load more results (+${Math.min(REFERENTIAL_PAGE_SIZE, sortedArtists.length - visibleCount)})`}
+              </button>
+              <button
+                type="button"
+                className="edit-button"
+                onClick={() => setVisibleCount(sortedArtists.length)}
+              >
+                {`Load all (${sortedArtists.length})`}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   )
 }
@@ -444,17 +403,60 @@ function ContactsSection() {
   const [contact, setContact] = useState<Contact | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [contactSearch, setContactSearch] = useState('')
+  const [contactSortKey, setContactSortKey] = useState<ContactSortKey>('company')
+  const [contactSortDirection, setContactSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [visibleCount, setVisibleCount] = useState(REFERENTIAL_PAGE_SIZE)
+
+  function formatContactListLabel(contactRow: Contact) {
+    const parts = [
+      contactRow.company_name || null,
+      contactRow.first_name || null,
+      contactRow.last_name || null,
+      contactRow.city || null,
+    ].filter(Boolean)
+
+    return parts.length > 0 ? parts.join(' - ') : '—'
+  }
+
+  function toggleContactSort(key: ContactSortKey) {
+    if (contactSortKey === key) {
+      setContactSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setContactSortKey(key)
+    setContactSortDirection('asc')
+  }
 
   
 const filteredContacts = contacts.filter(c => {
-  const label = (
-    c.company_name ||
-    [c.last_name, c.first_name].filter(Boolean).join(' ')
-  )
+  const label = [c.company_name, c.first_name, c.last_name, c.city, c.email]
+    .filter(Boolean)
+    .join(' ')
     .toLowerCase()
 
   return label.includes(contactSearch.toLowerCase())
 })
+
+  const sortedContacts = [...filteredContacts].sort((left, right) => {
+    const direction = contactSortDirection === 'asc' ? 1 : -1
+    const leftValue = contactSortKey === 'company'
+      ? left.company_name || ''
+      : contactSortKey === 'first'
+        ? left.first_name || ''
+        : contactSortKey === 'last'
+          ? left.last_name || ''
+          : left.city || ''
+    const rightValue = contactSortKey === 'company'
+      ? right.company_name || ''
+      : contactSortKey === 'first'
+        ? right.first_name || ''
+        : contactSortKey === 'last'
+          ? right.last_name || ''
+          : right.city || ''
+
+    return leftValue.localeCompare(rightValue, 'fr', { numeric: true, sensitivity: 'base' }) * direction
+  })
 
 
 
@@ -473,6 +475,10 @@ useEffect(() => {
       }
     })
 }, [])
+
+  useEffect(() => {
+    setVisibleCount(REFERENTIAL_PAGE_SIZE)
+  }, [contactSearch, contactSortKey, contactSortDirection])
 
 
 async function save() {
@@ -543,24 +549,19 @@ async function remove() {
     >
       
 
-<div
-  style={{
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 12,
-  }}
->
-  {/* ✅ ADD CONTACT */}
+<div style={floatingActionBarStyle}>
   <button
+    type="button"
     onClick={() => window.open('/contacts/new', '_self')} className="edit-button"
   >
-    + Add contact
+    Add contact
   </button>
 
   {isEditing && (
     <button
+      type="button"
       onClick={remove}
-       disabled={!contact || !contact.id} className="edit-button"
+      disabled={!contact?.id} className="edit-button edit-button-danger"
     >
       Delete
     </button>
@@ -568,8 +569,9 @@ async function remove() {
 
   {isEditing && (
     <button
+      type="button"
       onClick={save}
-      disabled={!contact || !contact.id}
+      disabled={!contact?.id}
       className="edit-button"
     >
       Save
@@ -607,17 +609,71 @@ async function remove() {
 </InlineRow>
 
 
-      <InlineRow label="Contact">
-        <div style={{ maxHeight: 280, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
-          {filteredContacts.slice(0, 100).map(c => (
-            <Link key={c.id} href={`/contacts/${c.id}/edit`} style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 16, width: '100%', padding: '10px 12px', borderBottom: '1px solid #e4e9e6', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}>
-              <span>{c.company_name || [c.last_name, c.first_name].filter(Boolean).join(' ') || '—'}</span>
-              <span style={{ color: '#62736c', textAlign: 'right' }}>{[c.city, c.role].filter(Boolean).join(' · ') || '—'}</span>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ overflowX: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
+          <div role="row" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(160px, 1fr)' }}>
+            {([
+              ['company', 'Company'],
+              ['first', 'First name'],
+              ['last', 'Last name'],
+              ['city', 'City'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleContactSort(key)}
+                className="referential-field"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px',
+                  border: 'none',
+                  borderBottom: '1px solid #e4e9e6',
+                  background: '#f8fbf8',
+                  color: '#173f31',
+                  fontWeight: 700,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>{label}</span>
+                {contactSortKey === key && <span aria-hidden="true">{contactSortDirection === 'asc' ? '↑' : '↓'}</span>}
+              </button>
+            ))}
+          </div>
+          {sortedContacts.slice(0, visibleCount).map((c) => (
+            <Link
+              key={c.id}
+              href={`/contacts/${c.id}/edit`}
+              style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(160px, 1fr)', width: '100%', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}
+            >
+              <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.company_name || '—'}</span>
+              <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.first_name || '—'}</span>
+              <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.last_name || '—'}</span>
+              <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.city || '—'}</span>
             </Link>
           ))}
-          {filteredContacts.length > 100 && <p style={{ padding: 10, margin: 0, color: '#62736c', fontSize: 12 }}>Showing first 100 results. Refine the search to see more.</p>}
         </div>
-      </InlineRow>
+        {visibleCount < sortedContacts.length && (
+          <div className="no-print" style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: 12 }}>
+            <button
+              type="button"
+              className="edit-button"
+              onClick={() => setVisibleCount((current) => Math.min(current + REFERENTIAL_PAGE_SIZE, sortedContacts.length))}
+            >
+              {`Load more results (+${Math.min(REFERENTIAL_PAGE_SIZE, sortedContacts.length - visibleCount)})`}
+            </button>
+            <button
+              type="button"
+              className="edit-button"
+              onClick={() => setVisibleCount(sortedContacts.length)}
+            >
+              {`Load all (${sortedContacts.length})`}
+            </button>
+          </div>
+        )}
+      </div>
 
       {contact && (
         <>
@@ -771,24 +827,43 @@ async function remove() {
   )
 }
 
-function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' | 'types' | 'artist-categories' }) {
+function LibraryReferenceSection({ kind }: { kind: ReferenceKind }) {
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
+  const [profileEmails, setProfileEmails] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<ReferenceSortKey>('label')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [visibleCount, setVisibleCount] = useState(REFERENTIAL_PAGE_SIZE)
+
+  useEffect(() => {
+    setSortKey('label')
+    setSortDirection('asc')
+    setVisibleCount(REFERENTIAL_PAGE_SIZE)
+  }, [kind])
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       setLoading(true)
       const result = kind === 'authors'
-        ? await supabase.from('library_authors').select('legacy_no, first_name, last_name').order('legacy_no', { ascending: true }).limit(10000)
+        ? await supabase.from('library_authors').select('legacy_no, first_name, last_name, created_at, created_by').order('legacy_no', { ascending: false }).limit(10000)
         : kind === 'related-names'
-          ? await supabase.from('library_related_names').select('legacy_no, name, location').order('legacy_no', { ascending: true }).limit(10000)
+          ? await supabase.from('library_related_names').select('legacy_no, name, location, created_at, created_by').order('legacy_no', { ascending: false }).limit(10000)
           : kind === 'types'
-            ? await supabase.from('library_book_types').select('legacy_no, type_number, description, full_name').order('legacy_no', { ascending: true }).limit(10000)
-            : await supabase.from('artist_categories').select('legacy_no, description, definition').order('legacy_no', { ascending: true }).limit(10000)
+            ? await supabase.from('library_book_types').select('legacy_no, type_number, description, full_name, created_at, created_by').order('legacy_no', { ascending: false }).limit(10000)
+            : await supabase.from('artist_categories').select('legacy_no, description, definition, created_at, created_by').order('legacy_no', { ascending: false }).limit(10000)
       if (!cancelled) {
-        setRows((result.data ?? []) as Array<Record<string, unknown>>)
+        const dataRows = (result.data ?? []) as Array<Record<string, unknown>>
+        setRows(dataRows)
+        const userIds = Array.from(
+          new Set(
+            dataRows
+              .map((row) => row.created_by)
+              .filter((value): value is string => typeof value === 'string' && value.length > 0)
+          )
+        )
+        setProfileEmails(await fetchProfileEmails(userIds))
         setLoading(false)
       }
     }
@@ -796,11 +871,139 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
     return () => { cancelled = true }
   }, [kind])
 
-  const filteredRows = rows.filter((row) =>
-    Object.values(row).some((value) => String(value ?? '').toLowerCase().includes(query.toLowerCase()))
-  )
   const title = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : kind === 'types' ? 'Type of books' : 'Artist categories'
-  const recordLabel = kind === 'authors' ? 'Authors' : kind === 'related-names' ? 'Related names' : kind === 'types' ? 'Type of books' : 'Artist categories'
+
+  const normalizedRows = rows.map((row) => {
+    const legacyNo = typeof row.legacy_no === 'number' ? row.legacy_no : Number(row.legacy_no)
+    const createdAt = typeof row.created_at === 'string' ? row.created_at : null
+    const createdBy = typeof row.created_by === 'string' ? profileEmails[row.created_by] ?? 'Utilisateur inconnu' : '—'
+
+    if (kind === 'authors') {
+      return {
+        row,
+        label: [row.last_name, row.first_name].filter(Boolean).join(' ') || '—',
+        detail: typeof row.legacy_no === 'number' ? String(row.legacy_no) : '—',
+        secondary: '',
+        legacyNo,
+        createdAt,
+        createdBy,
+      }
+    }
+
+    if (kind === 'related-names') {
+      return {
+        row,
+        label: (row.name as string | null | undefined) || '—',
+        detail: (row.location as string | null | undefined) || '—',
+        secondary: typeof row.legacy_no === 'number' ? String(row.legacy_no) : '—',
+        legacyNo,
+        createdAt,
+        createdBy,
+      }
+    }
+
+    if (kind === 'types') {
+      return {
+        row,
+        label: (row.type_number as string | null | undefined) || '—',
+        detail: (row.description as string | null | undefined) || '—',
+        secondary: (row.full_name as string | null | undefined) || '—',
+        legacyNo,
+        createdAt,
+        createdBy,
+      }
+    }
+
+    return {
+      row,
+      label: (row.description as string | null | undefined) || '—',
+      detail: '',
+      secondary: '',
+      legacyNo,
+      createdAt,
+      createdBy,
+    }
+  })
+
+  const filteredRows = normalizedRows.filter((item) =>
+    [item.label, item.detail, item.secondary, String(item.legacyNo ?? ''), item.createdAt ? new Date(item.createdAt).toLocaleDateString('fr-CH') : '', item.createdBy]
+      .join(' ')
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  )
+
+  useEffect(() => {
+    setVisibleCount(REFERENTIAL_PAGE_SIZE)
+  }, [query, sortKey, sortDirection])
+
+  const sortedRows = [...filteredRows].sort((left, right) => {
+    const direction = sortDirection === 'asc' ? 1 : -1
+    let comparison = 0
+
+    if (sortKey === 'label') {
+      comparison = compareText(left.label, right.label)
+    } else if (sortKey === 'detail') {
+      comparison = compareText(left.detail, right.detail)
+    } else if (sortKey === 'secondary') {
+      comparison = compareText(left.secondary, right.secondary)
+    } else if (sortKey === 'created_at') {
+      comparison = compareMaybeNumber(left.createdAt ? new Date(left.createdAt).getTime() : null, right.createdAt ? new Date(right.createdAt).getTime() : null)
+    } else {
+      comparison = compareText(left.createdBy, right.createdBy)
+    }
+
+    if (comparison === 0) {
+      comparison = compareText(left.label, right.label)
+    }
+
+    return comparison * direction
+  })
+
+  const columns = kind === 'authors'
+    ? [
+        { key: 'label' as const, label: 'Name', width: 'minmax(240px, 1.2fr)' },
+        { key: 'detail' as const, label: 'Number', width: '120px' },
+        { key: 'created_at' as const, label: 'Created on', width: '160px' },
+        { key: 'created_by' as const, label: 'Created by', width: 'minmax(220px, 1fr)' },
+      ]
+    : kind === 'related-names'
+      ? [
+          { key: 'label' as const, label: 'Name', width: 'minmax(220px, 1fr)' },
+          { key: 'detail' as const, label: 'Location', width: 'minmax(180px, 1fr)' },
+          { key: 'secondary' as const, label: 'Number', width: '120px' },
+          { key: 'created_at' as const, label: 'Created on', width: '160px' },
+          { key: 'created_by' as const, label: 'Created by', width: 'minmax(220px, 1fr)' },
+        ]
+      : kind === 'types'
+        ? [
+            { key: 'label' as const, label: 'Type number', width: 'minmax(160px, 0.8fr)' },
+            { key: 'detail' as const, label: 'Description', width: 'minmax(220px, 1fr)' },
+            { key: 'secondary' as const, label: 'Full name', width: 'minmax(240px, 1.2fr)' },
+            { key: 'created_at' as const, label: 'Created on', width: '160px' },
+            { key: 'created_by' as const, label: 'Created by', width: 'minmax(220px, 1fr)' },
+          ]
+        : [
+            { key: 'label' as const, label: 'Description', width: 'minmax(320px, 1.6fr)' },
+            { key: 'created_at' as const, label: 'Created on', width: '160px' },
+            { key: 'created_by' as const, label: 'Created by', width: 'minmax(220px, 1fr)' },
+          ]
+
+  const gridTemplateColumns = columns.map((column) => column.width).join(' ')
+
+  function toggleSort(key: ReferenceSortKey) {
+    if (sortKey === key) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(key)
+    setSortDirection('asc')
+  }
+
+  function displayDate(value: string | null) {
+    if (!value) return '—'
+    return new Date(value).toLocaleDateString('fr-CH')
+  }
 
   return (
     <section className="referential-card" style={{ padding: 26, border: '1px solid #d7dfda', borderRadius: 12, backgroundColor: '#fff', boxShadow: '0 10px 28px rgba(31,56,46,0.06)', color: 'black' }}>
@@ -810,7 +1013,9 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
             <h2 style={{ margin: 0, color: '#173f31', fontSize: '1.65rem' }}>{title}</h2>
             <span className="referential-count-badge">{rows.length}</span>
           </div>
-          <Link className="edit-button" href={`/referentials/new?kind=${kind}`}>+ Add {title.toLowerCase()}</Link>
+          <div style={floatingActionBarStyle}>
+            <Link className="edit-button" href={`/referentials/new?kind=${kind}`}>Add {title.toLowerCase()}</Link>
+          </div>
         </div>
         <p>Browse the library reference data.</p>
       </div>
@@ -818,19 +1023,82 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
         <input className="referential-field" style={{ width: '100%' }} type="search" placeholder={`Search ${title.toLowerCase()}…`} value={query} onChange={(event) => setQuery(event.target.value)} />
       </InlineRow>
       {loading ? <p style={{ marginTop: 18 }}>Loading…</p> : (
-        <div style={{ marginTop: 18, maxHeight: 620, overflow: 'auto', border: '1px solid #d7dfda', borderRadius: 8 }}>
-          {filteredRows.map((row, index) => {
-            const label = kind === 'authors'
-              ? [row.last_name, row.first_name].filter(Boolean).join(' ')
-              : kind === 'related-names'
-                ? row.name || '—'
-                : row.full_name || row.description || row.type_number || '—'
-            const path = kind === 'authors' ? 'authors' : kind === 'related-names' ? 'related-names' : kind === 'types' ? 'types' : 'artist-categories'
-            const detail = kind === 'authors' ? row.legacy_no : kind === 'related-names' ? row.location : kind === 'types' ? row.description : row.definition
-            return <Link key={`${String(row.legacy_no)}-${index}`} href={`/${path}/${row.legacy_no}/edit`} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(160px, 1fr) 180px', gap: 16, padding: '10px 12px', borderBottom: '1px solid #e4e9e6', fontSize: 16, color: '#173f31', textDecoration: 'none' }}><span>{String(label)}</span><span style={{ color: '#62736c' }}>{String(detail ?? '—')}</span><span style={{ color: '#62736c', textAlign: 'right' }}>{recordLabel}</span></Link>
-          })}
-          {filteredRows.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching records.</p>}
-        </div>
+        <>
+          <div style={{ marginTop: 18, overflowX: 'auto', border: '1px solid #d7dfda', borderRadius: 8 }}>
+            <div role="row" style={{ display: 'grid', gridTemplateColumns }}>
+              {columns.map((column) => (
+                <button
+                  key={column.key}
+                  type="button"
+                  onClick={() => toggleSort(column.key)}
+                  className="referential-field"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '12px',
+                    border: 'none',
+                    borderBottom: '1px solid #e4e9e6',
+                    background: '#f8fbf8',
+                    color: '#173f31',
+                    fontWeight: 700,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span>{column.label}</span>
+                  {sortKey === column.key && <span aria-hidden="true">{sortDirection === 'asc' ? '↑' : '↓'}</span>}
+                </button>
+              ))}
+            </div>
+            {sortedRows.slice(0, visibleCount).map((item, index) => {
+              const path = kind === 'authors' ? 'authors' : kind === 'related-names' ? 'related-names' : kind === 'types' ? 'types' : 'artist-categories'
+              const href = `/${path}/${item.legacyNo}/edit`
+
+              return (
+                <Link
+                  key={`${String(item.legacyNo)}-${index}`}
+                  href={href}
+                  style={{ display: 'grid', gridTemplateColumns, gap: 0, padding: 0, borderBottom: '1px solid #e4e9e6', fontSize: 16, color: '#173f31', textDecoration: 'none' }}
+                >
+                  <span style={{ padding: '10px 12px' }}>{item.label}</span>
+                  {kind === 'authors' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.detail}</span>}
+                  {kind === 'related-names' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.detail}</span>}
+                  {kind === 'types' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.detail}</span>}
+                  {kind === 'types' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.secondary}</span>}
+                  {kind === 'related-names' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.secondary}</span>}
+                  {kind === 'authors' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{displayDate(item.createdAt)}</span>}
+                  {kind === 'related-names' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{displayDate(item.createdAt)}</span>}
+                  {kind === 'types' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{displayDate(item.createdAt)}</span>}
+                  {kind === 'artist-categories' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{displayDate(item.createdAt)}</span>}
+                  {kind === 'authors' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.createdBy}</span>}
+                  {kind === 'related-names' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.createdBy}</span>}
+                  {kind === 'types' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.createdBy}</span>}
+                  {kind === 'artist-categories' && <span style={{ padding: '10px 12px', color: '#62736c' }}>{item.createdBy}</span>}
+                </Link>
+              )
+            })}
+            {sortedRows.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching records.</p>}
+          </div>
+          {visibleCount < sortedRows.length && (
+            <div className="no-print" style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: 12 }}>
+              <button
+                type="button"
+                className="edit-button"
+                onClick={() => setVisibleCount((current) => Math.min(current + REFERENTIAL_PAGE_SIZE, sortedRows.length))}
+              >
+                {`Load more results (+${Math.min(REFERENTIAL_PAGE_SIZE, sortedRows.length - visibleCount)})`}
+              </button>
+              <button
+                type="button"
+                className="edit-button"
+                onClick={() => setVisibleCount(sortedRows.length)}
+              >
+                {`Load all (${sortedRows.length})`}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </section>
   )
@@ -841,10 +1109,23 @@ function LibraryReferenceSection({ kind }: { kind: 'authors' | 'related-names' |
    ====================== */
 
 export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | 'contacts' | 'both' }) {
+  const params = useSearchParams()
+  const sectionParam = params.get('section')
+  const querySection = sectionParam === 'artists' || sectionParam === 'contacts' || sectionParam === 'authors' || sectionParam === 'related-names' || sectionParam === 'types' || sectionParam === 'artist-categories'
+    ? sectionParam
+    : null
+
+  const initialSection = querySection
+    ? querySection
+    : section === 'contacts'
+      ? 'contacts'
+      : 'artists'
+
   const [activeSection, setActiveSection] = useState<'artists' | 'contacts' | 'authors' | 'related-names' | 'types' | 'artist-categories'>(
-    section === 'contacts' ? 'contacts' : 'artists'
+    initialSection
   )
   const isCombined = section === 'both'
+
   return (
     <main
       style={{
