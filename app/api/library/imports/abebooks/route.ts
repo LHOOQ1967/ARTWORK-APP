@@ -10,11 +10,11 @@ type AbeBooksPrefill = {
   publication_year: number | null
   search_author: string | null
   search_publisher: string | null
+  publisher_search_hint: string | null
   publisher_no: number | null
   author_links: Array<{ author_id: string; label: string; is_default: boolean }>
   artist_links: Array<{ artist_id: string; label: string; is_default: boolean }>
   remarks: string | null
-  openlibrary_note: string | null
 }
 
 type CatalogAuthor = { id: string; legacy_no: number; first_name: string | null; last_name: string | null }
@@ -78,29 +78,61 @@ function tokenKeys(token: string) {
   return [normalized, signature].filter(Boolean)
 }
 
+// Reorders a single "Lastname, Firstname" segment (AbeBooks' most common byline format).
+// Segments with more than one comma are treated as alternating Last, First pairs.
+function reorderCommaSegment(segment: string): string[] {
+  const commaParts = segment.split(',').map((part) => part.trim()).filter(Boolean)
+
+  if (commaParts.length === 2) {
+    return [`${commaParts[1]} ${commaParts[0]}`]
+  }
+  if (commaParts.length > 2 && commaParts.length % 2 === 0) {
+    const pairs: string[] = []
+    for (let i = 0; i < commaParts.length; i += 2) {
+      pairs.push(`${commaParts[i + 1]} ${commaParts[i]}`)
+    }
+    return pairs
+  }
+  return [commaParts.join(' ')]
+}
+
 function splitPeople(raw: string) {
   const cleaned = raw
     .replace(/\((hg|hrsg|ed|eds|editor|editors)\.?\)/gi, ' ')
     .replace(/\b(hg|hrsg|ed|eds|editor|editors)\.?\b/gi, ' ')
-    .replace(/(^|\s)(et|and|und)(\s|$)/gi, ',')
 
-  const baseTokens = cleaned
-    .split(/[,;/|+&]+|\.(?=\s+[A-Z0-9]|\s*$)/)
-    .map((token) => token.trim())
+  // Strong separators split distinct people; commas are handled per-group afterwards
+  // since AbeBooks often writes a single person as "Lastname, Firstname".
+  const groups = cleaned
+    .split(/;|\/|\||\+|&|\b(?:and|et|und)\b/gi)
+    .map((group) => group.trim())
     .filter(Boolean)
 
-  // AbeBooks sometimes formats authors like "Doris und Jessica Morgan. Krytof".
-  // In that shape we infer "Doris Krytof" in addition to "Jessica Morgan".
-  if (/(^|\s)(and|et|und)(\s|$)/i.test(raw) && baseTokens.length >= 3) {
-    const first = baseTokens[0] ?? ''
-    const second = baseTokens[1] ?? ''
-    const third = baseTokens[2] ?? ''
-    if (first.split(/\s+/).length === 1 && second.split(/\s+/).length >= 2 && third.split(/\s+/).length === 1) {
-      baseTokens.push(`${first} ${third}`)
+  const people: string[] = []
+
+  for (const group of groups) {
+    const periodParts = group
+      .split(/\.(?=\s+[A-Z0-9]|\s*$)/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+
+    for (const part of periodParts) {
+      people.push(...reorderCommaSegment(part))
     }
   }
 
-  return baseTokens
+  // AbeBooks sometimes formats authors like "Doris und Jessica Morgan. Krytof".
+  // In that shape we infer "Doris Krytof" in addition to "Jessica Morgan".
+  if (/\b(and|et|und)\b/i.test(raw) && people.length >= 3) {
+    const first = people[0] ?? ''
+    const second = people[1] ?? ''
+    const third = people[2] ?? ''
+    if (first.split(/\s+/).length === 1 && second.split(/\s+/).length >= 2 && third.split(/\s+/).length === 1) {
+      people.push(`${first} ${third}`)
+    }
+  }
+
+  return people.filter(Boolean)
 }
 
 function personDisplayName(person: { first_name: string | null; last_name: string | null }) {
@@ -209,8 +241,10 @@ function flattenJsonLdBlocks(blocks: unknown[]): Record<string, unknown>[] {
 
 function asStringArray(value: unknown): string[] {
   if (typeof value === 'string') return [value]
-  if (!Array.isArray(value)) return []
-  return value
+  if (!value || typeof value !== 'object') return []
+  // schema.org allows a single Person/Organization object instead of an array.
+  const items = Array.isArray(value) ? value : [value]
+  return items
     .map((entry) => {
       if (typeof entry === 'string') return entry
       if (!entry || typeof entry !== 'object') return ''
@@ -222,8 +256,9 @@ function asStringArray(value: unknown): string[] {
 }
 
 function contributorNames(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value
+  if (!value || typeof value !== 'object') return []
+  const items = Array.isArray(value) ? value : [value]
+  return items
     .map((entry) => {
       if (!entry || typeof entry !== 'object') return ''
       const name = (entry as { name?: unknown }).name
@@ -278,7 +313,8 @@ function buildPrefillFromHtml(url: string, html: string): AbeBooksPrefill {
     ...contributorsFromJsonLd,
     ...(fallbackAuthorsFromTitle ? [fallbackAuthorsFromTitle] : []),
   ])
-  const searchAuthor = allPeople.length ? allPeople.join(', ') : null
+  // Semicolon separator avoids ambiguity with the "Lastname, Firstname" reorder logic in splitPeople.
+  const searchAuthor = allPeople.length ? allPeople.join('; ') : null
   const searchPublisher =
     publisherFromJsonLd ??
     parseHtmlMetaContent(html, 'books:publisher', 'property')
@@ -290,11 +326,11 @@ function buildPrefillFromHtml(url: string, html: string): AbeBooksPrefill {
     publication_year: publicationYear,
     search_author: searchAuthor,
     search_publisher: searchPublisher,
+    publisher_search_hint: publisherSearchHint(searchPublisher),
     publisher_no: null,
     author_links: [],
     artist_links: [],
     remarks: `Imported from AbeBooks: ${url}`,
-    openlibrary_note: isbn ? `You can also enrich this book from Open Library using ISBN ${isbn}.` : null,
   }
 }
 
@@ -398,15 +434,56 @@ function matchArtists(rawPeople: string[], catalog: CatalogArtist[]) {
   return matched
 }
 
+const PUBLISHER_NOISE_WORDS = new Set([
+  'press', 'editions', 'edition', 'éditions', 'verlag', 'publishing', 'publishers', 'publisher',
+  'books', 'co', 'company', 'gmbh', 'ltd', 'inc', 'sarl', 'srl', 'ediciones', 'edizioni', 'publ',
+])
+
+// Drops generic publisher words (Press, Editions, ...) and parenthetical locations so
+// "Sternberg Press" and "Sternberg (New York)" both reduce to the comparable core "sternberg".
+function corePublisherName(value: string | null | undefined) {
+  if (!value) return ''
+  const withoutLocation = stripPublisherLocationSuffix(value)
+  const withoutParens = withoutLocation.replace(/\([^)]*\)/g, ' ')
+  const normalized = normalizePersonName(withoutParens)
+  const tokens = normalized.split(' ').filter((token) => token && !PUBLISHER_NOISE_WORDS.has(token))
+  return tokens.join(' ').trim()
+}
+
+// AbeBooks often appends a "City" or "Country" after a comma (e.g. "JRP Editions, CH");
+// that suffix isn't part of the publisher name stored in the catalog, so drop it.
+function stripPublisherLocationSuffix(value: string) {
+  const commaIndex = value.indexOf(',')
+  return commaIndex === -1 ? value : value.slice(0, commaIndex)
+}
+
+// Preserves the original casing/words while stripping the same noise words, for display/search use.
+function publisherSearchHint(value: string | null | undefined) {
+  if (!value) return null
+  const withoutLocation = stripPublisherLocationSuffix(value)
+  const withoutParens = withoutLocation.replace(/\([^)]*\)/g, ' ')
+  const words = withoutParens.split(/\s+/).filter(Boolean)
+  const filtered = words.filter((word) => !PUBLISHER_NOISE_WORDS.has(normalizePersonName(word)))
+  const result = filtered.join(' ').trim()
+  return result || value.trim() || null
+}
+
 function matchPublisher(searchPublisher: string | null, catalog: RelatedName[]) {
   if (!searchPublisher) return null
-  const normalizedQuery = normalizePersonName(searchPublisher)
-  const exact = catalog.find((item) => normalizePersonName(item.name ?? '') === normalizedQuery)
-  if (exact) return exact.legacy_no
+  const normalizedQuery = corePublisherName(searchPublisher)
+  if (!normalizedQuery) return null
 
-  const contains = catalog.find((item) => normalizePersonName(item.name ?? '').includes(normalizedQuery))
-  return contains?.legacy_no ?? null
+  const candidates = catalog.filter((item) => {
+    const normalizedName = corePublisherName(item.name)
+    if (!normalizedName) return false
+    return normalizedName === normalizedQuery || normalizedName.includes(normalizedQuery) || normalizedQuery.includes(normalizedName)
+  })
+
+  // Only auto-select when there is a single unambiguous match; otherwise leave the
+  // manual "Linked publisher" picker to surface every candidate for the user to choose from.
+  return candidates.length === 1 ? candidates[0].legacy_no : null
 }
+
 
 export async function POST(request: NextRequest) {
   const authorization = await requireRole(EDITOR_ROLES, request)

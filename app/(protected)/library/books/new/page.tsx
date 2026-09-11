@@ -1,7 +1,10 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+
+const LIBRARY_BOOK_NEW_DRAFT_VERSION = 1
+const LIBRARY_BOOK_NEW_DRAFT_KEY = 'artmuse_library_book_new_draft'
 
 type BookType = { legacy_no: number; type_number: string | null; description: string | null; full_name: string | null }
 type LibraryStatus = { legacy_no: number; label: string }
@@ -34,11 +37,11 @@ type AbeBooksPrefill = {
   publication_year: number | null
   search_author: string | null
   search_publisher: string | null
+  publisher_search_hint: string | null
   publisher_no: number | null
   author_links: Array<{ author_id: string; label: string; is_default: boolean }>
   artist_links: Array<{ artist_id: string; label: string; is_default: boolean }>
   remarks: string | null
-  openlibrary_note: string | null
 }
 
 const fieldClassName = 'w-full rounded border bg-white px-3 py-2'
@@ -102,6 +105,8 @@ function toNullableString(value: string): string | null {
 
 export default function NewLibraryBookPage() {
   const router = useRouter()
+  const hasRestoredDraftRef = useRef(false)
+  const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [bookTypes, setBookTypes] = useState<BookType[]>([])
   const [statuses, setStatuses] = useState<LibraryStatus[]>([])
   const [authorOptions, setAuthorOptions] = useState<LibraryAuthor[]>([])
@@ -150,6 +155,69 @@ export default function NewLibraryBookPage() {
     search_publisher: '',
     remarks: '',
   })
+
+  // Restore an unsaved draft (e.g. after navigating away and back) before anything else runs.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(LIBRARY_BOOK_NEW_DRAFT_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed && parsed.version === LIBRARY_BOOK_NEW_DRAFT_VERSION) {
+          if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }))
+          if (Array.isArray(parsed.authorLinks)) setAuthorLinks(parsed.authorLinks)
+          if (Array.isArray(parsed.artistLinks)) setArtistLinks(parsed.artistLinks)
+          setAuthorQuery(parsed.authorQuery ?? '')
+          setArtistQuery(parsed.artistQuery ?? '')
+          setPublisherQuery(parsed.publisherQuery ?? '')
+          setAbebooksUrl(parsed.abebooksUrl ?? '')
+        }
+      }
+    } catch (restoreError) {
+      console.error('[LIBRARY_BOOK_NEW] impossible de restaurer le brouillon', restoreError)
+    } finally {
+      hasRestoredDraftRef.current = true
+    }
+  }, [])
+
+  // Autosave the draft so leaving and returning to this page keeps unsaved input.
+  useEffect(() => {
+    if (!hasRestoredDraftRef.current) return
+    if (saving) return
+
+    const hasContent = Boolean(
+      form.title.trim() ||
+        form.isbn.trim() ||
+        form.search_author.trim() ||
+        form.search_publisher.trim() ||
+        form.remarks.trim() ||
+        authorLinks.length > 0 ||
+        artistLinks.length > 0
+    )
+    if (!hasContent) return
+
+    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current)
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem(LIBRARY_BOOK_NEW_DRAFT_KEY, JSON.stringify({
+          version: LIBRARY_BOOK_NEW_DRAFT_VERSION,
+          savedAt: new Date().toISOString(),
+          form,
+          authorLinks,
+          artistLinks,
+          authorQuery,
+          artistQuery,
+          publisherQuery,
+          abebooksUrl,
+        }))
+      } catch (saveError) {
+        console.error('[LIBRARY_BOOK_NEW] impossible de sauvegarder le brouillon', saveError)
+      }
+    }, 500)
+
+    return () => {
+      if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current)
+    }
+  }, [form, authorLinks, artistLinks, authorQuery, artistQuery, publisherQuery, abebooksUrl, saving])
 
   useEffect(() => {
     let cancelled = false
@@ -328,7 +396,7 @@ export default function NewLibraryBookPage() {
 
       const prefill = payload.prefill
       setForm((current) => {
-        const importedRemarks = [prefill.remarks, prefill.openlibrary_note, current.remarks.trim() || null].filter(Boolean).join('\n')
+        const importedRemarks = [prefill.remarks, current.remarks.trim() || null].filter(Boolean).join('\n')
         return {
           ...current,
           title: prefill.title ?? current.title,
@@ -349,7 +417,7 @@ export default function NewLibraryBookPage() {
       }
 
       setAuthorQuery(prefill.search_author ?? '')
-      setPublisherQuery(prefill.search_publisher ?? '')
+      setPublisherQuery(prefill.publisher_search_hint ?? prefill.search_publisher ?? '')
       setImportMessage('Import AbeBooks termine. Les champs detectes ont ete pre-remplis.')
     } catch {
       setError('Erreur reseau pendant l\'import AbeBooks.')
@@ -392,6 +460,12 @@ export default function NewLibraryBookPage() {
         setError(payload.error ?? 'Impossible de creer le livre.')
         setSaving(false)
         return
+      }
+
+      try {
+        sessionStorage.removeItem(LIBRARY_BOOK_NEW_DRAFT_KEY)
+      } catch (clearError) {
+        console.error('[LIBRARY_BOOK_NEW] impossible de supprimer le brouillon', clearError)
       }
 
       router.push(`/library/books/${payload.book.id}`)

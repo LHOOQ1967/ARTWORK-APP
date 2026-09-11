@@ -20,9 +20,9 @@ const proposals: DashboardLink[] = [
 
 const collection: DashboardLink[] = [
   { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date' },
-  { href: '/inventory', title: 'Inventory', subtitle: 'Florac' },
-  { href: '/valuations', title: 'Valuations', subtitle: 'Florac' },
-  { href: '/commissions', title: 'Commissions', subtitle: 'Florac + GLM' },
+  { href: '/inventory', title: 'Inventory', subtitle: 'Florac Works' },
+  { href: '/valuations', title: 'Valuations', subtitle: 'Florac Works' },
+  { href: '/commissions', title: 'Commissions', subtitle: 'Florac Works & GLM' },
 ]
 
 const management: DashboardLink[] = [

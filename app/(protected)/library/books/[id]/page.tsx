@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { privateImageUrl } from '@/lib/privateImageUrl'
+import { LinkedText } from '@/components/ui/LinkedText'
 
 type Book = {
   legacy_no: number
@@ -263,7 +264,20 @@ export default function LibraryBookPage() {
       </div>
 
       <div className="no-print" style={floatingActionBarStyle}>
-        <Link className="edit-button" href={`/library/books/${id}/edit`}>Edit</Link>
+        <Link
+          className="edit-button"
+          href={`/library/books/${id}/edit`}
+          onClick={() => {
+            // A fresh "Edit" click always starts from the saved data, not a leftover draft.
+            try {
+              sessionStorage.removeItem(`artmuse_library_book_edit_draft_${id}`)
+            } catch {
+              // Ignore storage access errors (e.g. private browsing).
+            }
+          }}
+        >
+          Edit
+        </Link>
         <Link className="edit-button" href="/library">Back to search</Link>
       </div>
 
@@ -334,7 +348,7 @@ export default function LibraryBookPage() {
         </div>
       </section>
 
-      {book.remarks && <section className="rounded border bg-white p-5"><h2 className="mb-2 text-lg font-semibold">Remarks</h2><p className="whitespace-pre-wrap text-sm">{book.remarks}</p></section>}
+      {book.remarks && <section className="rounded border bg-white p-5"><h2 className="mb-2 text-lg font-semibold">Remarks</h2><p className="whitespace-pre-wrap text-sm"><LinkedText text={book.remarks} /></p></section>}
 
       <section className="rounded border bg-white p-5">
         <h2 className="mb-3 text-lg font-semibold">Exhibitions</h2>

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
+import { useSessionProfile } from '@/contexts/SessionContext'
 import type { Artist, Contact } from '@/app/(protected)/types/artwork'
 import { LinkedText } from '@/components/ui/LinkedText'
 type ProfileRow = { id: string; email: string | null }
@@ -146,6 +147,8 @@ function sortLabel(label: string, isActive: boolean, direction: 'asc' | 'desc') 
    ====================== */
 
 function ArtistsSection() {
+  const { role } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
   const [artists, setArtists] = useState<Array<Artist & { legacy_no?: number | null; created_at?: string | null; created_by?: string | null; source?: string | null }>>([])
   const [artistCategories, setArtistCategories] = useState<Array<{ legacy_no: number; description: string; definition: string | null }>>([])
   const [artistSearch, setArtistSearch] = useState('')
@@ -253,13 +256,15 @@ useEffect(() => {
 
 
 <div style={floatingActionBarStyle}>
-  <button
-    type="button"
-    onClick={() => window.open('/artists/new', '_self')}
-    className="edit-button"
-  >
-    Add artist
-  </button>
+  {canWrite && (
+    <button
+      type="button"
+      onClick={() => window.open('/artists/new', '_self')}
+      className="edit-button"
+    >
+      Add artist
+    </button>
+  )}
 </div>
 
     
@@ -398,6 +403,8 @@ useEffect(() => {
    ====================== */
 
 function ContactsSection() {
+  const { role } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
   const [contacts, setContacts] = useState<Contact[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [contact, setContact] = useState<Contact | null>(null)
@@ -550,14 +557,16 @@ async function remove() {
       
 
 <div style={floatingActionBarStyle}>
-  <button
-    type="button"
-    onClick={() => window.open('/contacts/new', '_self')} className="edit-button"
-  >
-    Add contact
-  </button>
+  {canWrite && (
+    <button
+      type="button"
+      onClick={() => window.open('/contacts/new', '_self')} className="edit-button"
+    >
+      Add contact
+    </button>
+  )}
 
-  {isEditing && (
+  {canWrite && isEditing && (
     <button
       type="button"
       onClick={remove}
@@ -567,7 +576,7 @@ async function remove() {
     </button>
   )}
 
-  {isEditing && (
+  {canWrite && isEditing && (
     <button
       type="button"
       onClick={save}
@@ -828,6 +837,8 @@ async function remove() {
 }
 
 function LibraryReferenceSection({ kind }: { kind: ReferenceKind }) {
+  const { role } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([])
   const [profileEmails, setProfileEmails] = useState<Record<string, string>>({})
@@ -1014,7 +1025,7 @@ function LibraryReferenceSection({ kind }: { kind: ReferenceKind }) {
             <span className="referential-count-badge">{rows.length}</span>
           </div>
           <div style={floatingActionBarStyle}>
-            <Link className="edit-button" href={`/referentials/new?kind=${kind}`}>Add {title.toLowerCase()}</Link>
+            {canWrite && <Link className="edit-button" href={`/referentials/new?kind=${kind}`}>Add {title.toLowerCase()}</Link>}
           </div>
         </div>
         <p>Browse the library reference data.</p>

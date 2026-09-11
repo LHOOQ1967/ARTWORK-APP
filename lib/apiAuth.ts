@@ -26,10 +26,12 @@ export async function requireUser(request?: Request): Promise<AuthorizationResul
     ? authorizationHeader.slice('Bearer '.length)
     : undefined
   const supabase = await supabaseServer(accessToken)
+  // Pass the bearer token explicitly when present: getUser() otherwise falls back to the
+  // cookie-derived session, which can be stale/expired independently of a fresh client token.
   const {
     data: { user },
     error: userError,
-  } = await supabase.auth.getUser()
+  } = accessToken ? await supabase.auth.getUser(accessToken) : await supabase.auth.getUser()
 
   if (userError || !user) {
     return {

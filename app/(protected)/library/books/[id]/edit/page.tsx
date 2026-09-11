@@ -2,11 +2,18 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 import { privateImageUrl } from '@/lib/privateImageUrl'
+import { fetchWithAuth } from '@/lib/fetchWithAuth'
 import { useSessionProfile } from '@/contexts/SessionContext'
+
+const LIBRARY_BOOK_EDIT_DRAFT_VERSION = 1
+
+function getLibraryBookEditDraftKey(bookId: string) {
+  return `artmuse_library_book_edit_draft_${bookId}`
+}
 
 type Book = {
   id: string
@@ -252,6 +259,8 @@ export default function EditLibraryBookPage() {
   const router = useRouter()
   const { role, loading: sessionLoading } = useSessionProfile()
   const canWrite = role === 'Editor' || role === 'Administrator'
+  const hasRestoredDraftRef = useRef(false)
+  const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [book, setBook] = useState<Book | null>(null)
   const [bookTypes, setBookTypes] = useState<BookType[]>([])
   const [statuses, setStatuses] = useState<LibraryStatus[]>([])
@@ -269,6 +278,7 @@ export default function EditLibraryBookPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [uploadingCover, setUploadingCover] = useState(false)
+  const [importingCover, setImportingCover] = useState(false)
   const [openLibraryMetadata, setOpenLibraryMetadata] = useState<OpenLibraryMetadata | null>(null)
   const [error, setError] = useState('')
   const floatingActionBarStyle: React.CSSProperties = {
@@ -368,6 +378,26 @@ export default function EditLibraryBookPage() {
         search_publisher: loadedBook.search_publisher ?? '',
         remarks: loadedBook.remarks ?? '',
       })
+
+      // Restore an unsaved draft for this book (e.g. after navigating away and back).
+      try {
+        const raw = sessionStorage.getItem(getLibraryBookEditDraftKey(loadedBook.id))
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed && parsed.version === LIBRARY_BOOK_EDIT_DRAFT_VERSION && parsed.bookId === loadedBook.id) {
+            if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }))
+            if (Array.isArray(parsed.authorLinks)) setAuthorLinks(parsed.authorLinks)
+            if (Array.isArray(parsed.artistLinks)) setArtistLinks(parsed.artistLinks)
+            setAuthorQuery(parsed.authorQuery ?? '')
+            setArtistQuery(parsed.artistQuery ?? '')
+          }
+        }
+      } catch (restoreError) {
+        console.error('[LIBRARY_BOOK_EDIT] impossible de restaurer le brouillon', restoreError)
+      } finally {
+        hasRestoredDraftRef.current = true
+      }
+
       setLoading(false)
     }
 
@@ -376,6 +406,35 @@ export default function EditLibraryBookPage() {
       cancelled = true
     }
   }, [id])
+
+  // Autosave the draft so leaving and returning to this page keeps unsaved edits.
+  useEffect(() => {
+    if (!hasRestoredDraftRef.current) return
+    if (!book) return
+    if (saving || deleting) return
+
+    if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current)
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem(getLibraryBookEditDraftKey(book.id), JSON.stringify({
+          version: LIBRARY_BOOK_EDIT_DRAFT_VERSION,
+          savedAt: new Date().toISOString(),
+          bookId: book.id,
+          form,
+          authorLinks,
+          artistLinks,
+          authorQuery,
+          artistQuery,
+        }))
+      } catch (saveError) {
+        console.error('[LIBRARY_BOOK_EDIT] impossible de sauvegarder le brouillon', saveError)
+      }
+    }, 500)
+
+    return () => {
+      if (draftSaveTimeoutRef.current) clearTimeout(draftSaveTimeoutRef.current)
+    }
+  }, [book, form, authorLinks, artistLinks, authorQuery, artistQuery, saving, deleting])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -440,6 +499,33 @@ export default function EditLibraryBookPage() {
     const { data } = supabase.storage.from('artwork-images').getPublicUrl(filePath)
     updateField('cover_image_url', data.publicUrl)
     setUploadingCover(false)
+  }
+
+  const importCoverFromIsbn = async () => {
+    if (!book) return
+    const isbn = normalizeIsbn(form.isbn)
+    if (!isbn) return
+
+    setImportingCover(true)
+    setError('')
+
+    try {
+      const response = await fetchWithAuth(`/api/library/books/${book.id}/cover-import`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ isbn }),
+      })
+      const payload = await response.json() as { url?: string; error?: string }
+      if (!response.ok || !payload.url) {
+        setError(payload.error ?? "Impossible d'importer la couverture.")
+        return
+      }
+      updateField('cover_image_url', payload.url)
+    } catch {
+      setError('Erreur réseau pendant l\'import de la couverture.')
+    } finally {
+      setImportingCover(false)
+    }
   }
 
   const handleCoverPaste: React.ClipboardEventHandler<HTMLTextAreaElement> = (event) => {
@@ -545,6 +631,12 @@ export default function EditLibraryBookPage() {
         return
       }
 
+      try {
+        sessionStorage.removeItem(getLibraryBookEditDraftKey(book.id))
+      } catch (clearError) {
+        console.error('[LIBRARY_BOOK_EDIT] impossible de supprimer le brouillon', clearError)
+      }
+
       router.push(`/library/books/${book.id}`)
     })()
   }
@@ -566,6 +658,11 @@ export default function EditLibraryBookPage() {
         }
         setDeleting(false)
         return
+      }
+      try {
+        sessionStorage.removeItem(getLibraryBookEditDraftKey(book.id))
+      } catch (clearError) {
+        console.error('[LIBRARY_BOOK_EDIT] impossible de supprimer le brouillon', clearError)
       }
       router.push('/library')
     })()
@@ -707,6 +804,14 @@ export default function EditLibraryBookPage() {
                     )}
                   </div>
                   {abebooksUrl ? <a className="text-xs underline" href={abebooksUrl} target="_blank" rel="noreferrer">Open AbeBooks search for this ISBN</a> : null}
+                  <button
+                    type="button"
+                    className="rounded border px-3 py-2 text-xs"
+                    disabled={!normalizedIsbn || importingCover}
+                    onClick={() => void importCoverFromIsbn()}
+                  >
+                    {importingCover ? 'Importing…' : 'Import cover from Open Library'}
+                  </button>
                 </div>
                 <div className="space-y-3">
                   <label className="grid gap-1 text-sm">

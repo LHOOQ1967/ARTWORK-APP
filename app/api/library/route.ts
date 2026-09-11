@@ -51,6 +51,12 @@ function personDisplayName(person: { first_name: string | null; last_name: strin
   return person.legacy_no ? String(person.legacy_no) : ''
 }
 
+// PostgREST's .or() syntax uses commas/parentheses to separate conditions, so any value
+// containing them must be wrapped in double quotes (with internal quotes doubled) to be read literally.
+function escapeOrFilterValue(value: string) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
 function personKeys(firstName: string | null, lastName: string | null) {
   const fullA = normalizePersonName(`${firstName ?? ''} ${lastName ?? ''}`)
   const fullB = normalizePersonName(`${lastName ?? ''} ${firstName ?? ''}`)
@@ -152,8 +158,8 @@ export async function GET(request: NextRequest) {
     const searchQuery = query.trim()
     const { data, error } = searchQuery
       ? compactArtists
-        ? await artistsQuery.or(`first_name.ilike.${searchQuery}%,last_name.ilike.${searchQuery}%`)
-        : await artistsQuery.or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`)
+        ? await artistsQuery.or(`first_name.ilike.${escapeOrFilterValue(`${searchQuery}%`)},last_name.ilike.${escapeOrFilterValue(`${searchQuery}%`)}`)
+        : await artistsQuery.or(`first_name.ilike.${escapeOrFilterValue(`%${searchQuery}%`)},last_name.ilike.${escapeOrFilterValue(`%${searchQuery}%`)}`)
       : await artistsQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ artists: data ?? [], hasMore: (data ?? []).length === limit })
@@ -172,8 +178,8 @@ export async function GET(request: NextRequest) {
     const searchQuery = query.trim()
     const { data, error } = searchQuery
       ? compactAuthors
-        ? await authorsQuery.or(`first_name.ilike.${searchQuery}%,last_name.ilike.${searchQuery}%`)
-        : await authorsQuery.or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`)
+        ? await authorsQuery.or(`first_name.ilike.${escapeOrFilterValue(`${searchQuery}%`)},last_name.ilike.${escapeOrFilterValue(`${searchQuery}%`)}`)
+        : await authorsQuery.or(`first_name.ilike.${escapeOrFilterValue(`%${searchQuery}%`)},last_name.ilike.${escapeOrFilterValue(`%${searchQuery}%`)}`)
       : await authorsQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ authors: data ?? [], hasMore: (data ?? []).length === limit })
@@ -195,7 +201,7 @@ export async function GET(request: NextRequest) {
       .order('legacy_no', { ascending: true, nullsFirst: false })
       .range(offset, offset + (Number.isFinite(limit) && limit > 0 ? limit : 50) - 1)
     const { data, error } = query
-      ? await namesQuery.or(`name.ilike.%${query}%,location.ilike.%${query}%`)
+      ? await namesQuery.or(`name.ilike.${escapeOrFilterValue(`%${query}%`)},location.ilike.${escapeOrFilterValue(`%${query}%`)}`)
       : await namesQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ relatedNames: data ?? [], hasMore: (data ?? []).length === limit })
@@ -222,7 +228,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + (Number.isFinite(limit) && limit > 0 ? limit : 50) - 1)
 
     const { data, error } = query
-      ? await unresolvedQuery.or(`book_title.ilike.%${query}%,search_artist.ilike.%${query}%`)
+      ? await unresolvedQuery.or(`book_title.ilike.${escapeOrFilterValue(`%${query}%`)},search_artist.ilike.${escapeOrFilterValue(`%${query}%`)}`)
       : await unresolvedQuery
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -240,7 +246,7 @@ export async function GET(request: NextRequest) {
       .range(offset, rangeEnd)
 
     const { data: books, error: booksError } = query
-      ? await booksQuery.or(`title.ilike.%${query}%,search_author.ilike.%${query}%`)
+      ? await booksQuery.or(`title.ilike.${escapeOrFilterValue(`%${query}%`)},search_author.ilike.${escapeOrFilterValue(`%${query}%`)}`)
       : await booksQuery
     if (booksError) return NextResponse.json({ error: booksError.message }, { status: 500 })
 
@@ -353,6 +359,22 @@ export async function GET(request: NextRequest) {
 
   let artistBookIds: string[] | null = null
   let authorBookIds: string[] | null = null
+  let textSearchBookIds: string[] | null = null
+
+  if (view === 'books' && query.trim()) {
+    const { data: matchedIds, error: matchedIdsError } = await authorization.supabase
+      .rpc('search_library_book_ids', { search_query: query, max_results: 5000 })
+
+    if (matchedIdsError) {
+      return NextResponse.json({ error: matchedIdsError.message }, { status: 500 })
+    }
+
+    textSearchBookIds = ((matchedIds ?? []) as string[])
+    if (textSearchBookIds.length === 0) {
+      return NextResponse.json({ books: [], hasMore: false, totalCount: 0 })
+    }
+  }
+
   if (view === 'by-artists' && artistId) {
     const { data: linkedBooks, error: linkedBooksError } = await authorization.supabase
       .from('library_book_artists')
@@ -394,6 +416,9 @@ export async function GET(request: NextRequest) {
     if (authorBookIds && authorBookIds.length > 0) {
       nextQuery = (nextQuery as { in: (column: string, values: string[]) => unknown }).in('id', authorBookIds) as Record<string, unknown>
     }
+    if (textSearchBookIds) {
+      nextQuery = (nextQuery as { in: (column: string, values: string[]) => unknown }).in('id', textSearchBookIds) as Record<string, unknown>
+    }
     if (publisherNoFilter !== null) {
       nextQuery = (nextQuery as { eq: (column: string, value: number) => unknown }).eq('publisher_no', publisherNoFilter) as Record<string, unknown>
     }
@@ -428,18 +453,20 @@ export async function GET(request: NextRequest) {
 
       if (searchColumn) {
         nextQuery = (nextQuery as { ilike: (column: string, pattern: string) => unknown }).ilike(searchColumn, `%${query}%`) as Record<string, unknown>
-      } else {
+      } else if (view !== 'books') {
+        // The 'books' free-text search is handled above via textSearchBookIds (multi-word, fuzzy-tolerant RPC).
+        const escapedQuery = escapeOrFilterValue(`%${query}%`)
         const searchFilters = [
-          `title.ilike.%${query}%`,
-          `isbn.ilike.%${query}%`,
-          `series.ilike.%${query}%`,
-          `volume.ilike.%${query}%`,
-          `copy.ilike.%${query}%`,
-          `remarks.ilike.%${query}%`,
-          `search_author.ilike.%${query}%`,
-          `search_artist.ilike.%${query}%`,
-          `search_publisher.ilike.%${query}%`,
-          `search_exhibition.ilike.%${query}%`,
+          `title.ilike.${escapedQuery}`,
+          `isbn.ilike.${escapedQuery}`,
+          `series.ilike.${escapedQuery}`,
+          `volume.ilike.${escapedQuery}`,
+          `copy.ilike.${escapedQuery}`,
+          `remarks.ilike.${escapedQuery}`,
+          `search_author.ilike.${escapedQuery}`,
+          `search_artist.ilike.${escapedQuery}`,
+          `search_publisher.ilike.${escapedQuery}`,
+          `search_exhibition.ilike.${escapedQuery}`,
         ]
         if (/^\d+$/.test(query)) {
           searchFilters.push(`legacy_no.eq.${Number(query)}`)

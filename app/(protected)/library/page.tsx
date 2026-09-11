@@ -2,12 +2,14 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import SearchSelect from '@/components/ui/SearchSelect'
 import { privateImageUrl } from '@/lib/privateImageUrl'
+import { fetchWithAuth } from '@/lib/fetchWithAuth'
 
 const PAGE_SIZE = 50
+const COVER_IMPORT_PROGRESS_KEY = 'artmuse_library_cover_import_progress'
 
 type BookSortKey = 'title' | 'author' | 'artist' | 'year' | 'type' | 'publisher' | 'isbn' | 'legacy'
 type ArtistSortKey = 'name' | 'birth' | 'death' | 'legacy'
@@ -255,8 +257,18 @@ export default function LibraryPage() {
   const [hasMore, setHasMore] = useState(false)
   const [totalCount, setTotalCount] = useState<number | null>(null)
   const [loadAllMode, setLoadAllMode] = useState(false)
+  const [showAllBooks, setShowAllBooks] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [coverImportState, setCoverImportState] = useState<{
+    running: boolean
+    imported: number
+    skipped: number
+    failed: number
+    processed: number
+    error: string
+  }>({ running: false, imported: 0, skipped: 0, failed: 0, processed: 0, error: '' })
+  const [hasStoredCoverImportProgress, setHasStoredCoverImportProgress] = useState(false)
   const artistLookupCacheRef = useRef<Record<string, ArtistFilterOption[]>>({})
   const floatingActionBarStyle: React.CSSProperties = {
     position: 'fixed',
@@ -273,12 +285,51 @@ export default function LibraryPage() {
   const authorLookupCacheRef = useRef<Record<string, AuthorFilterOption[]>>({})
   const publisherLookupCacheRef = useRef<Record<string, PublisherFilterOption[]>>({})
 
+  // Book-ish views (books, by-authors, by-artists...) only fetch once a search/filter is active,
+  // or the user explicitly asked to see everything via the "Show all books" button.
+  const hasActiveBookFilter = useCallback((currentView: LibraryView) => {
+    switch (currentView) {
+      case 'books':
+        return query.trim() !== ''
+      case 'by-artists':
+        return (
+          selectedArtistId !== 'all' ||
+          byArtistsTypeFilter !== 'all' ||
+          byArtistsYearFrom.trim() !== '' ||
+          byArtistsYearTo.trim() !== '' ||
+          byArtistsAuthorFilter.trim() !== ''
+        )
+      case 'by-authors':
+        return selectedAuthorId !== 'all'
+      case 'by-publisher':
+        return selectedPublisherId !== 'all'
+      case 'by-types':
+        return selectedTypeId !== 'all'
+      case 'by-status':
+        return selectedStatusId !== 'all'
+      default:
+        return true
+    }
+  }, [query, selectedArtistId, selectedAuthorId, selectedPublisherId, selectedTypeId, selectedStatusId, byArtistsTypeFilter, byArtistsYearFrom, byArtistsYearTo, byArtistsAuthorFilter])
+
   useEffect(() => {
     const controller = new AbortController()
     const delay = query ? 180 : 0
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
+          const isBookView = isCountedBookView(view)
+          if (isBookView && !showAllBooks && !hasActiveBookFilter(view)) {
+            if (!controller.signal.aborted) {
+              setBooks([])
+              setHasMore(false)
+              setTotalCount(null)
+              setError('')
+              setLoading(false)
+            }
+            return
+          }
+
           setLoading(true)
           if (offset === 0 && !loadAllMode && isCountedBookView(view)) {
             setTotalCount(null)
@@ -373,6 +424,8 @@ export default function LibraryPage() {
     selectedTypeId,
     selectedStatusId,
     loadAllMode,
+    showAllBooks,
+    hasActiveBookFilter,
     bookSortKey,
     bookSortDirection,
     artistSortKey,
@@ -774,6 +827,131 @@ export default function LibraryPage() {
     return `${label} ${direction === 'asc' ? '↑' : '↓'}`
   }
 
+  const isGatedBookView = isCountedBookView(view) && !showAllBooks && !hasActiveBookFilter(view)
+
+  useEffect(() => {
+    const stored = readStoredCoverImportProgress()
+    setHasStoredCoverImportProgress(stored !== null)
+    if (stored) {
+      setCoverImportState({
+        running: false,
+        imported: stored.imported,
+        skipped: stored.skipped,
+        failed: stored.failed,
+        processed: stored.processed,
+        error: '',
+      })
+    }
+  }, [])
+
+  function readStoredCoverImportProgress() {
+    try {
+      const raw = localStorage.getItem(COVER_IMPORT_PROGRESS_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return null
+      return parsed as { cursor: number | null; imported: number; skipped: number; failed: number; processed: number }
+    } catch {
+      return null
+    }
+  }
+
+  function saveCoverImportProgress(progress: { cursor: number | null; imported: number; skipped: number; failed: number; processed: number }) {
+    try {
+      localStorage.setItem(COVER_IMPORT_PROGRESS_KEY, JSON.stringify(progress))
+      setHasStoredCoverImportProgress(true)
+    } catch {
+      // Ignore storage access errors (e.g. private browsing).
+    }
+  }
+
+  function clearCoverImportProgress() {
+    try {
+      localStorage.removeItem(COVER_IMPORT_PROGRESS_KEY)
+    } catch {
+      // Ignore storage access errors (e.g. private browsing).
+    }
+    setHasStoredCoverImportProgress(false)
+  }
+
+  function restartCoverImportFromScratch() {
+    if (coverImportState.running) return
+    if (!window.confirm('Repartir de zéro pour l\'import des couvertures (le progrès déjà enregistré sera oublié) ?')) return
+    clearCoverImportProgress()
+    setCoverImportState({ running: false, imported: 0, skipped: 0, failed: 0, processed: 0, error: '' })
+  }
+
+  async function runBulkCoverImport() {
+    if (coverImportState.running) return
+
+    const stored = readStoredCoverImportProgress()
+    const confirmMessage = stored
+      ? `Reprendre l'import des couvertures là où il s'était arrêté (${stored.processed} livre(s) déjà traité(s)) ?`
+      : 'Importer les couvertures manquantes depuis Open Library pour tous les livres avec un ISBN ? Cette opération peut prendre plusieurs minutes.'
+
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    let cursor: number | null = stored?.cursor ?? null
+    let totals = {
+      imported: stored?.imported ?? 0,
+      skipped: stored?.skipped ?? 0,
+      failed: stored?.failed ?? 0,
+      processed: stored?.processed ?? 0,
+    }
+
+    setCoverImportState({ running: true, ...totals, error: '' })
+
+    try {
+      while (true) {
+        const response = await fetchWithAuth('/api/library/books/cover-import-bulk', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ afterLegacyNo: cursor, limit: 10 }),
+        })
+        const payload = await response.json() as {
+          imported?: number
+          skipped?: number
+          failed?: number
+          processedCount?: number
+          nextCursor?: number | null
+          done?: boolean
+          error?: string
+        }
+
+        if (!response.ok) {
+          saveCoverImportProgress({ cursor, ...totals })
+          setCoverImportState((current) => ({ ...current, running: false, error: payload.error ?? 'Import impossible.' }))
+          return
+        }
+
+        totals = {
+          imported: totals.imported + (payload.imported ?? 0),
+          skipped: totals.skipped + (payload.skipped ?? 0),
+          failed: totals.failed + (payload.failed ?? 0),
+          processed: totals.processed + (payload.processedCount ?? 0),
+        }
+        cursor = payload.nextCursor ?? cursor
+        setCoverImportState({ running: true, ...totals, error: '' })
+        // Persist after every batch so a crash/refresh can resume instead of restarting from zero.
+        saveCoverImportProgress({ cursor, ...totals })
+
+        if (payload.done || !payload.processedCount) break
+      }
+
+      clearCoverImportProgress()
+      setCoverImportState((current) => ({ ...current, running: false }))
+    } catch (bulkError) {
+      saveCoverImportProgress({ cursor, ...totals })
+      setCoverImportState((current) => ({
+        ...current,
+        running: false,
+        error: bulkError instanceof Error ? bulkError.message : 'Erreur réseau pendant l\'import.',
+      }))
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6 pt-20">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -785,8 +963,46 @@ export default function LibraryPage() {
       </div>
 
       <div className="no-print" style={floatingActionBarStyle}>
-        <Link className="edit-button" href="/library/books/new">Add book</Link>
+        <Link
+          className="edit-button"
+          href="/library/books/new"
+          onClick={() => {
+            // A fresh "Add book" click always starts blank, not a leftover draft.
+            try {
+              sessionStorage.removeItem('artmuse_library_book_new_draft')
+            } catch {
+              // Ignore storage access errors (e.g. private browsing).
+            }
+          }}
+        >
+          Add book
+        </Link>
+        <button type="button" className="rounded border px-3 py-2 text-sm" disabled={coverImportState.running} onClick={() => void runBulkCoverImport()}>
+          {coverImportState.running
+            ? 'Importing covers…'
+            : hasStoredCoverImportProgress
+              ? 'Resume cover import'
+              : 'Import all covers from Open Library'}
+        </button>
+        {hasStoredCoverImportProgress && !coverImportState.running && (
+          <button type="button" className="rounded border px-3 py-2 text-sm text-gray-600" onClick={restartCoverImportFromScratch}>
+            Restart from scratch
+          </button>
+        )}
       </div>
+
+      {(coverImportState.running || coverImportState.processed > 0 || coverImportState.error || hasStoredCoverImportProgress) && (
+        <div className="rounded border bg-white p-3 text-sm">
+          {coverImportState.error ? (
+            <p className="text-red-700">{coverImportState.error} Le progrès est sauvegardé — cliquez sur &quot;Resume cover import&quot; pour continuer.</p>
+          ) : (
+            <p className="text-gray-700">
+              {coverImportState.running ? 'Import en cours… ' : hasStoredCoverImportProgress ? 'Import interrompu, en pause. ' : 'Import terminé. '}
+              {coverImportState.processed} livre(s) traité(s) — {coverImportState.imported} couverture(s) importée(s), {coverImportState.skipped} sans couverture disponible, {coverImportState.failed} échec(s).
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
         <aside className="rounded border bg-gray-50 p-3">
@@ -802,6 +1018,7 @@ export default function LibraryPage() {
                   setQuery('')
                   setOffset(0)
                   setLoadAllMode(false)
+                  setShowAllBooks(false)
                   setSelectedArtistId('all')
                   setSelectedAuthorId('all')
                   setSelectedPublisherId('all')
@@ -990,9 +1207,16 @@ export default function LibraryPage() {
           )}
 
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-800">{error}</p>}
-          {loading ? <p>Chargement...</p> : <p className="text-sm text-gray-600">{view === 'artists' ? artists.length : view === 'authors' ? authors.length : view === 'related-names' ? relatedNames.length : view === 'types' ? bookTypes.length : view === 'status' ? statuses.length : view === 'unresolved-artists' ? unresolvedArtists.length : view === 'unresolved-authors' ? unresolvedAuthors.length : books.length} résultat(s)</p>}
+          {!isGatedBookView && (loading ? <p>Chargement...</p> : <p className="text-sm text-gray-600">{view === 'artists' ? artists.length : view === 'authors' ? authors.length : view === 'related-names' ? relatedNames.length : view === 'types' ? bookTypes.length : view === 'status' ? statuses.length : view === 'unresolved-artists' ? unresolvedArtists.length : view === 'unresolved-authors' ? unresolvedAuthors.length : books.length} résultat(s)</p>)}
 
-      {view === 'artists' ? (
+      {isGatedBookView ? (
+        <div className="rounded border border-dashed bg-white p-6 text-center text-sm text-gray-600">
+          <p className="mb-3">Tapez une recherche ou choisissez un filtre pour afficher des livres.</p>
+          <button type="button" className="edit-button" onClick={() => { setOffset(0); setShowAllBooks(true) }}>
+            Show all books
+          </button>
+        </div>
+      ) : view === 'artists' ? (
         <div className="overflow-x-auto rounded border bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-gray-50">

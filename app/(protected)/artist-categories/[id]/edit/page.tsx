@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
+import { useSessionProfile } from '@/contexts/SessionContext'
 
 type ArtistCategoryRecord = {
   description: string
@@ -51,6 +52,8 @@ function FieldRow({
 export default function EditArtistCategoryPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { role, loading: sessionLoading } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
   const [item, setItem] = useState<ArtistCategoryRecord | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -89,7 +92,7 @@ export default function EditArtistCategoryPage() {
   }, [id])
 
   async function saveArtistCategory() {
-    if (!item) return
+    if (!item || !canWrite) return
 
     setSaving(true)
     setError('')
@@ -110,6 +113,7 @@ export default function EditArtistCategoryPage() {
   }
 
   async function removeArtistCategory() {
+    if (!canWrite) return
     if (!confirm('Delete this artist category?')) return
 
     setSaving(true)
@@ -142,8 +146,8 @@ export default function EditArtistCategoryPage() {
     <main style={{ padding: '96px 20px 56px', minHeight: '100vh', background: '#f3f5f1' }}>
       <div style={floatingActionBarStyle}>
         <Link className="edit-button" href="/referentials?section=artist-categories">Back</Link>
-        <button className="edit-button" type="button" onClick={() => void saveArtistCategory()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-        <button className="edit-button edit-button-danger" type="button" onClick={() => void removeArtistCategory()} disabled={saving}>Delete</button>
+        <button className="edit-button" type="button" onClick={() => void saveArtistCategory()} disabled={saving || !canWrite}>{saving ? 'Saving…' : 'Save'}</button>
+        <button className="edit-button edit-button-danger" type="button" onClick={() => void removeArtistCategory()} disabled={saving || !canWrite}>Delete</button>
       </div>
 
       <section style={{ maxWidth: 900, margin: '0 auto', padding: 30, background: '#fff', border: '1px solid #d7dfda', borderRadius: 12, color: 'black', boxShadow: '0 10px 28px rgba(31,56,46,0.06)' }}>
@@ -153,6 +157,7 @@ export default function EditArtistCategoryPage() {
           <p style={{ margin: '10px 0 0', color: '#62736c' }}>Edit artist category record and update the related details.</p>
         </header>
 
+        {!sessionLoading && !canWrite && <p style={{ margin: '0 0 18px', color: '#a66', background: '#fff7e6', border: '1px solid #f0d999', borderRadius: 8, padding: '10px 14px' }}>Mode lecture seule : votre rôle actuel ne permet pas de modifier ou supprimer cette catégorie.</p>}
         {error && <p style={{ margin: '0 0 18px', color: '#a22' }}>{error}</p>}
 
         <div style={{ display: 'grid', gap: 14 }}>

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
+import { useSessionProfile } from '@/contexts/SessionContext'
 
 type RelatedNameRecord = {
   name: string | null
@@ -51,6 +52,8 @@ function FieldRow({
 export default function EditRelatedNamePage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const { role, loading: sessionLoading } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
   const [item, setItem] = useState<RelatedNameRecord | null>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -89,7 +92,7 @@ export default function EditRelatedNamePage() {
   }, [id])
 
   async function saveRelatedName() {
-    if (!item) return
+    if (!item || !canWrite) return
 
     setSaving(true)
     setError('')
@@ -110,6 +113,7 @@ export default function EditRelatedNamePage() {
   }
 
   async function removeRelatedName() {
+    if (!canWrite) return
     if (!confirm('Delete this related name?')) return
 
     setSaving(true)
@@ -142,8 +146,8 @@ export default function EditRelatedNamePage() {
     <main style={{ padding: '96px 20px 56px', minHeight: '100vh', background: '#f3f5f1' }}>
       <div style={floatingActionBarStyle}>
         <Link className="edit-button" href="/referentials?section=related-names">Back</Link>
-        <button className="edit-button" type="button" onClick={() => void saveRelatedName()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-        <button className="edit-button edit-button-danger" type="button" onClick={() => void removeRelatedName()} disabled={saving}>Delete</button>
+        <button className="edit-button" type="button" onClick={() => void saveRelatedName()} disabled={saving || !canWrite}>{saving ? 'Saving…' : 'Save'}</button>
+        <button className="edit-button edit-button-danger" type="button" onClick={() => void removeRelatedName()} disabled={saving || !canWrite}>Delete</button>
       </div>
 
       <section style={{ maxWidth: 900, margin: '0 auto', padding: 30, background: '#fff', border: '1px solid #d7dfda', borderRadius: 12, color: 'black', boxShadow: '0 10px 28px rgba(31,56,46,0.06)' }}>
@@ -153,6 +157,7 @@ export default function EditRelatedNamePage() {
           <p style={{ margin: '10px 0 0', color: '#62736c' }}>Edit related name record and update the related details.</p>
         </header>
 
+        {!sessionLoading && !canWrite && <p style={{ margin: '0 0 18px', color: '#a66', background: '#fff7e6', border: '1px solid #f0d999', borderRadius: 8, padding: '10px 14px' }}>Mode lecture seule : votre rôle actuel ne permet pas de modifier ou supprimer ce nom lié.</p>}
         {error && <p style={{ margin: '0 0 18px', color: '#a22' }}>{error}</p>}
 
         <div style={{ display: 'grid', gap: 14 }}>
