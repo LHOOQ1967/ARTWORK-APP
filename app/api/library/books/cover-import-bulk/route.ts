@@ -88,27 +88,3 @@ export async function POST(request: NextRequest) {
     done,
   })
 }
-        .eq('id', row.id)
-
-      if (updateError) {
-        failed += 1
-        continue
-      }
-
-      imported += 1
-    } catch {
-      failed += 1
-    }
-  }
-
-  const lastLegacyNo = rows.length > 0 ? rows[rows.length - 1].legacy_no : afterLegacyNo
-
-  return NextResponse.json({
-    processedCount: rows.length,
-    imported,
-    skipped,
-    failed,
-    nextCursor: lastLegacyNo,
-    done: rows.length < limit,
-  })
-}
