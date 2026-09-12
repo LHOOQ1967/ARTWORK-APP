@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { LinkedText } from '@/components/ui/LinkedText'
+import { useSessionProfile } from '@/contexts/SessionContext'
 
 type Book = {
   legacy_no: number
@@ -153,6 +154,8 @@ function FeaturedField({ label, value }: Readonly<{ label: string; value: React.
 
 export default function LibraryBookPage() {
   const { id } = useParams<{ id: string }>()
+  const { role } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
   const [book, setBook] = useState<Book | null>(null)
   const [authors, setAuthors] = useState<AuthorLink[]>([])
   const [artists, setArtists] = useState<ArtistLink[]>([])
@@ -264,20 +267,22 @@ export default function LibraryBookPage() {
       </div>
 
       <div className="no-print" style={floatingActionBarStyle}>
-        <Link
-          className="edit-button"
-          href={`/library/books/${id}/edit`}
-          onClick={() => {
-            // A fresh "Edit" click always starts from the saved data, not a leftover draft.
-            try {
-              sessionStorage.removeItem(`artmuse_library_book_edit_draft_${id}`)
-            } catch {
-              // Ignore storage access errors (e.g. private browsing).
-            }
-          }}
-        >
-          Edit
-        </Link>
+        {canWrite && (
+          <Link
+            className="edit-button"
+            href={`/library/books/${id}/edit`}
+            onClick={() => {
+              // A fresh "Edit" click always starts from the saved data, not a leftover draft.
+              try {
+                sessionStorage.removeItem(`artmuse_library_book_edit_draft_${id}`)
+              } catch {
+                // Ignore storage access errors (e.g. private browsing).
+              }
+            }}
+          >
+            Edit
+          </Link>
+        )}
         <Link className="edit-button" href="/library">Back to search</Link>
       </div>
 

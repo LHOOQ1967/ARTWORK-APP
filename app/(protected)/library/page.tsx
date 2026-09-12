@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import SearchSelect from '@/components/ui/SearchSelect'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { useSessionProfile } from '@/contexts/SessionContext'
 
 const PAGE_SIZE = 50
 const COVER_IMPORT_PROGRESS_KEY = 'artmuse_library_cover_import_progress'
@@ -212,6 +213,9 @@ function isCountedBookView(view: LibraryView) {
 
 export default function LibraryPage() {
   const searchParams = useSearchParams()
+  const { role } = useSessionProfile()
+  const canWrite = role === 'Editor' || role === 'Administrator'
+
   const [view, setView] = useState<LibraryView>(() => {
     const requestedView = searchParams.get('view')
     const requestedArtistId = searchParams.get('artistId')?.trim() ?? ''
@@ -962,36 +966,38 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      <div className="no-print" style={floatingActionBarStyle}>
-        <Link
-          className="edit-button"
-          href="/library/books/new"
-          onClick={() => {
-            // A fresh "Add book" click always starts blank, not a leftover draft.
-            try {
-              sessionStorage.removeItem('artmuse_library_book_new_draft')
-            } catch {
-              // Ignore storage access errors (e.g. private browsing).
-            }
-          }}
-        >
-          Add book
-        </Link>
-        <button type="button" className="rounded border px-3 py-2 text-sm" disabled={coverImportState.running} onClick={() => void runBulkCoverImport()}>
-          {coverImportState.running
-            ? 'Importing covers…'
-            : hasStoredCoverImportProgress
-              ? 'Resume cover import'
-              : 'Import all covers from Open Library'}
-        </button>
-        {hasStoredCoverImportProgress && !coverImportState.running && (
-          <button type="button" className="rounded border px-3 py-2 text-sm text-gray-600" onClick={restartCoverImportFromScratch}>
-            Restart from scratch
+      {canWrite && (
+        <div className="no-print" style={floatingActionBarStyle}>
+          <Link
+            className="edit-button"
+            href="/library/books/new"
+            onClick={() => {
+              // A fresh "Add book" click always starts blank, not a leftover draft.
+              try {
+                sessionStorage.removeItem('artmuse_library_book_new_draft')
+              } catch {
+                // Ignore storage access errors (e.g. private browsing).
+              }
+            }}
+          >
+            Add book
+          </Link>
+          <button type="button" className="rounded border px-3 py-2 text-sm" disabled={coverImportState.running} onClick={() => void runBulkCoverImport()}>
+            {coverImportState.running
+              ? 'Importing covers…'
+              : hasStoredCoverImportProgress
+                ? 'Resume cover import'
+                : 'Import all covers'}
           </button>
-        )}
-      </div>
+          {hasStoredCoverImportProgress && !coverImportState.running && (
+            <button type="button" className="rounded border px-3 py-2 text-sm text-gray-600" onClick={restartCoverImportFromScratch}>
+              Restart from scratch
+            </button>
+          )}
+        </div>
+      )}
 
-      {(coverImportState.running || coverImportState.processed > 0 || coverImportState.error || hasStoredCoverImportProgress) && (
+      {canWrite && (coverImportState.running || coverImportState.processed > 0 || coverImportState.error || hasStoredCoverImportProgress) && (
         <div className="rounded border bg-white p-3 text-sm">
           {coverImportState.error ? (
             <p className="text-red-700">{coverImportState.error} Le progrès est sauvegardé — cliquez sur &quot;Resume cover import&quot; pour continuer.</p>
@@ -1250,14 +1256,14 @@ export default function LibraryPage() {
         <div className="overflow-x-auto rounded border bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-gray-50"><tr><th className="p-3"><button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold hover:underline" onClick={() => toggleAuthorSort('name')}>{headerLabelGeneric('Author', authorSortKey === 'name', authorSortDirection)}</button></th><th className="p-3"><button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold hover:underline" onClick={() => toggleAuthorSort('legacy')}>{headerLabelGeneric('Legacy no.', authorSortKey === 'legacy', authorSortDirection)}</button></th></tr></thead>
-            <tbody>{authors.map((author) => <tr key={author.id} className="border-b"><td className="p-3 font-medium"><Link className="underline" href={`/authors/${author.id}/edit`}>{personName(author) || '—'}</Link></td><td className="p-3">{author.legacy_no}</td></tr>)}</tbody>
+            <tbody>{authors.map((author) => <tr key={author.id} className="border-b"><td className="p-3 font-medium">{canWrite ? <Link className="underline" href={`/authors/${author.id}/edit`}>{personName(author) || '—'}</Link> : (personName(author) || '—')}</td><td className="p-3">{author.legacy_no}</td></tr>)}</tbody>
           </table>
         </div>
       ) : view === 'related-names' ? (
         <div className="overflow-x-auto rounded border bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-gray-50"><tr><th className="p-3"><button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold hover:underline" onClick={() => toggleRelatedSort('name')}>{headerLabelGeneric('Name', relatedSortKey === 'name', relatedSortDirection)}</button></th><th className="p-3"><button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold hover:underline" onClick={() => toggleRelatedSort('location')}>{headerLabelGeneric('Location', relatedSortKey === 'location', relatedSortDirection)}</button></th><th className="p-3"><button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold hover:underline" onClick={() => toggleRelatedSort('legacy')}>{headerLabelGeneric('Legacy', relatedSortKey === 'legacy', relatedSortDirection)}</button></th></tr></thead>
-            <tbody>{relatedNames.map((relatedName) => <tr key={relatedName.legacy_no} className="border-b"><td className="p-3 font-medium"><Link className="underline" href={`/related-names/${relatedName.legacy_no}/edit`}>{relatedName.name || '—'}</Link></td><td className="p-3">{relatedName.location || '—'}</td><td className="p-3">{relatedName.legacy_no}</td></tr>)}</tbody>
+            <tbody>{relatedNames.map((relatedName) => <tr key={relatedName.legacy_no} className="border-b"><td className="p-3 font-medium">{canWrite ? <Link className="underline" href={`/related-names/${relatedName.legacy_no}/edit`}>{relatedName.name || '—'}</Link> : (relatedName.name || '—')}</td><td className="p-3">{relatedName.location || '—'}</td><td className="p-3">{relatedName.legacy_no}</td></tr>)}</tbody>
           </table>
         </div>
       ) : view === 'types' || view === 'status' ? (
@@ -1375,8 +1381,8 @@ export default function LibraryPage() {
                 <td className="p-3">{bookArtistLabel(book) || '—'}</td>
                 <td className="p-3">{bookAuthorLabel(book) || '—'}</td>
                 <td className="p-3">{book.publication_year ?? '—'}</td>
-                <td className="p-3">{book.type_no ? <Link className="underline" href={`/types/${book.type_no}/edit`}>{book.type_description || book.type_abbrev || String(book.type_no)}</Link> : '—'}</td>
-                <td className="p-3">{book.publisher_no ? <Link className="underline" href={`/related-names/${book.publisher_no}/edit`}>{book.publisher_label || String(book.publisher_no)}</Link> : (book.publisher_label || '—')}</td>
+                <td className="p-3">{book.type_no ? (canWrite ? <Link className="underline" href={`/types/${book.type_no}/edit`}>{book.type_description || book.type_abbrev || String(book.type_no)}</Link> : (book.type_description || book.type_abbrev || String(book.type_no))) : '—'}</td>
+                <td className="p-3">{book.publisher_no ? (canWrite ? <Link className="underline" href={`/related-names/${book.publisher_no}/edit`}>{book.publisher_label || String(book.publisher_no)}</Link> : (book.publisher_label || String(book.publisher_no))) : (book.publisher_label || '—')}</td>
                 <td className="p-3">{book.isbn || '—'}</td>
                 <td className="p-3">{book.legacy_no}</td>
               </tr>
