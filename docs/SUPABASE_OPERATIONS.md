@@ -233,9 +233,8 @@ revoquer l'ancienne cle.
 Pour envoyer un courriel quand une oeuvre passe a `Acquired = YES`:
 
 1. Appliquer les migrations Supabase apres avoir verifie le projet cible avec `npx supabase db push`.
-2. Verifier le domaine d'expedition dans Resend, puis configurer `RESEND_API_KEY`, `ARTMUSE_EMAIL_FROM`, `SUPABASE_ACQUISITION_WEBHOOK_SECRET` et `ARTMUSE_APP_URL` dans l'environnement serveur. Ne jamais ajouter ces secrets a une variable `NEXT_PUBLIC_*`.
-3. Dans Supabase Dashboard > Database Webhooks, creer un webhook `POST` sur `public.artwork_acquisition_events`, evenement `INSERT`, URL `https://<domaine>/api/webhooks/acquisition-email`.
-4. Ajouter l'en-tete `x-artmuse-webhook-secret` avec la meme valeur que `SUPABASE_ACQUISITION_WEBHOOK_SECRET`.
-5. Deployer l'application et verifier qu'un evenement traite renseigne `email_sent_at`.
-
+2. Verifier le domaine d'expedition dans Resend, puis definir les secrets de la fonction Edge `supabase/functions/acquisition-email`: `npx supabase secrets set RESEND_API_KEY=... ARTMUSE_EMAIL_FROM=... ACQUISITION_WEBHOOK_SECRET=... ARTMUSE_APP_URL=...`. Le prefixe `SUPABASE_` est interdit pour les secrets de fonction.
+3. Deployer la fonction: `npx supabase functions deploy acquisition-email --no-verify-jwt`.
+4. Definir en SQL la fonction `public.notify_acquisition_email()` (trigger `trg_notify_acquisition_email` sur `public.artwork_acquisition_events`) qui appelle `net.http_post` vers `https://<project-ref>.supabase.co/functions/v1/acquisition-email` avec l'en-tete `x-artmuse-webhook-secret` egal a `ACQUISITION_WEBHOOK_SECRET`. Ne jamais versionner la vraie valeur du secret.
+5. Verifier qu'un evenement traite renseigne `email_sent_at` et consulter `net._http_response` en cas d'echec.
 Les destinataires configures dans l'application sont `sandrine@blondeau.ch` et `anouk@blondeau.ch`. La cle d'idempotence Resend et `email_sent_at` evitent le renvoi lors d'une nouvelle livraison du webhook.
