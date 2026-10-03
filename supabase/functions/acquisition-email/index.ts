@@ -28,7 +28,7 @@ function secretsMatch(received: string | null, expected: string) {
 }
 
 Deno.serve(async (request) => {
-  const webhookSecret = Deno.env.get('SUPABASE_ACQUISITION_WEBHOOK_SECRET')
+  const webhookSecret = Deno.env.get('ACQUISITION_WEBHOOK_SECRET')
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
   const fromAddress = Deno.env.get('ARTMUSE_EMAIL_FROM')
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
