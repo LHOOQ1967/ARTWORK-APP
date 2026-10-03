@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.uq_artwork_viewer_comments_artwork_user;

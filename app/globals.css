@@ -1137,7 +1137,7 @@ button:focus-visible {
    ========================================================= */
 
 @page {
-  size: A4 landscape;
+  size: A4 portrait;
   margin: 12mm;
 }
 
@@ -1164,16 +1164,23 @@ button:focus-visible {
     background: transparent !important;
   }
 
+  .protected-page-shell,
+  .protected-page-shell > main,
+  .protected-page-shell main {
+    background: transparent !important;
+    min-height: auto !important;
+  }
+
 
   .print-text {
     display: block !important;   /* ✅ visible uniquement à l’impression */
   }
 
 
-  /* conserver les couleurs (si tu imprimes des fonds) */
+  /* ne pas forcer l'impression des fonds */
   * {
-    -webkit-print-color-adjust: exact !important; /* Chrome/Edge */
-    print-color-adjust: exact !important;         /* Standard */
+    -webkit-print-color-adjust: economy !important;
+    print-color-adjust: economy !important;
   }
 
   /* masquer l’UI */

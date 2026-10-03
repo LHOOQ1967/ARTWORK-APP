@@ -370,6 +370,15 @@ const displayTitle = (() => {
       {statusStyle.label ?? artwork.status}
     </span>
 
+    {/* Print */}
+    <button
+      type="button"
+      className="edit-button no-print"
+      onClick={() => window.print()}
+    >
+      Print
+    </button>
+
     {/* Edit */}
     {!isEditMode && canEdit && (
       <Link className="no-print" href={`/artworks/${artworkId}/edit`}>

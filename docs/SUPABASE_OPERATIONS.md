@@ -227,3 +227,15 @@ correspondant exactement au domaine public de production, notamment
 `https://<domaine>/auth/callback`. Lors d'une rotation de cle, deployer les
 nouvelles variables, verifier la connexion et les routes admin, puis
 revoquer l'ancienne cle.
+
+## Courriels d'acquisition
+
+Pour envoyer un courriel quand une oeuvre passe a `Acquired = YES`:
+
+1. Appliquer les migrations Supabase apres avoir verifie le projet cible avec `npx supabase db push`.
+2. Verifier le domaine d'expedition dans Resend, puis configurer `RESEND_API_KEY`, `ARTMUSE_EMAIL_FROM`, `SUPABASE_ACQUISITION_WEBHOOK_SECRET` et `ARTMUSE_APP_URL` dans l'environnement serveur. Ne jamais ajouter ces secrets a une variable `NEXT_PUBLIC_*`.
+3. Dans Supabase Dashboard > Database Webhooks, creer un webhook `POST` sur `public.artwork_acquisition_events`, evenement `INSERT`, URL `https://<domaine>/api/webhooks/acquisition-email`.
+4. Ajouter l'en-tete `x-artmuse-webhook-secret` avec la meme valeur que `SUPABASE_ACQUISITION_WEBHOOK_SECRET`.
+5. Deployer l'application et verifier qu'un evenement traite renseigne `email_sent_at`.
+
+Les destinataires configures dans l'application sont `sandrine@blondeau.ch` et `anouk@blondeau.ch`. La cle d'idempotence Resend et `email_sent_at` evitent le renvoi lors d'une nouvelle livraison du webhook.

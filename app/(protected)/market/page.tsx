@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { LinkedText } from '@/components/ui/LinkedText';
 import { supabase } from '@/lib/supabaseBrowser';
 
@@ -89,6 +89,17 @@ function formatDateRange(start?: string | null, end?: string | null) {
   if (start && end) return `${formatDate(start)} – ${formatDate(end)}`;
   if (start) return `Dès ${formatDate(start)}`;
   return `Jusqu’au ${formatDate(end)}`;
+}
+
+function getLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isPastSection(section: MarketSection, today: string) {
+  return Boolean(section.end_date && section.end_date < today);
 }
 
 function parseAuctionDateTimeRaw(dateTime?: string | null) {
@@ -767,12 +778,35 @@ setSectionSortModes((prev) => {
   }, []);
 
 
+const todayDate = getLocalDateKey(new Date());
 const displaySections = useMemo(() => {
-  return sections.map((section) => ({
+  const sortedSections = sections.map((section) => ({
     ...section,
     items: sortItems(section.items, getSectionSortMode(section), section.category),
   }));
-}, [sections, sectionSortModes]);
+
+  const compareByStartDate = (a: SectionWithItems, b: SectionWithItems, descending: boolean) => {
+    if (a.start_date !== b.start_date) {
+      if (!a.start_date) return 1;
+      if (!b.start_date) return -1;
+      return descending
+        ? b.start_date.localeCompare(a.start_date)
+        : a.start_date.localeCompare(b.start_date);
+    }
+
+    if (a.position !== b.position) return a.position - b.position;
+    return a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' });
+  };
+
+  const futureSections = sortedSections
+    .filter((section) => !isPastSection(section, todayDate))
+    .sort((a, b) => compareByStartDate(a, b, false));
+  const pastSections = sortedSections
+    .filter((section) => isPastSection(section, todayDate))
+    .sort((a, b) => compareByStartDate(a, b, true));
+
+  return [...futureSections, ...pastSections];
+}, [sections, sectionSortModes, todayDate]);
 
 
   function toggleSection(sectionId: string) {
@@ -1159,11 +1193,42 @@ const displaySections = useMemo(() => {
       <div style={styles.cardBody}>No sections found for this filter.</div>
     </div>
   ) : (
-    displaySections.map((section) => {
+    displaySections.map((section, index) => {
+      const sectionIsPast = isPastSection(section, todayDate);
+      const startsPeriod =
+        index === 0 ||
+        isPastSection(displaySections[index - 1], todayDate) !== sectionIsPast;
       const isExpanded = expandedSections[section.id] ?? false;
 
       return (
-        <div key={section.id} style={styles.card}>
+        <Fragment key={section.id}>
+        {startsPeriod && sectionIsPast ? (
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            style={{
+              width: '100%',
+              height: '2px',
+              flexShrink: 0,
+              backgroundColor: '#a3b0aa',
+              margin: '8px 0 0',
+            }}
+          />
+        ) : null}
+        {startsPeriod ? (
+          <h2
+            style={{
+              margin: sectionIsPast ? 0 : '8px 0 0',
+              color: '#143b2d',
+              fontSize: '28px',
+              fontWeight: 700,
+              textAlign: 'center',
+            }}
+          >
+            {sectionIsPast ? 'Past' : 'Future'}
+          </h2>
+        ) : null}
+        <div style={{ ...styles.card, background: '#f5f6f5' }}>
           <div style={styles.cardHeader}>
             <div style={styles.sectionHeaderRow}>
               <div style={{ minWidth: 0 }}>
@@ -1523,6 +1588,7 @@ const displaySections = useMemo(() => {
             </div>
           ) : null}
         </div>
+        </Fragment>
       );
     })
   )}
@@ -1530,8 +1596,31 @@ const displaySections = useMemo(() => {
 
 
         {canEdit ? (
+          <>
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            style={{
+              width: '100%',
+              height: '2px',
+              flexShrink: 0,
+              backgroundColor: '#a3b0aa',
+              marginTop: '8px',
+            }}
+          />
+          <h2
+            style={{
+              margin: 0,
+              color: '#143b2d',
+              fontSize: '28px',
+              fontWeight: 700,
+              textAlign: 'center',
+            }}
+          >
+            New
+          </h2>
           <div style={twoColumnsResponsiveStyle}>
-            <div style={styles.card}>
+            <div style={{ ...styles.card, background: '#f5f6f5' }}>
               <div style={styles.cardHeader}>
                 <h2 style={styles.cardTitle}>Nouvelle section</h2>
                 <p style={styles.cardSubtitle}>
@@ -1621,7 +1710,7 @@ const displaySections = useMemo(() => {
               </div>
             </div>
 
-            <div style={styles.card}>
+            <div style={{ ...styles.card, background: '#f5f6f5' }}>
               <div style={styles.cardHeader}>
                 <h2 style={styles.cardTitle}>Ajouter une ressource</h2>
                 <p style={styles.cardSubtitle}>
@@ -1792,6 +1881,7 @@ const displaySections = useMemo(() => {
               </div>
             </div>
           </div>
+          </>
         ) : null}
       </div>
     </div>
