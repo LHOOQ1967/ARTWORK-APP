@@ -10,7 +10,7 @@ import type { Artist, Contact } from '@/app/(protected)/types/artwork'
 import { LinkedText } from '@/components/ui/LinkedText'
 type ProfileRow = { id: string; email: string | null }
 type EntryRow = { created_at?: string | null; created_by?: string | null }
-type ContactSortKey = 'company' | 'first' | 'last' | 'city'
+type ContactSortKey = 'company' | 'first' | 'last'
 type ReferenceSortKey = 'label' | 'detail' | 'secondary' | 'created_at' | 'created_by'
 type ReferenceKind = 'authors' | 'related-names' | 'types' | 'artist-categories'
 
@@ -155,6 +155,31 @@ function ArtistsSection() {
   const [artistSortKey, setArtistSortKey] = useState<ArtistSortKey>('name')
   const [artistSortDirection, setArtistSortDirection] = useState<'asc' | 'desc'>('asc')
   const [visibleCount, setVisibleCount] = useState(REFERENTIAL_PAGE_SIZE)
+  const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
+  const [categoryError, setCategoryError] = useState('')
+
+async function updateArtistCategory(artistId: string, value: string) {
+  const categoryNo = value === '' ? null : Number(value)
+  setSavingCategoryId(artistId)
+  setCategoryError('')
+
+  const { error } = await supabase
+    .from('artists')
+    .update({ artist_category_no: categoryNo })
+    .eq('id', artistId)
+
+  if (error) {
+    console.error(error)
+    setCategoryError('Unable to save the category. Please try again.')
+  } else {
+    setArtists((current) =>
+      current.map((artistRow) =>
+        artistRow.id === artistId ? { ...artistRow, artist_category_no: categoryNo } : artistRow
+      )
+    )
+  }
+  setSavingCategoryId(null)
+}
 
 const filteredArtists = artists.filter((artistRow) => {
   const searchable = [
@@ -337,42 +362,51 @@ useEffect(() => {
             {sortedArtists.slice(0, visibleCount).map((artistRow) => {
               const categoryLabel = artistCategories.find((category) => category.legacy_no === artistRow.artist_category_no)?.description ?? '—'
 
+              const cellStyle = { display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff', textDecoration: 'none' } as const
+              const artistHref = `/artists/${artistRow.id}`
+
               return (
-                <Link
+                <div
                   key={artistRow.id}
-                  href={`/artists/${artistRow.id}`}
+                  role="row"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'minmax(240px, 1.4fr) minmax(180px, 1fr) 110px 110px 130px',
                     textAlign: 'left',
-                    cursor: 'pointer',
                     width: '100%',
-                    border: 'none',
-                    padding: 0,
-                    background: 'transparent',
-                    textDecoration: 'none',
                   }}
                 >
-                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#173f31', background: '#fff' }}>
+                  <Link href={artistHref} style={{ ...cellStyle, color: '#173f31' }}>
                     {getArtistDisplayName(artistRow)}
-                  </span>
-                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }}>
-                    {categoryLabel}
-                  </span>
-                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }}>
-                    {artistRow.year_of_birth ?? '—'}
-                  </span>
-                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }}>
-                    {artistRow.year_of_death ?? '—'}
-                  </span>
-                  <span style={{ display: 'block', padding: '11px 12px', borderBottom: '1px solid #e4e9e6', color: '#62736c', background: '#fff' }} title={artistRow.id}>
-                    {getArtistRecordLabel(artistRow)}
-                  </span>
-                </Link>
+                  </Link>
+                  {canWrite ? (
+                    <div style={{ ...cellStyle, padding: '6px 8px' }}>
+                      <select
+                        aria-label={`Category of ${getArtistDisplayName(artistRow)}`}
+                        value={artistRow.artist_category_no ?? ''}
+                        disabled={savingCategoryId === artistRow.id}
+                        onChange={(event) => void updateArtistCategory(artistRow.id, event.target.value)}
+                        className="referential-field"
+                        style={{ width: '100%', minHeight: 36, padding: '6px 8px', border: '1px solid #c9d3cd', borderRadius: 8, backgroundColor: '#fff' }}
+                      >
+                        <option value="">—</option>
+                        {artistCategories.map((category) => (
+                          <option key={category.legacy_no} value={category.legacy_no}>{category.description}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <Link href={artistHref} style={cellStyle}>{categoryLabel}</Link>
+                  )}
+                  <Link href={artistHref} style={cellStyle}>{artistRow.year_of_birth ?? '—'}</Link>
+                  <Link href={artistHref} style={cellStyle}>{artistRow.year_of_death ?? '—'}</Link>
+                  <Link href={artistHref} style={cellStyle} title={artistRow.id}>{getArtistRecordLabel(artistRow)}</Link>
+                </div>
               )
             })}
           </div>
 
+          {categoryError && <p role="alert" style={{ padding: 12, color: '#b42318' }}>{categoryError}</p>}
           {sortedArtists.length === 0 && <p style={{ padding: 16, color: '#62736c' }}>No matching artists.</p>}
           {visibleCount < sortedArtists.length && (
             <div className="no-print" style={{ display: 'flex', gap: 12, justifyContent: 'center', padding: 12, borderTop: '1px solid #e4e9e6' }}>
@@ -419,7 +453,6 @@ function ContactsSection() {
       contactRow.company_name || null,
       contactRow.first_name || null,
       contactRow.last_name || null,
-      contactRow.city || null,
     ].filter(Boolean)
 
     return parts.length > 0 ? parts.join(' - ') : '—'
@@ -437,7 +470,7 @@ function ContactsSection() {
 
   
 const filteredContacts = contacts.filter(c => {
-  const label = [c.company_name, c.first_name, c.last_name, c.city, c.email]
+  const label = [c.company_name, c.first_name, c.last_name, c.email]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
@@ -453,14 +486,14 @@ const filteredContacts = contacts.filter(c => {
         ? left.first_name || ''
         : contactSortKey === 'last'
           ? left.last_name || ''
-          : left.city || ''
+          : ''
     const rightValue = contactSortKey === 'company'
       ? right.company_name || ''
       : contactSortKey === 'first'
         ? right.first_name || ''
         : contactSortKey === 'last'
           ? right.last_name || ''
-          : right.city || ''
+          : ''
 
     return leftValue.localeCompare(rightValue, 'fr', { numeric: true, sensitivity: 'base' }) * direction
   })
@@ -620,12 +653,11 @@ async function remove() {
 
       <div style={{ marginTop: 14 }}>
         <div style={{ overflowX: 'auto', border: '1px solid #d7dfda', borderRadius: 8, background: '#fff' }}>
-          <div role="row" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(160px, 1fr)' }}>
+          <div role="row" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 1fr)' }}>
             {([
               ['company', 'Company'],
               ['first', 'First name'],
               ['last', 'Last name'],
-              ['city', 'City'],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -655,12 +687,11 @@ async function remove() {
             <Link
               key={c.id}
               href={`/contacts/${c.id}/edit`}
-              style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(160px, 1fr)', width: '100%', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}
+              style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.2fr) minmax(180px, 1fr) minmax(180px, 1fr)', width: '100%', background: '#fff', color: '#173f31', textAlign: 'left', textDecoration: 'none', fontSize: 16 }}
             >
               <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.company_name || '—'}</span>
               <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.first_name || '—'}</span>
               <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.last_name || '—'}</span>
-              <span style={{ padding: '10px 12px', borderBottom: '1px solid #e4e9e6' }}>{c.city || '—'}</span>
             </Link>
           ))}
         </div>
@@ -750,25 +781,6 @@ async function remove() {
     />
   ) : (
     contact.last_name ?? '—'
-  )}
-</InlineRow>
-
-
-<InlineRow label="City">
-  {isEditing ? (
-    <input
-      className="referential-edit-field"
-      style={editableFieldStyle}
-      value={contact.city ?? ''}
-      onChange={e =>
-        setContact({
-          ...contact,
-          city: e.target.value,
-        })
-      }
-    />
-  ) : (
-    contact.city ?? '—'
   )}
 </InlineRow>
 
@@ -1128,9 +1140,9 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
 
   const initialSection = querySection
     ? querySection
-    : section === 'contacts'
-      ? 'contacts'
-      : 'artists'
+    : section === 'artists'
+      ? 'artists'
+      : 'contacts'
 
   const [activeSection, setActiveSection] = useState<'artists' | 'contacts' | 'authors' | 'related-names' | 'types' | 'artist-categories'>(
     initialSection
@@ -1167,7 +1179,7 @@ export function ReferentialsPage({ section = 'both' }: { section?: 'artists' | '
                 Referentials
               </div>
               <div style={{ display: 'grid', gap: 6 }}>
-                {(['artists', 'contacts', 'authors', 'related-names', 'types', 'artist-categories'] as const).map((item) => (
+                {(['contacts', 'artists', 'authors', 'related-names', 'types', 'artist-categories'] as const).map((item) => (
                   <button
                     key={item}
                     type="button"

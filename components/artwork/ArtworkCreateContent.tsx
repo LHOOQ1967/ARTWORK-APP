@@ -1149,6 +1149,8 @@ async function saveArtwork() {
 
       artist_id: artwork.artist_id,
       location_contact_id: artwork.location_contact_id,
+      location_address_id: artwork.location_address_id ?? null,
+      destination_address_id: artwork.destination_address_id ?? null,
       auction_contact_id: artwork.auction_contact_id,
       buyer_contact_id: artwork.buyer_contact_id,
       destination_contact_id: artwork.destination_contact_id,

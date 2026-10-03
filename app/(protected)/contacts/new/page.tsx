@@ -13,7 +13,6 @@ export default function NewContactPage() {
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [telephone, setTelephone] = useState('')
-  const [city, setCity] = useState('')
   const [role, setRole] = useState('')
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
@@ -36,7 +35,6 @@ export default function NewContactPage() {
         last_name: lastName.trim() || null,
         email: email.trim() || null,
         telephone: telephone.trim() || null,
-        city: city.trim() || null,
         role: role.trim() || null,
         notes: notes.trim() || null,
       })
@@ -137,17 +135,6 @@ export default function NewContactPage() {
           <input
             value={telephone}
             onChange={e => setTelephone(e.target.value)}
-            className="entity-form-field"
-            style={fieldStyle}
-          />
-        </div>
-
-        {/* City */}
-        <div style={{ marginBottom: 12 }}>
-          <label>City</label>
-          <input
-            value={city}
-            onChange={e => setCity(e.target.value)}
             className="entity-form-field"
             style={fieldStyle}
           />

@@ -8,6 +8,7 @@ export type Contact = {
   company_name?: string | null
   first_name?: string | null
   last_name?: string | null
+  address?: string | null
 
   email?: string | null
   telephone?: string | null
@@ -135,6 +136,8 @@ export type ArtworkFull = {
   artist?: Artist | null
   artist_id?: string | null
   location_contact_id?: string | null
+  location_address_id?: string | null
+  destination_address_id?: string | null
   auction_contact_id?: string | null
   buyer_contact_id?: string | null
   destination_contact_id?: string | null
@@ -247,6 +250,8 @@ export type ArtworkForm = {
 
   artist_id: string | null
   location_contact_id: string | null
+  location_address_id?: string | null
+  destination_address_id?: string | null
   auction_contact_id: string | null
   buyer_contact_id: string | null
   destination_contact_id: string | null

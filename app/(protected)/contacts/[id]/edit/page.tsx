@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
+import ContactAddressesEditor from '@/components/contacts/ContactAddressesEditor'
 
 type ContactRecord = {
   id: string
@@ -12,7 +13,6 @@ type ContactRecord = {
   last_name: string | null
   email: string | null
   telephone: string | null
-  city: string | null
   role: string | null
   notes: string | null
 }
@@ -83,7 +83,7 @@ export default function EditContactPage() {
 
       const { data, error: loadError } = await supabase
         .from('contacts')
-        .select('id, company_name, first_name, last_name, email, telephone, city, role, notes')
+        .select('id, company_name, first_name, last_name, email, telephone, role, notes')
         .eq('id', id)
         .maybeSingle()
 
@@ -227,13 +227,8 @@ export default function EditContactPage() {
             />
           </ContactFieldRow>
 
-          <ContactFieldRow label="City">
-            <input
-              style={fieldStyle}
-              value={contact.city ?? ''}
-              onChange={(event) => setContact((current) => (current ? { ...current, city: event.target.value } : current))}
-              placeholder="City"
-            />
+          <ContactFieldRow label="Addresses">
+            <ContactAddressesEditor contactId={contact.id} />
           </ContactFieldRow>
 
           <ContactFieldRow label="Role">

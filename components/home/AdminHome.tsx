@@ -23,6 +23,7 @@ const collection: DashboardLink[] = [
   { href: '/inventory', title: 'Inventory', subtitle: 'Florac Works' },
   { href: '/valuations', title: 'Valuations', subtitle: 'Florac Works' },
   { href: '/commissions', title: 'Commissions', subtitle: 'Florac Works & GLM' },
+  { href: '/transports', title: 'Transports', subtitle: 'Quotes and deliveries' },
 ]
 
 const management: DashboardLink[] = [

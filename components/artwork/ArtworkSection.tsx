@@ -1,6 +1,8 @@
 
 'use client'
 
+import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
+
 import {
   useEffect,
   useMemo,
@@ -1573,6 +1575,7 @@ async function handleAddProposal() {
               setArtwork({
                 ...artwork,
                 location_contact_id: value || null,
+                location_address_id: null,
                 location: selected,
               })
             }}
@@ -1586,6 +1589,12 @@ async function handleAddProposal() {
             isEditing={isEditing}
             loading={locationLoading}
             noResultsText="No location found"
+          />
+          <ContactAddressSelect
+            contactId={artwork.location_contact_id}
+            value={artwork.location_address_id}
+            onChange={(addressId) => setArtwork({ ...artwork, location_address_id: addressId })}
+            disabled={!isEditing}
           />
         </EditRow>
 
@@ -2136,6 +2145,8 @@ async function handleAddProposal() {
       setArtwork((prev) => ({
         ...prev,
         acquired: isYes,
+        ...(isYes && !prev.acquired ? { status: 'Bought' as const } : {}),
+        ...(!isYes && prev.acquired ? { status: 'Draft' as const } : {}),
       }))
     }}
     style={{ ...editInputStyle, width: 90 }}
@@ -2348,6 +2359,7 @@ async function handleAddProposal() {
                   setArtwork({
                     ...artwork,
                     destination_contact_id: value || null,
+                    destination_address_id: null,
                     destination: selected,
                   })
                 }}
@@ -2361,6 +2373,14 @@ async function handleAddProposal() {
                 isEditing={isEditing}
                 loading={destinationLoading}
                 noResultsText="No destination found"
+              />
+              <ContactAddressSelect
+                contactId={artwork.destination_contact_id}
+                value={artwork.destination_address_id}
+                onChange={(addressId) =>
+                  setArtwork({ ...artwork, destination_address_id: addressId })
+                }
+                disabled={!isEditing}
               />
             </EditRow>
             

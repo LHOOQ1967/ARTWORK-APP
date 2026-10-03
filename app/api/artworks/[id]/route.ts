@@ -140,6 +140,8 @@ export async function PATCH(
     'width_cm',
     'depth_cm',
     'location_contact_id',
+    'location_address_id',
+    'destination_address_id',
     'status',
     'priority',
     'asking_price',

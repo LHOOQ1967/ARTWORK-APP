@@ -55,9 +55,11 @@ Bought: {
 function InfoRow({
   label,
   value,
+  detail,
 }: {
   label: React.ReactNode
   value?: React.ReactNode
+  detail?: string | null
 }) {
   return (
     <div
@@ -74,6 +76,7 @@ function InfoRow({
       </div>
       <div style={{ minWidth: 0 }}>
         {value}
+        {detail && <div style={{ color: '#555' }}>{detail}</div>}
       </div>
     </div>
   )
@@ -819,6 +822,7 @@ const displayTitle = (() => {
                   .join(' ')
               : null
           }
+          detail={artwork.location.address}
         />
         )}
 
@@ -957,6 +961,18 @@ const displayTitle = (() => {
       [artwork.destination.first_name, artwork.destination.last_name]
         .filter(Boolean)
         .join(' ')
+    }
+    detail={artwork.destination.address}
+  />
+)}
+
+{artwork.acquired === true && (
+  <InfoRowShort
+    label="Transports"
+    value={
+      <Link href="/transports" style={{ color: '#007a5e', textDecoration: 'underline' }}>
+        Voir les transports
+      </Link>
     }
   />
 )}

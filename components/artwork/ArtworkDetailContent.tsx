@@ -580,6 +580,8 @@ const payload = {
   year_execution: artwork.year_execution,
 
   location_contact_id: artwork.location_contact_id,
+  location_address_id: artwork.location_address_id ?? null,
+  destination_address_id: artwork.destination_address_id ?? null,
   status: artwork.status,
   priority: artwork.priority,
 
