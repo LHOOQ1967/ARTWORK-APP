@@ -9,7 +9,7 @@ const TRANSPORT_SELECT = `
   origin_address_id, destination_address_id,
   origin_address:contact_addresses!artwork_transports_origin_address_id_fkey(id, label, address, postal_code, city, country),
   destination_address:contact_addresses!artwork_transports_destination_address_id_fkey(id, label, address, postal_code, city, country),
-  instruction_date, transport_date, arrival_date, notes, created_at,
+  instruction_date, transport_date, arrival_date, notes, final_invoice_pdf_url, created_at,
   artwork:artworks!artwork_transports_artwork_id_fkey(
     id, title, year_execution, artist:artists(first_name, last_name),
     location:contacts!artworks_location_contact_fkey(id, company_name, first_name, last_name),
@@ -21,7 +21,7 @@ const TRANSPORT_SELECT = `
   destination:contacts!artwork_transports_destination_contact_id_fkey(id, company_name, first_name, last_name),
   quotes:artwork_transport_quotes(
     id, transport_id, carrier_contact_id, quote_date, amount, currency,
-    submitted_to_buyer_date, accepted_date, created_at,
+    submitted_to_buyer_date, accepted_date, quote_pdf_url, created_at,
     carrier:contacts!artwork_transport_quotes_carrier_contact_id_fkey(id, company_name, first_name, last_name)
   )
 `

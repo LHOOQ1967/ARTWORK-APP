@@ -25,6 +25,7 @@ type Quote = {
   currency: string
   submitted_to_buyer_date: string | null
   accepted_date: string | null
+  quote_pdf_url: string | null
 }
 
 type Transport = {
@@ -37,6 +38,7 @@ type Transport = {
   transport_date: string | null
   arrival_date: string | null
   notes: string | null
+  final_invoice_pdf_url: string | null
   image_url: string | null
   artwork: {
     title: string | null
@@ -333,6 +335,9 @@ function TransportCard({
     transport.instruction_contact_id ?? 'all'
   )
   const [notes, setNotes] = useState(transport.notes ?? '')
+  const [finalInvoicePdfUrl, setFinalInvoicePdfUrl] = useState(
+    transport.final_invoice_pdf_url ?? ''
+  )
   const [history, setHistory] = useState<HistoryRow[] | null>(null)
 
   async function toggleHistory() {
@@ -452,6 +457,30 @@ function TransportCard({
         )}
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Lien PDF de la facture finale
+          <input
+            type="url"
+            className="w-80 rounded border bg-white px-3 py-2"
+            disabled={!canEdit}
+            placeholder="https://..."
+            value={finalInvoicePdfUrl}
+            onChange={(event) => setFinalInvoicePdfUrl(event.target.value)}
+          />
+        </label>
+        {transport.final_invoice_pdf_url && (
+          <a
+            className="pb-2 text-sm font-medium text-blue-700 underline"
+            href={transport.final_invoice_pdf_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            PDF de la facture finale
+          </a>
+        )}
+      </div>
+
       <div className="grid items-end gap-3 md:grid-cols-4">
         {dateField('instruction_date', 'Instructions de transport')}
         {canEdit ? (
@@ -500,6 +529,7 @@ function TransportCard({
                     transport_date: dates.transport_date || null,
                     arrival_date: dates.arrival_date || null,
                     notes,
+                    final_invoice_pdf_url: finalInvoicePdfUrl || null,
                   })
                 )
               }
@@ -556,6 +586,7 @@ function QuoteRow({
     currency: quote.currency,
     submitted_to_buyer_date: quote.submitted_to_buyer_date ?? '',
     accepted_date: quote.accepted_date ?? '',
+    quote_pdf_url: quote.quote_pdf_url ?? '',
   })
 
   const set = (key: keyof typeof draft, value: string) =>
@@ -610,6 +641,27 @@ function QuoteRow({
         <input type="date" className={input} disabled={!canEdit} value={draft.accepted_date}
           onChange={(event) => set('accepted_date', event.target.value)} />
       </label>
+      <label className={label}>
+        Lien PDF du devis (OneDrive)
+        <input
+          type="url"
+          className={`${input} w-64`}
+          disabled={!canEdit}
+          placeholder="https://..."
+          value={draft.quote_pdf_url}
+          onChange={(event) => set('quote_pdf_url', event.target.value)}
+        />
+      </label>
+      {quote.quote_pdf_url && (
+        <a
+          className="pb-2 text-sm font-medium text-blue-700 underline"
+          href={quote.quote_pdf_url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          PDF du devis
+        </a>
+      )}
       {canEdit && (
         <>
           <button
@@ -625,6 +677,7 @@ function QuoteRow({
                   currency: draft.currency,
                   submitted_to_buyer_date: draft.submitted_to_buyer_date || null,
                   accepted_date: draft.accepted_date || null,
+                  quote_pdf_url: draft.quote_pdf_url || null,
                 })
               )
             }

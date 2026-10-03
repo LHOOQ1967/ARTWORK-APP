@@ -37,6 +37,20 @@ function collect(
 const text = (value: unknown) =>
   value === null ? null : typeof value === 'string' ? value.trim() || null : undefined
 
+const httpUrl = (value: unknown) => {
+  if (value === null || value === '') return null
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function parseTransportInput(body: Record<string, unknown> | null, isCreate: boolean) {
   return collect(
     body,
@@ -51,6 +65,7 @@ export function parseTransportInput(body: Record<string, unknown> | null, isCrea
       transport_date: dateOrNull,
       arrival_date: dateOrNull,
       notes: text,
+      final_invoice_pdf_url: httpUrl,
     },
     isCreate ? ['artwork_id'] : []
   )
@@ -64,6 +79,7 @@ export function parseQuoteInput(body: Record<string, unknown> | null, isCreate: 
       quote_date: dateOrNull,
       submitted_to_buyer_date: dateOrNull,
       accepted_date: dateOrNull,
+      quote_pdf_url: httpUrl,
       currency: (value) =>
         typeof value === 'string' &&
         (TRANSPORT_CURRENCIES as readonly string[]).includes(value.toUpperCase())

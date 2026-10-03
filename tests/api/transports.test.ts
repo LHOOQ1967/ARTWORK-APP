@@ -22,4 +22,14 @@ describe('transport input parsing', () => {
       amount: 120.5,
     })
   })
+
+  it('accepts HTTP(S) document links and rejects other protocols', () => {
+    expect(
+      parseQuoteInput({ quote_pdf_url: 'https://onedrive.live.com/share/quote.pdf' }, false)
+    ).toEqual({ quote_pdf_url: 'https://onedrive.live.com/share/quote.pdf' })
+    expect(parseQuoteInput({ quote_pdf_url: 'javascript:alert(1)' }, false)).toBeNull()
+    expect(
+      parseTransportInput({ final_invoice_pdf_url: 'https://example.com/invoice.pdf' }, false)
+    ).toEqual({ final_invoice_pdf_url: 'https://example.com/invoice.pdf' })
+  })
 })
