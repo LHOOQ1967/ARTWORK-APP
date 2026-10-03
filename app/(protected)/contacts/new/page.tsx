@@ -5,6 +5,22 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 
+type AddressDraft = {
+  label: string
+  address: string
+  postal_code: string
+  city: string
+  country: string
+}
+
+const ADDRESS_FIELDS = [
+  ['label', 'Label (ex. New York)'],
+  ['address', 'Adresse'],
+  ['postal_code', 'Code postal'],
+  ['city', 'Ville'],
+  ['country', 'Pays'],
+] as const
+
 export default function NewContactPage() {
   const router = useRouter()
 
@@ -15,6 +31,7 @@ export default function NewContactPage() {
   const [telephone, setTelephone] = useState('')
   const [role, setRole] = useState('')
   const [notes, setNotes] = useState('')
+  const [addresses, setAddresses] = useState<AddressDraft[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,7 +44,7 @@ export default function NewContactPage() {
     setLoading(true)
     setError(null)
 
-    const { error: supabaseError } = await supabase
+    const { data: created, error: supabaseError } = await supabase
       .from('contacts')
       .insert({
         company_name: companyName.trim() || null,
@@ -38,12 +55,37 @@ export default function NewContactPage() {
         role: role.trim() || null,
         notes: notes.trim() || null,
       })
+      .select('id')
+      .single()
 
-    if (supabaseError) {
+    if (supabaseError || !created) {
       console.error('Create contact failed:', supabaseError)
       setError('Failed to create contact')
       setLoading(false)
       return
+    }
+
+    const addressRows = addresses
+      .map(a => ({
+        contact_id: created.id,
+        label: a.label.trim() || null,
+        address: a.address.trim() || null,
+        postal_code: a.postal_code.trim() || null,
+        city: a.city.trim() || null,
+        country: a.country.trim() || null,
+      }))
+      .filter(a => a.label || a.address || a.postal_code || a.city || a.country)
+
+    if (addressRows.length > 0) {
+      const { error: addressError } = await supabase
+        .from('contact_addresses')
+        .insert(addressRows)
+      if (addressError) {
+        console.error('Create addresses failed:', addressError)
+        setError('Contact created, but addresses could not be saved. Edit the contact to add them.')
+        setLoading(false)
+        return
+      }
     }
 
     // ✅ même logique que New Artist
@@ -149,6 +191,52 @@ export default function NewContactPage() {
             className="entity-form-field"
             style={fieldStyle}
           />
+        </div>
+
+        {/* Addresses */}
+        <div style={{ marginBottom: 12 }}>
+          <label>Adresses</label>
+          <div style={{ display: 'grid', gap: 10, marginTop: 6 }}>
+            {addresses.map((row, index) => (
+              <div key={index} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                {ADDRESS_FIELDS.map(([key, placeholder]) => (
+                  <input
+                    key={key}
+                    placeholder={placeholder}
+                    value={row[key]}
+                    onChange={e =>
+                      setAddresses(current =>
+                        current.map((r, i) => (i === index ? { ...r, [key]: e.target.value } : r))
+                      )
+                    }
+                    className="entity-form-field"
+                    style={{ ...fieldStyle, marginTop: 0, width: 'auto', flex: key === 'address' ? '2 1 220px' : '1 1 130px', minWidth: 0 }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  className="edit-button"
+                  onClick={() => setAddresses(current => current.filter((_, i) => i !== index))}
+                >
+                  Supprimer
+                </button>
+              </div>
+            ))}
+            <div>
+              <button
+                type="button"
+                className="edit-button"
+                onClick={() =>
+                  setAddresses(current => [
+                    ...current,
+                    { label: '', address: '', postal_code: '', city: '', country: '' },
+                  ])
+                }
+              >
+                Ajouter une adresse
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Notes */}
