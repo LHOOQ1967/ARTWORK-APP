@@ -319,7 +319,15 @@ export default function ArtworkListUpdated({ artworks }: Props) {
   }
 
   return (
-    <div style={{ backgroundColor: 'white', borderRadius: 6, overflow: 'hidden' }}>
+    <div
+      style={{
+        backgroundColor: 'white',
+        borderRadius: 6,
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        width: '100%',
+      }}
+    >
       <table
         style={{
           width: '100%',
