@@ -49,3 +49,6 @@ yarn-error.log*
 # deploy
 deploy-logs/
 deploy-manifests/
+
+# migration logs
+migration-logs/

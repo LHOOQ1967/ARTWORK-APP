@@ -204,6 +204,7 @@ const hasLoadedArtworkRef = useRef(false)
   const [newDocUrl, setNewDocUrl] = useState('')
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [isDraggingDoc, setIsDraggingDoc] = useState(false)
   
   const [isAddingProposal, setIsAddingProposal] = useState(false)
 
@@ -340,7 +341,7 @@ useEffect(() => {
 
         supabase
           .from('documents')
-          .select('id, artwork_id, document_type, url, label, position')
+          .select('id, artwork_id, document_type, url, label, position, storage_provider, legacy_url, file_name, mime_type, size_bytes')
           .eq('artwork_id', artworkRow.id)
           .order('position', { ascending: true }),
 
@@ -1435,8 +1436,29 @@ const artworkDocuments = useMemo(
   {uploadingDoc ? 'Uploading...' : pendingFile ? 'Upload' : 'Add'}
 </button>
 
-                  <label className="edit-button" style={{ cursor: 'pointer' }}>
-                    {pendingFile ? pendingFile.name : 'Choose file'}
+                  <label
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setIsDraggingDoc(true)
+                    }}
+                    onDragLeave={() => setIsDraggingDoc(false)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setIsDraggingDoc(false)
+                      const dropped = e.dataTransfer.files?.[0]
+                      if (dropped) setPendingFile(dropped)
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      padding: '6px 14px',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      whiteSpace: 'nowrap',
+                      border: `2px dashed ${isDraggingDoc ? '#0b5d2a' : '#999'}`,
+                      backgroundColor: isDraggingDoc ? '#eaf6ee' : '#fff',
+                    }}
+                  >
+                    {pendingFile ? pendingFile.name : 'Glissez un fichier ici ou cliquez pour choisir'}
                     <input
                       type="file"
                       hidden

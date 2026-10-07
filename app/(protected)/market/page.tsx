@@ -141,6 +141,11 @@ function getItemHref(item: MarketSectionItemView) {
   return item.item_type === 'document' ? item.document_url ?? '#' : item.web_url ?? '#';
 }
 
+// SharePoint documents are served through an internal route and must keep that url.
+function isSharePointDocument(item: MarketSectionItemView) {
+  return item.item_type === 'document' && Boolean(item.document_url?.startsWith('/api/documents/'));
+}
+
 function getItemTypeLabel(item: MarketSectionItemView) {
   return item.item_type === 'document' ? 'PDF / OneDrive' : 'Lien web';
 }
@@ -634,6 +639,8 @@ const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSort
     auctionDate: '',
     auctionTime: '',
   });
+  const [itemFile, setItemFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const canEdit = role === 'Administrator' || role === 'Editor';
 
@@ -845,7 +852,7 @@ const displaySections = useMemo(() => {
       return;
     }
 
-    if (!url) {
+    if (!url && !isSharePointDocument(item)) {
       setErrorMessage('Le lien est obligatoire.');
       setSaving(false);
       return;
@@ -879,7 +886,7 @@ const displaySections = useMemo(() => {
       const { error: documentUpdateError } = await supabase
         .from('documents')
         .update({
-          url,
+          ...(isSharePointDocument(item) ? {} : { url }),
           document_type: editState.documentType || item.document_type || 'market_pdf',
         })
         .eq('id', item.document_id);
@@ -1020,8 +1027,8 @@ const displaySections = useMemo(() => {
 
     const documentUrl = itemForm.url.trim();
 
-    if (!documentUrl) {
-      setErrorMessage('L’URL OneDrive / PDF est obligatoire pour un document.');
+    if (!documentUrl && !itemFile) {
+      setErrorMessage('Choisissez un fichier ou saisissez une URL pour un document.');
       setSaving(false);
       return;
     }
@@ -1050,35 +1057,52 @@ const displaySections = useMemo(() => {
       return;
     }
 
-    const { error: documentError } = await supabase.from('documents').insert({
-      url: documentUrl,
-      document_type: itemForm.documentType || 'market_pdf',
-      market_section_item_id: itemData.id,
-      position: 0,
-      artwork_id: null,
-    });
+    if (itemFile) {
+      const body = new FormData();
+      body.append('file', itemFile);
+      body.append('document_type', itemForm.documentType || 'market_pdf');
 
-    if (documentError) {
-      console.error('CREATE MARKET DOCUMENT ERROR raw:', documentError);
-      console.error('CREATE MARKET DOCUMENT ERROR message:', documentError?.message);
-      console.error('CREATE MARKET DOCUMENT ERROR details:', documentError?.details);
-      console.error('CREATE MARKET DOCUMENT ERROR hint:', documentError?.hint);
-      console.error('CREATE MARKET DOCUMENT ERROR code:', documentError?.code);
+      const uploadRes = await fetch(`/api/market/items/${itemData.id}/sharepoint-document`, {
+        method: 'POST',
+        credentials: 'include',
+        body,
+      });
 
-      await supabase.from('market_section_items').delete().eq('id', itemData.id);
+      if (!uploadRes.ok) {
+        const uploadError = await uploadRes.json().catch(() => null);
+        await supabase.from('market_section_items').delete().eq('id', itemData.id);
+        setErrorMessage(`Impossible d’uploader le fichier : ${uploadError?.error ?? 'erreur inconnue'}`);
+        setSaving(false);
+        return;
+      }
+    } else {
+      const { error: documentError } = await supabase.from('documents').insert({
+        url: documentUrl,
+        document_type: itemForm.documentType || 'market_pdf',
+        market_section_item_id: itemData.id,
+        position: 0,
+        artwork_id: null,
+      });
 
-      setErrorMessage(
-        `Impossible d’ajouter le document : ${
-          documentError?.message ||
-          documentError?.details ||
-          documentError?.hint ||
-          'erreur inconnue'
-        }`
-      );
-      setSaving(false);
-      return;
+      if (documentError) {
+        console.error('CREATE MARKET DOCUMENT ERROR raw:', documentError);
+
+        await supabase.from('market_section_items').delete().eq('id', itemData.id);
+
+        setErrorMessage(
+          `Impossible d’ajouter le document : ${
+            documentError?.message ||
+            documentError?.details ||
+            documentError?.hint ||
+            'erreur inconnue'
+          }`
+        );
+        setSaving(false);
+        return;
+      }
     }
 
+    setItemFile(null);
     setItemForm((prev) => ({
       ...prev,
       label: '',
@@ -1096,6 +1120,18 @@ const displaySections = useMemo(() => {
     await loadData();
   }
 
+  async function removeSharePointFiles(items: MarketSectionItemView[]) {
+    for (const item of items) {
+      if (!item.document_id || !isSharePointDocument(item)) continue;
+      const res = await fetch(`/api/documents/${item.document_id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) return false;
+    }
+    return true;
+  }
+
   async function handleDeleteItem(itemId: string) {
     if (!canEdit) return;
 
@@ -1105,6 +1141,13 @@ const displaySections = useMemo(() => {
     setSaving(true);
     setMessage(null);
     setErrorMessage(null);
+
+    const target = sections.flatMap((s) => s.items).filter((i) => i.id === itemId);
+    if (!(await removeSharePointFiles(target))) {
+      setErrorMessage('Impossible de supprimer le fichier SharePoint.');
+      setSaving(false);
+      return;
+    }
 
     const { error } = await supabase.from('market_section_items').delete().eq('id', itemId);
 
@@ -1131,6 +1174,13 @@ const displaySections = useMemo(() => {
     setSaving(true);
     setMessage(null);
     setErrorMessage(null);
+
+    const sectionItems = sections.find((s) => s.id === sectionId)?.items ?? [];
+    if (!(await removeSharePointFiles(sectionItems))) {
+      setErrorMessage('Impossible de supprimer les fichiers SharePoint.');
+      setSaving(false);
+      return;
+    }
 
     const { error } = await supabase.from('market_sections').delete().eq('id', sectionId);
 
@@ -1442,15 +1492,21 @@ const displaySections = useMemo(() => {
                                       ? 'Lien OneDrive / PDF'
                                       : 'Lien internet'}
                                   </label>
-                                  <input
-                                    value={editState.url}
-                                    onChange={(e) =>
-                                      setEditState((prev) =>
-                                        prev ? { ...prev, url: e.target.value } : prev
-                                      )
-                                    }
-                                    style={styles.input}
-                                  />
+                                  {isSharePointDocument(item) ? (
+                                    <div style={{ ...styles.input, color: '#666' }}>
+                                      Fichier stocké dans SharePoint
+                                    </div>
+                                  ) : (
+                                    <input
+                                      value={editState.url}
+                                      onChange={(e) =>
+                                        setEditState((prev) =>
+                                          prev ? { ...prev, url: e.target.value } : prev
+                                        )
+                                      }
+                                      style={styles.input}
+                                    />
+                                  )}
                                 </div>
                               </div>
 
@@ -1765,13 +1821,65 @@ const displaySections = useMemo(() => {
                     />
                   </div>
 
+                  {itemForm.itemType === 'document' ? (
+                    <div>
+                      <label style={styles.label}>Fichier (upload SharePoint)</label>
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingFile(true);
+                        }}
+                        onDragLeave={() => setIsDraggingFile(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingFile(false);
+                          const dropped = e.dataTransfer.files?.[0];
+                          if (dropped) setItemFile(dropped);
+                        }}
+                        style={{
+                          border: `2px dashed ${isDraggingFile ? '#0b5d2a' : '#999'}`,
+                          backgroundColor: isDraggingFile ? '#eaf6ee' : '#fff',
+                          borderRadius: 6,
+                          padding: 16,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {itemFile ? (
+                          <div>
+                            <strong>{itemFile.name}</strong>{' '}
+                            <button type="button" onClick={() => setItemFile(null)}>
+                              Retirer
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <div>Glissez un fichier ici</div>
+                            <label style={{ cursor: 'pointer', textDecoration: 'underline' }}>
+                              ou choisir un fichier
+                              <input
+                                type="file"
+                                hidden
+                                onChange={(e) => {
+                                  const picked = e.target.files?.[0];
+                                  e.target.value = '';
+                                  if (picked) setItemFile(picked);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div>
                     <label htmlFor="item-url" style={styles.label}>
-                      {itemForm.itemType === 'document' ? 'Lien OneDrive / PDF' : 'Lien internet'}
+                      {itemForm.itemType === 'document' ? 'Ou lien OneDrive / PDF' : 'Lien internet'}
                     </label>
                     <input
                       id="item-url"
                       value={itemForm.url}
+                      disabled={itemForm.itemType === 'document' && Boolean(itemFile)}
                       onChange={(e) =>
                         setItemForm((prev) => ({ ...prev, url: e.target.value }))
                       }
