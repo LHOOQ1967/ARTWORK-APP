@@ -71,9 +71,9 @@ function formatDate(date?: string | null) {
 }
 
 function formatCreatedAt(dateTime?: string | null) {
-  if (!dateTime) return '—';
+  if (!dateTime) return null;
   const d = new Date(dateTime);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return null;
 
   return d.toLocaleString('fr-CH', {
     year: 'numeric',
@@ -255,25 +255,6 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
     gap: '8px',
   },
-  pill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    background: '#ffffff',
-    borderRadius: '6px',
-    padding: '6px 10px',
-    fontSize: '12px',
-    fontWeight: 600,
-    color: '#334155',
-  },
-    pillAuction: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    background: '#ffffff',
-    padding: '0px 0px',
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#334155',
-  },
   alertSuccess: {
     border: '1px solid #a7f3d0',
     background: '#ecfdf5',
@@ -423,49 +404,39 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
   },
   toggleButton: {
-    width: '28px',
-    height: '28px',
-    borderRadius: '6px',
-    border: '1px solid #cbd5e1',
-    background: '#ffffff',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+    flex: '0 0 auto',
+    width: '20px',
+    minWidth: '20px',
+    height: '20px',
+    minHeight: '20px',
+    padding: 0,
+    borderRadius: '4px',
+    border: '1px solid #94a3b8',
+    background: '#f1f5f9',
+    boxShadow: 'none',
     cursor: 'pointer',
-    color: '#334155',
+    color: '#0f172a',
+    fontFamily: 'inherit',
     fontSize: '14px',
+    fontWeight: 700,
+    lineHeight: 1,
   },
   sectionTitleText: {
     margin: 0,
-    fontSize: '24px',
+    fontSize: '21px',
     fontWeight: 600,
-  },
-  categoryBadgeBase: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    borderRadius: '6px',
-    padding: '4px 8px',
-    fontSize: '12px',
-    fontWeight: 600,
-  },
-  categoryFair: {
-    border: '1px solid #bfdbfe',
-    background: '#eff6ff',
-    color: '#1d4ed8',
-  },
-  categoryAuction: {
-    border: '1px solid #fde68a',
-    background: '#fffbeb',
-    color: '#b45309',
-  },
-  categoryOther: {
-    border: '1px solid #cbd5e1',
-    background: '#f8fafc',
-    color: '#475569',
   },
   metaRow: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: '16px',
-    color: '#475569',
-    fontSize: '14px',
+    color: '#334155',
+    fontSize: '16px',
+    fontWeight: 500,
   },
   noteText: {
     margin: 0,
@@ -516,17 +487,40 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: 'underline',
     textDecorationColor: '#cbd5e1',
     textUnderlineOffset: '4px',
-    fontWeight: 600,
+    fontFamily: 'inherit',
+    fontSize: '18px',
+    fontWeight: 400,
+    lineHeight: 1.6,
   },
   itemLinkInactive: {
     color: '#0f172a',
-    fontWeight: 600,
+    fontFamily: 'inherit',
+    fontSize: '18px',
+    fontWeight: 400,
+    lineHeight: 1.6,
+  },
+  itemMetaText: {
+    color: '#000000',
+    fontFamily: 'inherit',
+    fontSize: '18px',
+    fontWeight: 500,
+    lineHeight: 1.6,
   },
   itemSecondaryText: {
     margin: 0,
-    color: '#475569',
-    fontSize: '14px',
+    color: '#334155',
+    fontFamily: 'inherit',
+    fontSize: '16px',
+    fontWeight: 400,
     lineHeight: 1.6,
+  },
+  itemCreatedText: {
+    margin: 0,
+    color: '#000000',
+    fontFamily: 'inherit',
+    fontSize: '12px',
+    fontWeight: 400,
+    lineHeight: 1.4,
   },
   rightActions: {
     display: 'flex',
@@ -581,16 +575,6 @@ sortButtonActive: {
 
 
 };
-
-function getCategoryStyle(category: MarketCategory): CSSProperties {
-  if (category === 'Foire') {
-    return { ...styles.categoryBadgeBase, ...styles.categoryFair };
-  }
-  if (category === 'Ventes aux enchères') {
-    return { ...styles.categoryBadgeBase, ...styles.categoryAuction };
-  }
-  return { ...styles.categoryBadgeBase, ...styles.categoryOther };
-}
 
 function getButtonStyle(kind: 'primary' | 'secondary' | 'danger', disabled = false): CSSProperties {
   const base = kind === 'primary'
@@ -1269,7 +1253,10 @@ const displaySections = useMemo(() => {
           <h2
             style={{
               margin: sectionIsPast ? 0 : '8px 0 0',
-              color: '#143b2d',
+              background: '#143b2d',
+              color: '#ffffff',
+              borderRadius: '8px',
+              padding: '10px 16px',
               fontSize: '28px',
               fontWeight: 700,
               textAlign: 'center',
@@ -1293,11 +1280,10 @@ const displaySections = useMemo(() => {
                   </button>
 
                   <h2 style={styles.sectionTitleText}>{section.title}</h2>
-                  <span style={getCategoryStyle(section.category)}>{section.category}</span>
                 </div>
 
                 <div style={{ ...styles.metaRow, marginTop: '8px' }}>
-                  <span>📅 {formatDateRange(section.start_date, section.end_date)}</span>
+                  <span>{formatDateRange(section.start_date, section.end_date)}</span>
                   <span>
                     📁 {section.items.length} ressource{section.items.length > 1 ? 's' : ''}
                   </span>
@@ -1407,19 +1393,6 @@ const displaySections = useMemo(() => {
                       <div key={item.id} style={styles.itemCard}>
                         {!isEditing ? (
                           <>
-                            {item.auction_house || item.auction_datetime ? (
-                              <div style={styles.itemHeaderRow}>
-                                {item.auction_house ? (
-                                  <span style={styles.pillAuction}>{item.auction_house}</span>
-                                ) : null}
-                                {item.auction_datetime ? (
-                                  <span style={styles.pillAuction}>
-                                     {formatAuctionDateTimeLocal(item.auction_datetime)}
-                                  </span>
-                                ) : null}
-                              </div>
-                            ) : null}
-
                             <div style={styles.itemContent}>
                               <div style={styles.itemHeaderRow}>
                                 {canOpen ? (
@@ -1434,14 +1407,29 @@ const displaySections = useMemo(() => {
                                 ) : (
                                   <div style={styles.itemLinkInactive}>{item.label}</div>
                                 )}
-
-                                <span style={styles.pill}>
-                                  Created: {formatCreatedAt(item.created_at)}
-                                </span>
                               </div>
+
+                              {item.auction_house || item.auction_datetime ? (
+                                <div style={styles.itemHeaderRow}>
+                                  {item.auction_house ? (
+                                    <span style={styles.itemMetaText}>{item.auction_house}</span>
+                                  ) : null}
+                                  {item.auction_datetime ? (
+                                    <span style={styles.itemMetaText}>
+                                      {formatAuctionDateTimeLocal(item.auction_datetime)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : null}
 
                               {item.notes ? (
                                 <p style={styles.itemSecondaryText}><LinkedText text={item.notes} /></p>
+                              ) : null}
+
+                              {formatCreatedAt(item.created_at) ? (
+                                <p style={styles.itemCreatedText}>
+                                  Created: {formatCreatedAt(item.created_at)}
+                                </p>
                               ) : null}
                             </div>
 

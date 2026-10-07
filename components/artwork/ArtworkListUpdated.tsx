@@ -80,7 +80,7 @@ const cell3Lines: React.CSSProperties = {
 const mainLine: React.CSSProperties = {
   color: '#111',
   fontSize: '1.1rem',      // ✅ AJOUT ICI
-  fontWeight: 600,
+  fontWeight: 400,
   lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',

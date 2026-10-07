@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import ArtworkListUpdated from '@/components/artwork/ArtworkListUpdated'
@@ -62,6 +62,11 @@ type UpdatedArtworkItem = ArtworkListItem & {
     first_name?: string | null
     last_name?: string | null
   } | null
+}
+
+type AcquisitionEvent = {
+  artwork_id: string
+  created_at: string
 }
 
 const SPECIAL_BUYER_ID = '7c944786-75ff-4630-9851-e1ac0105b9b5'
@@ -139,6 +144,27 @@ function normalizeStatus(status?: string | null): string {
   return (status ?? '').toString().trim().toLowerCase()
 }
 
+const sectionTitleStyle: CSSProperties = {
+  fontSize: '1.6rem',
+  fontWeight: 500,
+  color: '#000000',
+  margin: 0,
+  textAlign: 'left',
+}
+
+const showMoreButtonStyle: CSSProperties = {
+  marginTop: 12,
+  border: '1px solid #aeb4b1',
+  borderRadius: 8,
+  background: '#e5e7e6',
+  color: '#111111',
+  fontSize: '0.85rem',
+  fontWeight: 700,
+  cursor: 'pointer',
+}
+
+const PREVIEW_COUNT = 5
+
 function SectionTitle({
   title,
   count,
@@ -148,9 +174,40 @@ function SectionTitle({
 }) {
   return (
     <div className="updated-section-heading">
-      <h2>{title}</h2>
-      <span>{count}</span>
+      <h2 style={sectionTitleStyle}>
+        {title} ({count})
+      </h2>
     </div>
+  )
+}
+
+function CollapsibleArtworkList({
+  artworks,
+}: {
+  artworks: UpdatedArtworkItem[]
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  const visibleArtworks = expanded
+    ? artworks
+    : artworks.slice(0, PREVIEW_COUNT)
+
+  const hiddenCount = artworks.length - PREVIEW_COUNT
+
+  return (
+    <>
+      <ArtworkListUpdated artworks={visibleArtworks} />
+
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          style={showMoreButtonStyle}
+        >
+          {expanded ? 'Show less' : `Show ${hiddenCount} more`}
+        </button>
+      ) : null}
+    </>
   )
 }
 
@@ -158,6 +215,9 @@ export default function ArtworksUpdatedPage() {
   const { role } = useSessionProfile()
 
   const [artworks, setArtworks] = useState<UpdatedArtworkItem[]>([])
+  const [acquisitionEvents, setAcquisitionEvents] = useState<AcquisitionEvent[]>([])
+  const [acquisitionLoadError, setAcquisitionLoadError] = useState<string | null>(null)
+  const [recentThresholdMs, setRecentThresholdMs] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -167,8 +227,12 @@ export default function ArtworksUpdatedPage() {
 
     const load = async () => {
       setLoading(true)
+      setAcquisitionLoadError(null)
 
       try {
+        const thresholdMs = Date.now() - SEVEN_DAYS_MS
+        setRecentThresholdMs(thresholdMs)
+
         const source =
           role.toLowerCase() === 'viewer'
             ? 'viewer_artworks_full_secure'
@@ -177,7 +241,15 @@ export default function ArtworksUpdatedPage() {
         console.log('[updated] role =', role)
         console.log('[updated] source =', source)
 
-        const res = await supabase.from(source).select('*')
+        const acquisitionThreshold = new Date(thresholdMs).toISOString()
+        const [res, acquisitionsResult] = await Promise.all([
+          supabase.from(source).select('*'),
+          supabase
+            .from('artwork_acquisition_events')
+            .select('artwork_id, created_at')
+            .gte('created_at', acquisitionThreshold)
+            .order('created_at', { ascending: false }),
+        ])
 
         if (res.error) {
           console.error('[updated] load error =', res.error)
@@ -188,8 +260,16 @@ export default function ArtworksUpdatedPage() {
 
           if (isMounted) {
             setArtworks([])
+            setAcquisitionEvents([])
           }
           return
+        }
+
+        if (acquisitionsResult.error) {
+          console.error(
+            '[updated] acquisition events load error =',
+            acquisitionsResult.error
+          )
         }
 
         const data = (res.data as UpdatedArtworkItem[]) ?? []
@@ -209,12 +289,26 @@ export default function ArtworksUpdatedPage() {
 
         if (isMounted) {
           setArtworks(normalized)
+          if (acquisitionsResult.error) {
+            setAcquisitionEvents([])
+            setAcquisitionLoadError(
+              'Recent acquisitions could not be loaded.'
+            )
+          } else {
+            setAcquisitionEvents(
+              (acquisitionsResult.data as AcquisitionEvent[] | null) ?? []
+            )
+          }
         }
       } catch (e) {
         console.error('[updated] unexpected error =', e)
 
         if (isMounted) {
           setArtworks([])
+          setAcquisitionEvents([])
+          setAcquisitionLoadError(
+            'Recent acquisitions could not be loaded.'
+          )
         }
       } finally {
         if (isMounted) {
@@ -241,18 +335,49 @@ export default function ArtworksUpdatedPage() {
     return artworks.filter((a) => a.buyer_id !== SPECIAL_BUYER_ID)
   }, [artworks])
 
+  const recentAcquisitionMsByArtworkId = useMemo(() => {
+    const acquisitionMsByArtworkId = new Map<string, number>()
+
+    for (const event of acquisitionEvents) {
+      const acquisitionMs = new Date(event.created_at).getTime()
+      if (Number.isNaN(acquisitionMs)) continue
+
+      const previousMs = acquisitionMsByArtworkId.get(event.artwork_id) ?? 0
+      if (acquisitionMs > previousMs) {
+        acquisitionMsByArtworkId.set(event.artwork_id, acquisitionMs)
+      }
+    }
+
+    return acquisitionMsByArtworkId
+  }, [acquisitionEvents])
+
+  const newlyAcquiredArtworks = useMemo(() => {
+    return latestUpdatesBase
+      .filter((artwork) => recentAcquisitionMsByArtworkId.has(artwork.id))
+      .sort(
+        (a, b) =>
+          (recentAcquisitionMsByArtworkId.get(b.id) ?? 0) -
+          (recentAcquisitionMsByArtworkId.get(a.id) ?? 0)
+      )
+  }, [latestUpdatesBase, recentAcquisitionMsByArtworkId])
+
+  const newlyAcquiredIds = useMemo(
+    () => new Set(newlyAcquiredArtworks.map((artwork) => artwork.id)),
+    [newlyAcquiredArtworks]
+  )
+
   // ✅ Newly created = seulement les 7 derniers jours
 
 const newlyCreatedArtworks = useMemo(() => {
-  const threshold = Date.now() - SEVEN_DAYS_MS
-
   return latestUpdatesBase
     .filter((a) => {
       const createdMs = getCreatedMs(a)
       const status = normalizeStatus(a.status)
 
+      if (newlyAcquiredIds.has(a.id)) return false
+
       // ✅ créé dans les 7 derniers jours
-      if (!(createdMs > 0 && createdMs >= threshold)) return false
+      if (!(createdMs > 0 && createdMs >= recentThresholdMs)) return false
 
       // ✅ exclure impérativement Bought / Archived
       if (status === 'bought' || status === 'archived') return false
@@ -260,18 +385,18 @@ const newlyCreatedArtworks = useMemo(() => {
       return true
     })
     .sort((a, b) => getCreatedMs(b) - getCreatedMs(a))
-}, [latestUpdatesBase])
+}, [latestUpdatesBase, newlyAcquiredIds, recentThresholdMs])
 
 
   // ✅ Reste des updates = uniquement ceux qui ont été modifiés après création
 
 const nonCreatedUpdates = useMemo(() => {
-  const threshold = Date.now() - SEVEN_DAYS_MS
-
   return latestUpdatesBase.filter((a) => {
     const createdMs = getCreatedMs(a)
     const updatedMs = getUpdatedMs(a)
     const status = normalizeStatus(a.status)
+
+    if (newlyAcquiredIds.has(a.id)) return false
 
     // ✅ Bought / Archived doivent toujours rester dans les updates
     if (status === 'bought' || status === 'archived') {
@@ -283,12 +408,12 @@ const nonCreatedUpdates = useMemo(() => {
 
     // si créé dans les 7 derniers jours, on le retire des updates
     // (sauf Bought / Archived déjà gérés ci-dessus)
-    if (createdMs >= threshold) return false
+    if (createdMs >= recentThresholdMs) return false
 
     // sinon, vraie mise à jour après création
     return updatedMs > createdMs
   })
-}, [latestUpdatesBase])
+}, [latestUpdatesBase, newlyAcquiredIds, recentThresholdMs])
 
 
   const updatedPipelineArtworks = useMemo(() => {
@@ -345,11 +470,7 @@ const nonCreatedUpdates = useMemo(() => {
 
         <section className="updated-attention-card">
           <div className="updated-attention-copy">
-            <span className="updated-attention-icon">!</span>
-            <div>
-              <h2>En attente de destination de factures</h2>
-              <p>Œuvres nécessitant encore une destination de facturation.</p>
-            </div>
+            <h2>En attente de destination de factures</h2>
           </div>
 
           {specialBuyerArtworks.length > 0 ? (
@@ -363,10 +484,24 @@ const nonCreatedUpdates = useMemo(() => {
           )}
         </section>
 
-        <div className="updated-content-heading">
-          <h2>Recent activity</h2>
-          <p>Ordered from the most recent update.</p>
-        </div>
+        <section className="updated-section">
+          <SectionTitle
+            title="Newly acquired (last 7 days)"
+            count={newlyAcquiredArtworks.length}
+          />
+
+          {acquisitionLoadError ? (
+            <div className="updated-empty-state">
+              {acquisitionLoadError}
+            </div>
+          ) : newlyAcquiredArtworks.length > 0 ? (
+            <CollapsibleArtworkList artworks={newlyAcquiredArtworks} />
+          ) : (
+            <div className="updated-empty-state">
+              No artworks acquired in the last 7 days.
+            </div>
+          )}
+        </section>
 
         <section className="updated-section">
           <SectionTitle
@@ -375,7 +510,7 @@ const nonCreatedUpdates = useMemo(() => {
           />
 
           {newlyCreatedArtworks.length > 0 ? (
-            <ArtworkListUpdated artworks={newlyCreatedArtworks} />
+            <CollapsibleArtworkList artworks={newlyCreatedArtworks} />
           ) : (
             <div className="updated-empty-state">
               Aucun artwork créé dans les 7 derniers jours.
@@ -390,7 +525,7 @@ const nonCreatedUpdates = useMemo(() => {
           />
 
           {updatedPipelineArtworks.length > 0 ? (
-            <ArtworkListUpdated artworks={updatedPipelineArtworks} />
+            <CollapsibleArtworkList artworks={updatedPipelineArtworks} />
           ) : (
             <div className="updated-empty-state">
               Aucun artwork mis à jour dans Draft / Viewed / Negotiation.
@@ -405,7 +540,7 @@ const nonCreatedUpdates = useMemo(() => {
           />
 
           {updatedClosedArtworks.length > 0 ? (
-            <ArtworkListUpdated artworks={updatedClosedArtworks} />
+            <CollapsibleArtworkList artworks={updatedClosedArtworks} />
           ) : (
             <div className="updated-empty-state">
               Aucun artwork mis à jour dans Bought / Archived.
@@ -419,7 +554,7 @@ const nonCreatedUpdates = useMemo(() => {
               title="Updated — Other statuses"
               count={updatedOtherArtworks.length}
             />
-            <ArtworkListUpdated artworks={updatedOtherArtworks} />
+            <CollapsibleArtworkList artworks={updatedOtherArtworks} />
           </section>
         )}
       </div>

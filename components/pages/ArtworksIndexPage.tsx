@@ -13,7 +13,6 @@ import {
   artistLabel,
   artistRows,
   artworkRows,
-  buildPrintUrl,
   chunk,
   contactLabel,
   contactRows,
@@ -719,17 +718,6 @@ const handleUpdateArtworkField = async (
   <h2 style={centeredTitleStyle}>
     Private market ({primaryMarket.length})
   </h2>
-
-  {primaryMarket.length > 0 && (
-    <a
-      href={buildPrintUrl({ market: 'private', priority: 'all' })}
-      target="_blank"
-      rel="noopener noreferrer"
-      style={printLinkStyle}
-    >
-      All factsheets
-    </a>
-  )}
 </div>
 
 
@@ -745,18 +733,6 @@ const handleUpdateArtworkField = async (
   Private market — {priority} ({list.length})
 </h3>
 
-
-          <Link
-            href={buildPrintUrl({
-              market: 'private',
-              priority,
-            })}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={printLinkStyle}
-          >
-            Factsheets
-          </Link>
         </div>
 
         <ArtworkList
@@ -786,17 +762,6 @@ const handleUpdateArtworkField = async (
     <h2 style={centeredTitleStyle}>
       Auctions ({auctions.length})
     </h2>
-
-    {auctions.length > 0 && (
-      <a
-        href={buildPrintUrl({ market: 'auction', priority: 'all' })}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={printLinkStyle}
-      >
-        All factsheets
-      </a>
-    )}
   </div>
 
 
@@ -812,18 +777,6 @@ const handleUpdateArtworkField = async (
           <h3 style={subSectionTitle}>
             Auctions — {priority} ({list.length})
           </h3>
-
-          <Link
-            href={buildPrintUrl({
-              market: 'auction',
-              priority,
-            })}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={printLinkStyle}
-          >
-            Factsheets
-          </Link>
         </div>
 
         <ArtworkList
@@ -856,19 +809,6 @@ const handleUpdateArtworkField = async (
       <h2 style={centeredTitleStyle}>
         Bought ({boughtSorted.length})
       </h2>
-
-      <Link
-        href={buildPrintUrl({
-          market: 'private',
-          status: 'bought',
-          priority: 'all',
-        })}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={printLinkStyle}
-      >
-        All factsheets
-      </Link>
     </div>
 
     <ArtworkList
@@ -893,19 +833,6 @@ const handleUpdateArtworkField = async (
       <h2 style={centeredTitleStyle}>
         Archived ({archivedMarket.length + archivedAuctions.length})
       </h2>
-
-      <Link
-        href={buildPrintUrl({
-          market: 'private',
-          status: 'archived',
-          priority: 'all',
-        })}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={printLinkStyle}
-      >
-        All factsheets
-      </Link>
     </div>
 
     {/* ✅ PRIVATE MARKET */}
@@ -915,19 +842,6 @@ const handleUpdateArtworkField = async (
           <h3 style={subSectionTitle}>
             Private market ({archivedMarket.length})
           </h3>
-
-          <Link
-            href={buildPrintUrl({
-              market: 'private',
-              status: 'archived',
-              priority: 'all',
-            })}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={printLinkStyle}
-          >
-            Factsheets
-          </Link>
         </div>
 
         <ArtworkList
@@ -948,19 +862,6 @@ const handleUpdateArtworkField = async (
           <h3 style={subSectionTitle}>
             Auctions ({archivedAuctions.length})
           </h3>
-
-          <Link
-            href={buildPrintUrl({
-              market: 'auction',
-              status: 'archived',
-              priority: 'all',
-            })}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={printLinkStyle}
-          >
-            Factsheets
-          </Link>
         </div>
 
         <ArtworkList
@@ -1038,23 +939,10 @@ const mainStyle: React.CSSProperties = {
 
 const subSectionTitle: React.CSSProperties = {
   fontSize: '1.1rem',
-  fontWeight: 700,
-  color: '#173f31',
+  fontWeight: 400,
+  color: '#000000',
   marginBottom: 6,
   opacity: 0.95,
-}
-
-
-const printLinkStyle: React.CSSProperties = {
-  padding: '4px 10px',
-  borderRadius: 8,
-  border: '1px solid rgba(0,96,57,0.25)',
-  backgroundColor: 'white',
-  fontSize: '0.8rem',
-  fontWeight: 700,
-  color: '#006039',
-  textDecoration: 'none',
-  cursor: 'pointer',
 }
 
 
@@ -1081,7 +969,7 @@ const centeredHeaderRowStyle: React.CSSProperties = {
 
 const centeredTitleStyle: React.CSSProperties = {
   fontSize: '1.6rem',
-  fontWeight: 700,
-  color: '#173f31',
+  fontWeight: 500,
+  color: '#000000',
   margin: 0,
 }

@@ -75,15 +75,22 @@ const cell2Lines: React.CSSProperties = {
 const mainLine: React.CSSProperties = {
   color: '#111',
   fontSize: '1.1rem',
+  fontWeight: 400,
   lineHeight: 1.2,
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 }
 
-const mainLineBold: React.CSSProperties = {
-  ...mainLine,
+const showMoreButtonStyle: React.CSSProperties = {
+  marginTop: 12,
+  border: '1px solid #aeb4b1',
+  borderRadius: 8,
+  background: '#e5e7e6',
+  color: '#111111',
+  fontSize: '0.85rem',
   fontWeight: 700,
+  cursor: 'pointer',
 }
 
 const secondLine: React.CSSProperties = {
@@ -509,7 +516,7 @@ const proposedToText = getProposedToText(a)
     }}
   >
     {/* Artiste */}
-    <div style={mainLineBold} title={artistText}>
+    <div style={mainLine} title={artistText}>
       {truncateText(artistText, 24)}
     </div>
 
@@ -542,7 +549,7 @@ const proposedToText = getProposedToText(a)
   <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
 
     {/* ✅ PRICE */}
-    <div style={mainLineBold} title={priceMain}>
+    <div style={mainLine} title={priceMain}>
       {priceMain}
     </div>
 
@@ -628,26 +635,14 @@ const proposedToText = getProposedToText(a)
           style={{
             padding: '10px 12px',
             borderTop: '1px solid #eee',
-            fontSize: '0.85rem',
-            textAlign: 'right',
-            backgroundColor: '#e6e5e5',
           }}
         >
           <button
+            type="button"
             onClick={() => setShowAll(v => !v)}
-            style={{
-              display: 'block',
-              fontSize: '1rem',
-              margin: '0 auto',
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              color: 'black',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
+            style={showMoreButtonStyle}
           >
-            {showAll ? 'Voir moins' : `Voir les ${artworks.length} artworks`}
+            {showAll ? 'Show less' : `Show ${artworks.length - PREVIEW_COUNT} more`}
           </button>
         </div>
       )}
