@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
+import { deleteDocument as deleteSharePointDocument } from '@/lib/sharepoint'
 
 type RouteParams = {
   id: string
@@ -47,6 +48,22 @@ export async function DELETE(
   const authorization = await requireRole(['Editor', 'Administrator'])
   if (authorization.response) {
     return authorization.response
+  }
+
+  const { data: existing } = await authorization.supabase
+    .from('documents')
+    .select('storage_provider, sharepoint_drive_id, sharepoint_item_id')
+    .eq('id', documentId)
+    .eq('artwork_id', id)
+    .maybeSingle()
+
+  if (existing?.storage_provider === 'sharepoint') {
+    try {
+      await deleteSharePointDocument(existing.sharepoint_drive_id, existing.sharepoint_item_id)
+    } catch (err) {
+      console.error('SHAREPOINT DELETE ERROR:', err)
+      return NextResponse.json({ error: 'SharePoint delete failed' }, { status: 502 })
+    }
   }
 
   const { error } = await authorization.supabase

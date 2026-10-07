@@ -202,6 +202,8 @@ const hasLoadedArtworkRef = useRef(false)
 
   const [newDocLabel, setNewDocLabel] = useState('')
   const [newDocUrl, setNewDocUrl] = useState('')
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
   
   const [isAddingProposal, setIsAddingProposal] = useState(false)
 
@@ -809,6 +811,15 @@ const addDocument = async (e?: React.MouseEvent<HTMLButtonElement>) => {
   const label = newDocLabel.trim()
   const url = newDocUrl.trim()
 
+  if (pendingFile) {
+    if (!label) {
+      alert('Please provide a label')
+      return
+    }
+    await uploadSharePointDocument(pendingFile)
+    return
+  }
+
   if (!label || !url) {
     alert('Please provide both label and URL')
     return
@@ -866,6 +877,38 @@ const addDocument = async (e?: React.MouseEvent<HTMLButtonElement>) => {
 
   setNewDocLabel('')
   setNewDocUrl('')
+}
+
+const uploadSharePointDocument = async (file: File) => {
+  if (!artwork?.id) return
+
+  const form = new FormData()
+  form.append('file', file)
+  if (newDocLabel.trim()) form.append('label', newDocLabel.trim())
+
+  setUploadingDoc(true)
+  try {
+    const res = await fetch(`/api/artworks/${artwork.id}/sharepoint-documents`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      alert(body?.error ?? 'Failed to upload document')
+      return
+    }
+
+    const data = await res.json()
+    setArtwork((prev) =>
+      prev ? { ...prev, documents: [...(prev.documents ?? []), data] } : prev
+    )
+    setNewDocLabel('')
+    setPendingFile(null)
+  } finally {
+    setUploadingDoc(false)
+  }
 }
 
 
@@ -1382,14 +1425,39 @@ const artworkDocuments = useMemo(
                     type="url"
                     placeholder="URL"
                     value={newDocUrl}
+                    disabled={!!pendingFile}
                     onChange={(e) => setNewDocUrl(e.target.value)}
                     style={{ ...editInputStyle, flex: 2 }}
                   />
 
 
-<button type="button" className="edit-button" onClick={addDocument}>
-  Add
+<button type="button" className="edit-button" onClick={addDocument} disabled={uploadingDoc}>
+  {uploadingDoc ? 'Uploading...' : pendingFile ? 'Upload' : 'Add'}
 </button>
+
+                  <label className="edit-button" style={{ cursor: 'pointer' }}>
+                    {pendingFile ? pendingFile.name : 'Choose file'}
+                    <input
+                      type="file"
+                      hidden
+                      disabled={uploadingDoc}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        e.target.value = ''
+                        if (file) setPendingFile(file)
+                      }}
+                    />
+                  </label>
+                  {pendingFile && (
+                    <button
+                      type="button"
+                      className="edit-button"
+                      disabled={uploadingDoc}
+                      onClick={() => setPendingFile(null)}
+                    >
+                      Cancel
+                    </button>
+                  )}
 
                 </div>
               </div>

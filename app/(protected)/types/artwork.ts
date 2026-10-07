@@ -41,6 +41,11 @@ export type ArtworkDocument = {
   url: string
   position?: number | null
   created_at?: string | null
+  storage_provider?: 'legacy' | 'sharepoint'
+  legacy_url?: string | null
+  file_name?: string | null
+  mime_type?: string | null
+  size_bytes?: number | null
 }
 
 export type ArtworkProposal = {

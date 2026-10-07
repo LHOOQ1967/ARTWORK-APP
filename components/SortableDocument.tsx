@@ -14,6 +14,7 @@ type SortableArtworkDocument = {
   label?: string | null
   url?: string | null
   position?: number | null
+  storage_provider?: 'legacy' | 'sharepoint'
 }
 
 export function SortableDocument({
@@ -110,6 +111,19 @@ function handleOpen() {
           cursor: isEditing ? 'default' : 'pointer',
         }}
       >
+        <span
+          title={document.storage_provider === 'sharepoint' ? 'Stored in SharePoint' : 'External link'}
+          style={{
+            fontSize: 11,
+            padding: '2px 6px',
+            borderRadius: 4,
+            whiteSpace: 'nowrap',
+            color: document.storage_provider === 'sharepoint' ? '#0b5d2a' : '#555',
+            backgroundColor: document.storage_provider === 'sharepoint' ? '#dff3e6' : '#ececec',
+          }}
+        >
+          {document.storage_provider === 'sharepoint' ? 'SharePoint' : 'Link'}
+        </span>
         {isEditing ? (
           <>
             <datalist id={DOCUMENT_LABEL_DATALIST_ID}>
