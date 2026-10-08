@@ -4,7 +4,7 @@ import LoginButton from './LoginButton'
 function getErrorMessage(error?: string) {
   switch (error) {
     case 'oauth_callback_failed':
-      return 'Microsoft sign-in failed. Please try again.'
+      return 'Sign-in failed. Please try again.'
     case 'no_user':
       return 'No authenticated user was found after sign-in. Please try again.'
     default:

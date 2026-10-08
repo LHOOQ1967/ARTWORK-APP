@@ -8,8 +8,8 @@ creer ensuite une migration.
 
 ## Architecture et acces
 
-- L'application utilise l'Auth Supabase avec le fournisseur Azure OAuth
-  (Microsoft Entra ID).
+- L'application utilise l'Auth Supabase avec les fournisseurs Azure OAuth
+  (Microsoft Entra ID) et Google OAuth.
 - Le navigateur et les routes authentifiees utilisent la cle anon avec la
   session de l'utilisateur. Les droits RLS s'appliquent donc a ces requetes.
 - `SUPABASE_SERVICE_ROLE_KEY` est utilise exclusivement par des routes Node.js

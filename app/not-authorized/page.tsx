@@ -52,7 +52,7 @@ export default function NotAuthorizedPage() {
             marginBottom: 18,
           }}
         >
-          Your Microsoft account has been authenticated successfully, but it is
+          Your account has been authenticated successfully, but it is
           not currently authorized to access this application.
         </p>
 

@@ -7,6 +7,7 @@ Application interne de suivi des oeuvres, propositions, contacts et documents de
 - Node.js 20 or later
 - A Supabase project configured with the tables and storage buckets used by the application
 - Microsoft Entra ID configured as the Supabase Azure OAuth provider
+- Google configured as the Supabase Google OAuth provider
 
 ## Setup
 
@@ -20,6 +21,15 @@ PRINT_SECRET=<print-secret>
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` is server-only: never expose it in browser code, source control, or logs.
+
+The login page offers Microsoft and Google sign-in. Enable both providers in
+Supabase Auth and allow `http://localhost:3000/auth/callback` for development
+and `https://<domain>/auth/callback` for production in Auth URL Configuration.
+In Google Cloud, configure the OAuth client's authorized redirect URI using
+the callback URL shown by the Supabase Google provider settings
+(`https://<project-ref>.supabase.co/auth/v1/callback`).
+Both providers use the same application callback and access checks; Google
+sign-in does not grant application access automatically.
 
 Start the development server:
 
