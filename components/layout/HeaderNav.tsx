@@ -375,7 +375,7 @@ export default function HeaderNav() {
       {/* RIGHT ACTIONS */}
       <div className="app-header-actions">
         {isLoggedIn && canSelectClient && (
-          <div style={clientFilterStyle}>
+          <div className="app-header-client-filter" style={clientFilterStyle}>
             <select
               aria-label="Filtrer par client"
               title={selectedClient ? `Vue filtrée : ${selectedClient.label}` : 'Filtrer par client'}

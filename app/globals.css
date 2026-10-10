@@ -1447,6 +1447,42 @@ button:focus-visible {
     font-size: 0.82rem;
   }
 
+  @media screen {
+  .app-header:has(.app-header-client-filter) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    column-gap: 10px;
+    row-gap: 8px;
+  }
+
+  .app-header:has(.app-header-client-filter) .app-header-nav {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .app-header:has(.app-header-client-filter) .app-header-actions {
+    display: contents;
+  }
+
+  .app-header:has(.app-header-client-filter) .app-header-actions > :not(.app-header-client-filter) {
+    grid-row: 1;
+  }
+
+  .app-header-client-filter {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  body:has(.app-header-client-filter) .protected-page-shell {
+    padding-top: calc(48px + env(safe-area-inset-top, 0px));
+  }
+
+  body:has(.app-header-client-filter) .artwork-action-bar {
+    top: calc(116px + env(safe-area-inset-top, 0px)) !important;
+  }
+  }
+
   .artwork-action-bar {
     padding: 10px 12px !important;
   }
