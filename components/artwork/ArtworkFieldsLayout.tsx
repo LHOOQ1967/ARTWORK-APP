@@ -2,6 +2,7 @@
 'use client'
 
 import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
+import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
 
 import {
   useEffect,
@@ -982,7 +983,7 @@ export function ArtworkFieldsLayout({
                 onChange={(value) =>
                   setArtwork({
                     ...artwork,
-                    auction_contact_id: value || null,
+                    ...auctionHouseContactFields(value || null),
                   })
                 }
                 query={auctionHouseQuery}

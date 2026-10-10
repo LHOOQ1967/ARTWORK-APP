@@ -1,15 +1,24 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
+
+type ArtistCategory = {
+  legacy_no: number
+  description: string
+}
 
 export default function NewArtistPage() {
   const router = useRouter()
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [categoryNo, setCategoryNo] = useState('')
+  const [categories, setCategories] = useState<ArtistCategory[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [categoriesError, setCategoriesError] = useState<string | null>(null)
   const [yearOfBirth, setYearOfBirth] = useState('')
   const [yearOfDeath, setYearOfDeath] = useState('')
   const [placeOfBirth, setPlaceOfBirth] = useState('')
@@ -17,6 +26,36 @@ export default function NewArtistPage() {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadCategories() {
+      try {
+        const { data, error } = await supabase
+          .from('artist_categories')
+          .select('legacy_no, description')
+          .order('legacy_no', { ascending: true })
+
+        if (error) throw new Error(error.message)
+        if (!cancelled) setCategories(data ?? [])
+      } catch (error) {
+        console.error('Load artist categories failed:', error)
+        if (!cancelled) {
+          setCategoriesError(
+            error instanceof Error ? error.message : 'Failed to load artist categories'
+          )
+        }
+      } finally {
+        if (!cancelled) setCategoriesLoading(false)
+      }
+    }
+
+    void loadCategories()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function handleSubmit() {
     if (!lastName.trim()) {
@@ -32,6 +71,7 @@ export default function NewArtistPage() {
       .insert({
         last_name: lastName.trim(),
         first_name: firstName.trim() || null,
+        artist_category_no: categoryNo === '' ? null : Number(categoryNo),
         year_of_birth: yearOfBirth ? Number(yearOfBirth) : null,
         year_of_death: yearOfDeath ? Number(yearOfDeath) : null,
         place_of_birth: placeOfBirth.trim() || null,
@@ -105,6 +145,30 @@ export default function NewArtistPage() {
             className="entity-form-field"
             style={fieldStyle}
           />
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label htmlFor="artist-category">Category</label>
+          <select
+            id="artist-category"
+            value={categoryNo}
+            onChange={e => setCategoryNo(e.target.value)}
+            disabled={categoriesLoading || Boolean(categoriesError) || loading}
+            className="entity-form-field"
+            style={fieldStyle}
+          >
+            <option value="">{categoriesLoading ? 'Loading categories…' : '—'}</option>
+            {categories.map(category => (
+              <option key={category.legacy_no} value={category.legacy_no}>
+                {category.description}
+              </option>
+            ))}
+          </select>
+          {categoriesError && (
+            <p role="alert" style={{ color: 'red' }}>
+              Failed to load artist categories: {categoriesError}
+            </p>
+          )}
         </div>
 
         {/* Year of Birth */}

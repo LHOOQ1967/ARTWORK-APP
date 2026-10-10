@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 import ArtworkListUpdated from '@/components/artwork/ArtworkListUpdated'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 
@@ -213,8 +214,13 @@ function CollapsibleArtworkList({
 
 export default function ArtworksUpdatedPage() {
   const { role } = useSessionProfile()
+  const { matchesClient } = useClientFilter()
 
-  const [artworks, setArtworks] = useState<UpdatedArtworkItem[]>([])
+  const [allArtworks, setArtworks] = useState<UpdatedArtworkItem[]>([])
+  const artworks = useMemo(
+    () => allArtworks.filter((artwork) => matchesClient(artwork.id)),
+    [allArtworks, matchesClient]
+  )
   const [acquisitionEvents, setAcquisitionEvents] = useState<AcquisitionEvent[]>([])
   const [acquisitionLoadError, setAcquisitionLoadError] = useState<string | null>(null)
   const [recentThresholdMs, setRecentThresholdMs] = useState(0)

@@ -15,6 +15,7 @@ type ContactRecord = {
   telephone: string | null
   role: string | null
   notes: string | null
+  is_client: boolean
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -83,7 +84,7 @@ export default function EditContactPage() {
 
       const { data, error: loadError } = await supabase
         .from('contacts')
-        .select('id, company_name, first_name, last_name, email, telephone, role, notes')
+        .select('id, company_name, first_name, last_name, email, telephone, role, notes, is_client')
         .eq('id', id)
         .maybeSingle()
 
@@ -238,6 +239,17 @@ export default function EditContactPage() {
               onChange={(event) => setContact((current) => (current ? { ...current, role: event.target.value } : current))}
               placeholder="Role"
             />
+          </ContactFieldRow>
+
+          <ContactFieldRow label="Client">
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 42 }}>
+              <input
+                type="checkbox"
+                checked={contact.is_client}
+                onChange={(event) => setContact((current) => (current ? { ...current, is_client: event.target.checked } : current))}
+              />
+              Show in the header client filter
+            </label>
           </ContactFieldRow>
 
           <ContactFieldRow label="Notes">

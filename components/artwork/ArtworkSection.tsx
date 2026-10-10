@@ -2,6 +2,7 @@
 'use client'
 
 import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
+import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
 
 import {
   useEffect,
@@ -1814,8 +1815,9 @@ async function handleAddProposal() {
 
       setArtwork({
         ...artwork,
-        auction_contact_id: value || null,
+        ...auctionHouseContactFields(value || null),
         auction_house: selected,
+        ...(value ? { proposedBy: selected } : {}),
       })
     }}
     query={auctionHouseQuery}

@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import ArtworkList from '@/components/artwork/ArtworkList'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { resolveSource } from '@/lib/viewerSources'
 import SearchSelect from '@/components/ui/SearchSelect'
 import {
@@ -64,7 +65,12 @@ export default function ArtworksIndexPage({
 }: Props)
  {
   const searchParams = useSearchParams()
-  const [artworks, setArtworks] = useState<ArtworkIndexItem[]>([])
+  const { matchesClient } = useClientFilter()
+  const [allArtworks, setArtworks] = useState<ArtworkIndexItem[]>([])
+  const artworks = useMemo(
+    () => allArtworks.filter(artwork => matchesClient(artwork.id)),
+    [allArtworks, matchesClient]
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)

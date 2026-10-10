@@ -9,6 +9,7 @@ import ArtworkSheet from '@/components/artwork/ArtworkSheet'
 import type { ArtworkPrint } from '@/app/(protected)/types/artwork'
 import { resolveSource } from '@/lib/viewerSources'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 
 
 
@@ -38,6 +39,7 @@ function logSupabaseError(context: string, error: unknown) {
 export default function ArtworkPrintPage() {
   const { id } = useParams<{ id: string }>()
   const { role } = useSessionProfile()
+  const { selectedClient, matchesClient } = useClientFilter()
 
   const canEdit = role === 'Administrator' || role === 'Editor'
   const [artwork, setArtwork] = useState<ArtworkPrint | null>(null)
@@ -132,6 +134,13 @@ export default function ArtworkPrintPage() {
  }}>Artwork not found</p>
   }
 
+  const isOutsideSelectedClient =
+    selectedClient !== null &&
+    !matchesClient(artwork.id) &&
+    artwork.buyer_contact_id !== selectedClient.id &&
+    artwork.buyer_id !== selectedClient.id &&
+    !(artwork.proposals ?? []).some((proposal) => proposal.contact_id === selectedClient.id)
+
   return (
     <main style={{ 
     paddingTop: 80,
@@ -139,6 +148,25 @@ export default function ArtworkPrintPage() {
     paddingRight: 10,
     paddingBottom: 10,
  }}>
+      {isOutsideSelectedClient && (
+        <div
+          className="no-print"
+          role="status"
+          style={{
+            maxWidth: 1100,
+            margin: '0 auto 16px',
+            backgroundColor: '#fff6d6',
+            color: '#6b4e00',
+            border: '1px solid #f2c94c',
+            borderRadius: 8,
+            padding: '10px 12px',
+            fontSize: '0.95rem',
+          }}
+        >
+          ⚠ Cette œuvre n&apos;a pas été proposée à <strong>{selectedClient.label}</strong> (client
+          sélectionné dans l&apos;en-tête).
+        </div>
+      )}
       <ArtworkSheet artwork={artwork} canEdit={canEdit} />
     </main>
   )

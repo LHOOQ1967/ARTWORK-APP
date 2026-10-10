@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabaseBrowser'
 import type { ArtworkPrint } from '@/app/(protected)/types/artwork'
 import { resolveSource } from '@/lib/viewerSources'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 import SearchSelect from '@/components/ui/SearchSelect'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
@@ -306,7 +307,12 @@ const [exporting, setExporting] =
     role === 'Administrator' ||
     role === 'Editor'
 
-  const [artworks, setArtworks] = useState<ArtworkPrint[]>([])
+  const [allArtworks, setArtworks] = useState<ArtworkPrint[]>([])
+  const { matchesClient } = useClientFilter()
+  const artworks = useMemo(
+    () => allArtworks.filter(artwork => matchesClient(artwork.id)),
+    [allArtworks, matchesClient]
+  )
   const [loadingData, setLoadingData] = useState(true)
 
 

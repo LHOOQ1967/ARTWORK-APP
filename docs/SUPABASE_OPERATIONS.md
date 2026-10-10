@@ -24,6 +24,12 @@ controle en defense supplementaire; RLS reste obligatoire.
 
 ## Schema applicatif
 
+Lors de la creation d'une oeuvre (y compris depuis un import) et lors de sa
+modification, choisir une Auction House renseigne aussi `proposed_by_id`
+avec le meme contact. Effacer la maison ne vide pas le proposeur. Le proposeur
+peut ensuite etre modifie independamment. Un brouillon importe avec une maison
+mais sans proposeur reprend cette maison comme proposeur.
+
 L'inventaire ci-dessous est deduit du code applicatif. Les types, contraintes,
 index, valeurs par defaut et clauses exactes restent a consulter dans la
 migration canonique une fois celle-ci extraite.
@@ -32,6 +38,7 @@ migration canonique une fois celle-ci extraite.
 | --- | --- |
 | `profiles` | Profil lie a `auth.users.id`; contient au minimum `role` et `last_activity_at`. |
 | `artists` | Referentiel des artistes, notamment nom, prenom, annees et lieux de naissance/deces. |
+| `artist_categories` | Categories selectionnables lors de la creation ou de la modification d'un artiste; `artists.artist_category_no` stocke le `legacy_no` de la categorie, ou `NULL` sans categorie. |
 | `contacts` | Referentiel des personnes et societes (identite, email, telephone, ville, role, notes). |
 | `artworks` | Entite centrale; liee a `artists` et plusieurs fois a `contacts` (proposeur, maison de vente, acheteur, destination, localisation et localisation du certificat). |
 | `documents` | Documents d'une oeuvre: `artwork_id`, `document_type`, `label`, `url`, `position`, `created_at`. |
@@ -43,7 +50,8 @@ migration canonique une fois celle-ci extraite.
 | `market_sections` | Sections du marche (titre, categorie, dates, notes, position et horodatages). |
 | `market_section_items` | Liens ou documents d'une section de marche, avec ordre et informations de vente. |
 | `fx_rates_history` | Historique de taux de change utilise par l'inventaire. |
-| `v_inventory_bought_florac` | Vue de lecture pour l'inventaire des oeuvres achetees. |
+| `v_inventory_bought_florac` | Vue historique limitee aux oeuvres achetees par Florac; conservee pour compatibilite. |
+| `v_inventory_bought` | Inventaire de toutes les oeuvres au statut `Bought`, avec buyer, artiste, premiere image et taux EUR; respecte RLS via `security_invoker`. |
 | `v_market_section_items` | Vue de lecture qui joint les elements de marche et leurs documents. |
 | `user_has_any_access()` | Fonction RPC de controle d'acces apres OAuth. |
 
@@ -54,6 +62,48 @@ relation sans rechercher son nom dans le code: les jointures PostgREST
 nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
+
+### Inventaire par buyer
+
+La migration `20261010150000_add_inventory_all_buyers.sql` doit etre appliquee
+avant d'utiliser le selecteur Buyer de l'inventaire. Elle ajoute une vue de
+lecture sans modifier les donnees ni les politiques existantes.
+Le selecteur liste les buyers des oeuvres achetees accessibles a l'utilisateur,
+independamment de la case `is_client`. Par defaut, tous les buyers sont inclus.
+Le selecteur Client est synchronise avec celui de l'en-tete. Lorsqu'un client
+est choisi, l'inventaire affiche les oeuvres `Bought` qui lui ont ete proposees
+via `artwork_proposals`, independamment du buyer (y compris sans buyer).
+Le selecteur Buyer reste disponible et liste les acheteurs des oeuvres du client.
+Les deux filtres se cumulent; "Tous les buyers" inclut tous ses achats, meme
+sans buyer. Sans client selectionne, le filtre Buyer s'applique a tout
+l'inventaire. La recherche, les dates, les totaux, Excel et l'impression
+utilisent cette meme selection.
+
+### Inventaires USD : YAL et Indianart
+
+La migration `20261010160000_inventory_location_addresses.sql` ajoute les
+contacts et adresses de destination/localisation a la vue d'inventaire.
+La colonne Location affiche la destination de l'oeuvre et l'adresse choisie.
+Si un transport existe avec `arrival_date IS NULL`, elle affiche plutot la
+localisation actuelle et son adresse. Sans destination, elle utilise aussi
+la localisation actuelle (notamment apres une arrivee, qui vide la destination).
+Une adresse non selectionnee est signalee, sans choisir arbitrairement une
+autre adresse du contact. Le tri, la recherche et Excel utilisent ce meme libelle.
+
+Quand YAL est selectionne comme client ou buyer, ou Indianart comme buyer,
+la colonne Fees est retiree (ecran, impression et Excel). Le total USD est
+`(cost_amount + commission_blondeau) * FX`, sans `purchase_cost`.
+Les autres inventaires conservent leurs calculs EUR et leurs frais.
+
+L'API authentifiee `/api/inventory/usd-rate` consulte Frankfurter avec le
+provider `ecb` pour la devise et la date d'achat. Aucun montant, nom de client
+ou identifiant d'oeuvre n'est transmis au fournisseur. Le taux correspond
+au dernier jour publie au plus tard a la date d'achat (week-ends et jours
+feries inclus); la date effective est affichee et exportee. Les reponses
+sont mises en cache 24 heures. USD vers USD vaut 1.
+Une devise non couverte, une date invalide ou une panne du fournisseur
+produit une erreur explicite; les exports sont bloques et les totaux
+incomplets ne sont pas presentes comme des totaux valides.
 
 ### Mise sous gestion des migrations
 

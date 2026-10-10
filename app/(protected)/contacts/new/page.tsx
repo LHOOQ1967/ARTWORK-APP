@@ -31,6 +31,7 @@ export default function NewContactPage() {
   const [telephone, setTelephone] = useState('')
   const [role, setRole] = useState('')
   const [notes, setNotes] = useState('')
+  const [isClient, setIsClient] = useState(false)
   const [addresses, setAddresses] = useState<AddressDraft[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +55,7 @@ export default function NewContactPage() {
         telephone: telephone.trim() || null,
         role: role.trim() || null,
         notes: notes.trim() || null,
+        is_client: isClient,
       })
       .select('id')
       .single()
@@ -237,6 +239,18 @@ export default function NewContactPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Client */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={isClient}
+              onChange={e => setIsClient(e.target.checked)}
+            />
+            Client (show in the header client filter)
+          </label>
         </div>
 
         {/* Notes */}

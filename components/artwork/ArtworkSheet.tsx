@@ -760,47 +760,35 @@ const displayTitle = (() => {
       />
       )}
 
-    {artwork.auction_max_hammer && (
+    {(hasValidNumber(artwork.auction_max_hammer) || hasValidNumber(artwork.auction_max_premium)) && (
         <InfoRowShort
         label="Suggestion B."
         value={
-          artwork.auction_max_hammer && artwork.auction_max_premium
-            ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
-                artwork.auction_max_hammer
-              )} – ${new Intl.NumberFormat('fr-CH').format(
-                artwork.auction_max_premium
-              )}`
-            : artwork.auction_max_hammer
-            ? `${artwork.auction_currency} ${new Intl.NumberFormat('fr-CH').format(
-                artwork.auction_max_hammer
-              )}`
-            : '—'
+          [
+            hasValidNumber(artwork.auction_max_hammer)
+              ? `${artwork.auction_currency ?? ''} ${new Intl.NumberFormat('fr-CH').format(Number(artwork.auction_max_hammer))} (hammer)`
+              : null,
+            hasValidNumber(artwork.auction_max_premium)
+              ? `${artwork.auction_currency ?? ''} ${new Intl.NumberFormat('fr-CH').format(Number(artwork.auction_max_premium))} (premium)`
+              : null,
+          ].filter(Boolean).join(' – ')
         }
       />
       )}
 
 
-{hasValidNumber(artwork.sold_hammer) && (
+{(hasValidNumber(artwork.sold_hammer) || hasValidNumber(artwork.sold_premium)) && (
   <InfoRowShort
     label="Sold"
     value={
-      <>
-        {artwork.auction_currency}{' '}
-        {new Intl.NumberFormat('fr-CH').format(
-          Number(artwork.sold_hammer)
-        )}{' '}
-        (hammer)
-        {hasValidNumber(artwork.sold_premium) && (
-          <>
-            {' '}
-            –{' '}
-            {new Intl.NumberFormat('fr-CH').format(
-              Number(artwork.sold_premium)
-            )}{' '}
-            (premium)
-          </>
-        )}
-      </>
+      [
+        hasValidNumber(artwork.sold_hammer)
+          ? `${artwork.auction_currency ?? ''} ${new Intl.NumberFormat('fr-CH').format(Number(artwork.sold_hammer))} (hammer)`
+          : null,
+        hasValidNumber(artwork.sold_premium)
+          ? `${artwork.sold_premium_currency ?? artwork.auction_currency ?? ''} ${new Intl.NumberFormat('fr-CH').format(Number(artwork.sold_premium))} (premium)`
+          : null,
+      ].filter(Boolean).join(' – ')
     }
   />
 )}

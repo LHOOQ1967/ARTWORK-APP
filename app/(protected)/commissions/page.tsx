@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 
 const THRESHOLD_USD = 5_000_000
 const STANDARD_RATE = 0.08
@@ -267,6 +268,7 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
 }
 
 export default function CommissionsPage() {
+  const { matchesClient, isFilterActive: isClientFilterActive } = useClientFilter()
   const [artworks, setArtworks] = useState<Artwork[]>([])
   const [fxRates, setFxRates] = useState<FxRate[]>([])
   const [exceptionalRates, setExceptionalRates] = useState<Record<string, number>>({})
@@ -420,8 +422,11 @@ export default function CommissionsPage() {
   }, [artworks, exceptionalRates, fxRates, invoices, selectedYear])
 
   const rows = useMemo(
-    () => annualRows.filter((row) => company === 'Toutes' || row.company === company),
-    [annualRows, company]
+    () =>
+      annualRows.filter(
+        (row) => (company === 'Toutes' || row.company === company) && matchesClient(row.id)
+      ),
+    [annualRows, company, matchesClient]
   )
 
   const annualQualifyingUsd = useMemo(() => {
@@ -538,9 +543,11 @@ export default function CommissionsPage() {
   const displayedCorrections = useMemo(
     () =>
       correctionSummaries.filter(
-        (correction) => company === 'Toutes' || correction.company === company
+        (correction) =>
+          (company === 'Toutes' || correction.company === company) &&
+          (!isClientFilterActive || rows.some((row) => row.company === correction.company))
       ),
-    [company, correctionSummaries]
+    [company, correctionSummaries, isClientFilterActive, rows]
   )
 
   const invoicedCorrectionUsdTotal = useMemo(

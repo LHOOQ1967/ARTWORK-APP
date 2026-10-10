@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 
 const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP', 'HKD'] as const
 
@@ -82,7 +83,12 @@ function today() {
 }
 
 export default function ValuationsEntryPage() {
-  const [artworks, setArtworks] = useState<Artwork[]>([])
+  const { matchesClient } = useClientFilter()
+  const [allArtworks, setArtworks] = useState<Artwork[]>([])
+  const artworks = useMemo(
+    () => allArtworks.filter((artwork) => matchesClient(artwork.id)),
+    [allArtworks, matchesClient]
+  )
   const [contacts, setContacts] = useState<Contact[]>([])
   const [valuations, setValuations] = useState<Valuation[]>([])
   const [valuationDate, setValuationDate] = useState(today)
@@ -184,7 +190,7 @@ export default function ValuationsEntryPage() {
     const entries: ValuationEntry[] = []
     let hasInvalidAmount = false
 
-    for (const artwork of artworks) {
+    for (const artwork of allArtworks) {
       for (const expertContactId of selectedExperts) {
         const draft = getDraft(artwork.id, expertContactId)
         if (draft.amount.trim() === '') continue

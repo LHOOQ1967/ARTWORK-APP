@@ -80,10 +80,23 @@ async function graphJson<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 let cachedDriveId: string | null = null
 
+const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const SITE_ID_PATTERN = new RegExp(`^[a-z0-9.-]+,${GUID},${GUID}$`, 'i')
+
+function requireSiteId(): string {
+  const siteId = requireEnv('SHAREPOINT_SITE_ID').trim()
+  if (!SITE_ID_PATTERN.test(siteId)) {
+    throw new Error(
+      'Invalid SHAREPOINT_SITE_ID: expected "<hostname>,<site-collection-guid>,<web-guid>"'
+    )
+  }
+  return siteId
+}
+
 export async function getDefaultDriveId(): Promise<string> {
   if (cachedDriveId) return cachedDriveId
   const drive = await graphJson<{ id: string }>(
-    `/sites/${requireEnv('SHAREPOINT_SITE_ID')}/drive?$select=id`
+    `/sites/${requireSiteId()}/drive?$select=id`
   )
   cachedDriveId = drive.id
   return drive.id

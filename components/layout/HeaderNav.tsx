@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 
 type CommentNotification = {
   kind: 'comment'
@@ -64,6 +65,13 @@ function getCommentPreview(html: string) {
 export default function HeaderNav() {
   const pathname = usePathname()
   const { role, loading, user } = useSessionProfile()
+  const {
+    canSelectClient,
+    clients,
+    selectedClient,
+    selectedClientId,
+    setSelectedClientId,
+  } = useClientFilter()
   const [notifications, setNotifications] = useState<MenuNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -366,6 +374,36 @@ export default function HeaderNav() {
 
       {/* RIGHT ACTIONS */}
       <div className="app-header-actions">
+        {isLoggedIn && canSelectClient && (
+          <div style={clientFilterStyle}>
+            <select
+              aria-label="Filtrer par client"
+              title={selectedClient ? `Vue filtrée : ${selectedClient.label}` : 'Filtrer par client'}
+              value={selectedClientId ?? ''}
+              onChange={(event) => setSelectedClientId(event.target.value || null)}
+              style={clientSelectStyle(Boolean(selectedClient))}
+            >
+              <option value="" style={clientOptionStyle}>All clients</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id} style={clientOptionStyle}>
+                  {client.label}
+                </option>
+              ))}
+            </select>
+            {selectedClient ? (
+              <button
+                type="button"
+                aria-label="Retirer le filtre client"
+                title="Retirer le filtre client"
+                onClick={() => setSelectedClientId(null)}
+                style={clientClearButtonStyle}
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
+        )}
+
         {isLoggedIn && (
           <div ref={notificationMenuRef} style={notificationMenuStyle}>
             <button
@@ -492,6 +530,43 @@ export default function HeaderNav() {
 
 const notificationMenuStyle: React.CSSProperties = {
   position: 'relative',
+}
+
+const clientFilterStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+}
+
+function clientSelectStyle(active: boolean): React.CSSProperties {
+  return {
+    height: 40,
+    maxWidth: 220,
+    padding: '0 10px',
+    border: active ? '2px solid #f2c94c' : '1px solid rgba(255,255,255,0.34)',
+    borderRadius: 7,
+    background: active ? '#f2c94c' : 'rgba(255,255,255,0.10)',
+    color: active ? '#17231e' : '#fff',
+    fontWeight: 700,
+    fontSize: '0.85rem',
+    cursor: 'pointer',
+  }
+}
+
+const clientOptionStyle: React.CSSProperties = {
+  color: '#17231e',
+  background: '#fff',
+}
+
+const clientClearButtonStyle: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  border: '1px solid rgba(255,255,255,0.34)',
+  borderRadius: 7,
+  background: 'rgba(255,255,255,0.10)',
+  color: '#fff',
+  cursor: 'pointer',
+  fontSize: 12,
 }
 
 const notificationButtonStyle: React.CSSProperties = {

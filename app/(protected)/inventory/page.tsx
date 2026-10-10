@@ -5,10 +5,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseBrowser";
 import { privateImageUrl } from "@/lib/privateImageUrl";
+import { useClientFilter } from "@/contexts/ClientFilterContext";
+import { useSessionProfile } from "@/contexts/SessionContext";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { inventoryLocationLabel, type InventoryLocation } from "@/lib/inventoryLocation";
+import {
+  usesUsdInventory, usdRateKey, getUsdInventoryTotal, type HistoricalUsdRate,
+} from "@/lib/inventoryCurrency";
+import {
+  getInventoryBuyerOptions,
+  matchesInventoryBuyer,
+  type InventoryBuyer,
+} from "@/lib/inventoryBuyers";
 
-type ProfileRole = "Administrator" | "Editor" | "Viewer" | null;
-
-type InventoryRow = {
+type InventoryRow = InventoryBuyer & InventoryLocation & {
   id: string;
   image_url: string | null;
   title: string | null;
@@ -149,8 +159,9 @@ function getExportEndDate(dateTo: string) {
   return `${year}-${month}-${day}`;
 }
 
-function getExportFileName(endDate: string) {
-  return `inventaire-florac-${endDate}.xlsx`;
+function getExportFileName(endDate: string, buyerLabel: string) {
+  const buyer = buyerLabel.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_");
+  return `inventaire-${buyer}-${endDate}.xlsx`;
 }
 
 function createImageFormula(rowNumber: number) {
@@ -181,7 +192,7 @@ function getSortValue(
     case "title":
       return row.title ?? null;
     case "company_name":
-      return row.company_name ?? null;
+      return inventoryLocationLabel(row);
     case "cost_amount":
       return row.cost_amount ?? null;
     case "purchase_cost":
@@ -201,9 +212,21 @@ function getSortValue(
   }
 }
 
-export default function FloracBoughtInventoryPage() {
+export default function BoughtInventoryPage() {
+  const {
+    canSelectClient, clients, selectedClient, selectedClientId, setSelectedClientId,
+  } = useClientFilter();
+  const { role } = useSessionProfile();
   const [data, setData] = useState<InventoryRow[]>([]);
-  const [role, setRole] = useState<ProfileRole>(null);
+  const [buyerId, setBuyerId] = useState<string | null>(null);
+  const [usdRates, setUsdRates] = useState<Record<string, HistoricalUsdRate>>({});
+  const [usdRatesLoading, setUsdRatesLoading] = useState(false);
+  const [usdRatesError, setUsdRatesError] = useState("");
+  const [clientProposals, setClientProposals] = useState<{
+    clientId: string;
+    artworkIds: Set<string>;
+    error: string | null;
+  } | null>(null);
   const [query, setQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -212,55 +235,130 @@ export default function FloracBoughtInventoryPage() {
   const [sortDirection, setSortDirection] =
     useState<SortDirection>("desc");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [savingArtworkIds, setSavingArtworkIds] = useState<Set<string>>(
     new Set()
   );
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchData() {
       setLoading(true);
-
-      const [{ data: authData, error: authError }, { data, error }] =
-        await Promise.all([
-          supabase.auth.getUser(),
-          supabase
-            .from("v_inventory_bought_florac")
+      setLoadError("");
+      try {
+        const rows: InventoryRow[] = [];
+        const pageSize = 1000;
+        for (let offset = 0; ; offset += pageSize) {
+          const { data: page, error } = await supabase
+            .from("v_inventory_bought")
             .select("*")
-            .order("date_acquisition", { ascending: false }),
-        ]);
+            .order("date_acquisition", { ascending: false })
+            .order("id")
+            .range(offset, offset + pageSize - 1);
 
-      if (authError) {
-        console.error("LOAD AUTH USER ERROR:", authError);
-      } else if (authData.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", authData.user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error("LOAD PROFILE ROLE ERROR:", profileError);
-        } else {
-          setRole((profile?.role as ProfileRole) ?? null);
+          if (cancelled) return;
+          if (error) throw new Error(error.message);
+          const batch = (page ?? []) as InventoryRow[];
+          rows.push(...batch);
+          if (batch.length < pageSize) break;
         }
+        setData(rows);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("LOAD INVENTORY ERROR:", error);
+        setLoadError(
+          error instanceof Error ? error.message : "Impossible de charger l'inventaire."
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      if (error) {
-        console.error("LOAD ERROR:", error);
-        setLoading(false);
-        return;
-      }
-
-      setData((data ?? []) as InventoryRow[]);
-      setLoading(false);
     }
 
-    fetchData();
+    void fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  useEffect(() => {
+    if (!selectedClientId) return;
+    let cancelled = false;
+    const clientId = selectedClientId;
+
+    async function loadClientProposals() {
+      try {
+        const artworkIds = new Set<string>();
+        const pageSize = 1000;
+        for (let offset = 0; ; offset += pageSize) {
+          const { data: proposals, error } = await supabase
+            .from("artwork_proposals")
+            .select("artwork_id")
+            .eq("contact_id", clientId)
+            .order("artwork_id")
+            .range(offset, offset + pageSize - 1);
+          if (cancelled) return;
+          if (error) throw new Error(error.message);
+          for (const proposal of proposals ?? []) artworkIds.add(proposal.artwork_id);
+          if ((proposals ?? []).length < pageSize) break;
+        }
+        setClientProposals({ clientId, artworkIds, error: null });
+      } catch (error) {
+        if (cancelled) return;
+        console.error("LOAD INVENTORY CLIENT PROPOSALS ERROR:", error);
+        setClientProposals({
+          clientId,
+          artworkIds: new Set(),
+          error: error instanceof Error ? error.message : "Impossible de charger les achats du client.",
+        });
+      }
+    }
+
+    void loadClientProposals();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedClientId]);
+
+  const clientProposalsLoading = Boolean(
+    selectedClientId && clientProposals?.clientId !== selectedClientId
+  );
+  const clientProposalsError =
+    selectedClientId && clientProposals?.clientId === selectedClientId
+      ? clientProposals.error : null;
+  const inventoryLoading = loading || clientProposalsLoading;
+  const inventoryError = loadError || clientProposalsError;
+  const buyerOptions = useMemo(
+    () => getInventoryBuyerOptions(data.filter(row =>
+      !selectedClientId || (
+        clientProposals?.clientId === selectedClientId
+        && clientProposals.artworkIds.has(row.id)
+      )
+    )),
+    [data, selectedClientId, clientProposals]
+  );
+  const buyerLabel = buyerOptions.find((buyer) => buyer.id === buyerId)?.label;
+  const usdInventory = usesUsdInventory(selectedClient?.label, buyerLabel);
+  const totalCurrency = usdInventory ? "USD" : "EUR";
+  const effectiveBuyerId = buyerOptions.some(buyer => buyer.id === buyerId) ? buyerId : null;
+  const inventoryTitle = selectedClient
+    ? `Inventaire ${selectedClient.label}${buyerLabel ? ` - ${buyerLabel}` : ""}`
+    : buyerLabel ? `Inventaire ${buyerLabel}` : "Inventaire";
+  const clientFilterLabel = selectedClient ? `Client : ${selectedClient.label}` : "";
   const canEdit = role === "Administrator" || role === "Editor";
   const editingEnabled = canEdit && isEditing;
+
+  function inventoryRate(row: InventoryRow) {
+    if (!usdInventory) return row.fx_rate_to_eur;
+    if (row.cost_currency === "USD") return 1;
+    return usdRates[usdRateKey(row.cost_currency, row.date_acquisition)]?.rate ?? null;
+  }
+
+  function inventoryTotal(row: InventoryRow) {
+    return usdInventory
+      ? getUsdInventoryTotal(row.cost_amount, row.commission_blondeau, inventoryRate(row))
+      : getComputedTotalEur(row);
+  }
 
   function updateRow(id: string, changes: Partial<InventoryRow>) {
     setData((previous) =>
@@ -339,11 +437,16 @@ export default function FloracBoughtInventoryPage() {
 
   const rows = useMemo(() => {
     const filtered = data.filter((row) => {
+      if (selectedClientId && clientProposals?.clientId !== selectedClientId) return false;
+      if (!matchesInventoryBuyer(
+        row, effectiveBuyerId, selectedClientId, clientProposals?.artworkIds ?? new Set<string>()
+      )) return false;
       const haystack = [
         row.first_name,
         row.last_name,
         row.title,
         row.company_name,
+        inventoryLocationLabel(row),
         row.date_acquisition,
       ]
         .filter(Boolean)
@@ -364,8 +467,11 @@ export default function FloracBoughtInventoryPage() {
     });
 
     const sorted = [...filtered].sort((a, b) => {
-      const aVal = getSortValue(a, sortColumn);
-      const bVal = getSortValue(b, sortColumn);
+      const sortValue = (row: InventoryRow) => sortColumn === "total_eur"
+        ? inventoryTotal(row)
+        : sortColumn === "fx_rate_to_eur" ? inventoryRate(row) : getSortValue(row, sortColumn);
+      const aVal = sortValue(a);
+      const bVal = sortValue(b);
 
       if (aVal === null && bVal === null) return 0;
       if (aVal === null) return 1;
@@ -389,11 +495,57 @@ export default function FloracBoughtInventoryPage() {
     });
 
     return sorted;
-  }, [data, query, dateFrom, dateTo, sortColumn, sortDirection]);
+  // Rates affect both numeric sorting and the displayed totals.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, query, dateFrom, dateTo, sortColumn, sortDirection, selectedClientId, clientProposals, effectiveBuyerId, usdInventory, usdRates]);
+
+  const usdRateRequests = useMemo(() => {
+    if (!usdInventory) return "";
+    return JSON.stringify([...new Set(rows
+      .filter(row => row.cost_currency !== "USD")
+      .map(row => usdRateKey(row.cost_currency, row.date_acquisition))
+    )].sort());
+  }, [rows, usdInventory]);
+
+  useEffect(() => {
+    if (!usdRateRequests) return;
+    let cancelled = false;
+    async function loadRates() {
+      setUsdRatesLoading(true);
+      setUsdRatesError("");
+      try {
+        const rates: Record<string, HistoricalUsdRate> = {};
+        const keys: string[] = JSON.parse(usdRateRequests);
+        for (const key of keys) {
+          const [currency, date] = key.split(":");
+          if (!currency || !date) throw new Error("Devise ou date d'achat manquante : conversion USD impossible.");
+          const response = await fetchWithAuth(
+            `/api/inventory/usd-rate?currency=${encodeURIComponent(currency)}&date=${encodeURIComponent(date)}`
+          );
+          const payload = await response.json() as HistoricalUsdRate & { error?: string };
+          if (!response.ok) throw new Error(`${currency} au ${date} : ${payload.error ?? "Taux indisponible"}`);
+          rates[key] = { rate: payload.rate, date: payload.date };
+          if (cancelled) return;
+        }
+        setUsdRates(rates);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("LOAD INVENTORY USD RATES ERROR:", error);
+          setUsdRatesError(error instanceof Error ? error.message : "Impossible de charger les taux USD.");
+        }
+      } finally {
+        if (!cancelled) setUsdRatesLoading(false);
+      }
+    }
+    void loadRates();
+    return () => { cancelled = true; };
+  }, [usdRateRequests]);
 
   const totalEur = useMemo(() => {
-    return rows.reduce((sum, r) => sum + (getComputedTotalEur(r) ?? 0), 0);
-  }, [rows]);
+    if (usdInventory && rows.some(row => inventoryTotal(row) === null)) return null;
+    return rows.reduce((sum, r) => sum + (inventoryTotal(r) ?? 0), 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, usdInventory, usdRates]);
 
   const insuranceTotalsByCurrency = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -411,7 +563,7 @@ export default function FloracBoughtInventoryPage() {
 
   function exportToExcel() {
     const endDate = getExportEndDate(dateTo);
-    const title = `Inventaire Florac Works au ${formatTitleDate(endDate)}`;
+    const title = `${inventoryTitle} au ${formatTitleDate(endDate)}${clientFilterLabel ? ` - ${clientFilterLabel}` : ""}`;
     const headers = [
       "Image",
       "Date d'acquisition",
@@ -422,9 +574,9 @@ export default function FloracBoughtInventoryPage() {
       "Coût",
       "Commission",
       "Total devise",
-      "Taux vers EUR",
+      `Taux vers ${totalCurrency}`,
       "Frais (EUR)",
-      "Total EUR",
+      `Total ${totalCurrency}`,
       "Devise assurance",
       "Assurance",
       "Localisation",
@@ -445,14 +597,14 @@ export default function FloracBoughtInventoryPage() {
         row.cost_amount ?? "",
         row.commission_blondeau ?? "",
         getForeignSubtotal(row),
-        row.fx_rate_to_eur === null || row.fx_rate_to_eur === undefined
+        inventoryRate(row) === null || inventoryRate(row) === undefined
           ? ""
-          : { t: "n", v: row.fx_rate_to_eur, z: "0.0000" },
+          : { t: "n", v: inventoryRate(row), z: "0.0000" },
         row.purchase_cost ?? "",
-        getComputedTotalEur(row) ?? "",
+        inventoryTotal(row) ?? "",
         row.insurance_currency ?? "",
         row.insurance_value ?? "",
-        row.company_name ?? "",
+        inventoryLocationLabel(row),
         "",
         row.image_url ?? "",
       ];
@@ -468,7 +620,7 @@ export default function FloracBoughtInventoryPage() {
       [
         "Total",
         ...Array(10).fill(""),
-        formatNumber(totalEur),
+        totalEur === null ? "Total incomplet" : formatNumber(totalEur),
         insuranceCurrencies,
         insuranceTotal,
         "",
@@ -476,6 +628,21 @@ export default function FloracBoughtInventoryPage() {
         "",
       ],
     ];
+
+    if (usdInventory) {
+      headers.splice(10, 1);
+      for (const row of exportRows) row.splice(10, 1);
+      for (const row of totalRows) row.splice(10, 1);
+      exportRows.forEach((row, index) => {
+        row[0] = { t: "e", v: 15, f: createImageFormula(index + 4).replace(/Q/g, "P") };
+      });
+      headers.push("Date FX BCE");
+      exportRows.forEach((row, index) => {
+        const artwork = rows[index];
+        row.push(usdRates[usdRateKey(artwork.cost_currency, artwork.date_acquisition)]?.date
+          ?? artwork.date_acquisition ?? "");
+      });
+    }
 
     const worksheet = XLSX.utils.aoa_to_sheet([
       [title],
@@ -505,6 +672,11 @@ export default function FloracBoughtInventoryPage() {
       { wch: 2 },
       { wch: 48.36, hidden: true },
     ];
+    if (usdInventory) {
+      worksheet["!cols"].splice(10, 1);
+      worksheet["!cols"].push({ wch: 12 });
+    }
+    const visibleColumns = usdInventory ? 14 : 15;
     worksheet["!rows"] = [
       { hpt: 24 },
       {},
@@ -514,7 +686,7 @@ export default function FloracBoughtInventoryPage() {
       ...totalRows.map(() => ({ hpt: 15.4 })),
     ];
     worksheet["!autofilter"] = {
-      ref: `A3:O${exportRows.length + 3}`,
+      ref: `A3:${usdInventory ? "N" : "O"}${exportRows.length + 3}`,
     };
 
     const thinBorder = { style: "thin", color: { auto: 1 } };
@@ -579,37 +751,37 @@ export default function FloracBoughtInventoryPage() {
       const address = XLSX.utils.encode_cell({ c: column, r: row });
       const cell = worksheet[address] ?? { t: "s", v: "" };
       cell.s = {
-        ...getCellStyle(column, rowType),
-        border: getBorder(column, rowType),
+        ...getCellStyle(usdInventory && column >= 10 ? column + 1 : column, rowType),
+        border: getBorder(usdInventory && column >= 10 ? column + 1 : column, rowType),
       };
       worksheet[address] = cell;
     };
 
-    for (let column = 0; column < 15; column += 1) {
+    for (let column = 0; column < visibleColumns; column += 1) {
       applyCellStyle(column, 2, "header");
     }
 
     for (let row = 0; row < exportRows.length; row += 1) {
-      for (let column = 0; column < 15; column += 1) {
+      for (let column = 0; column < visibleColumns; column += 1) {
         applyCellStyle(column, row + 3, "body");
       }
     }
 
     for (let row = 0; row < totalRows.length; row += 1) {
-      for (let column = 0; column < 15; column += 1) {
+      for (let column = 0; column < visibleColumns; column += 1) {
         applyCellStyle(column, exportRows.length + row + 4, "total");
       }
     }
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Inventaire");
-    XLSX.writeFile(workbook, getExportFileName(endDate));
+    XLSX.writeFile(workbook, getExportFileName(endDate, selectedClient?.label ?? buyerLabel ?? "tous-buyers"));
   }
 
   return (
     <div className="p-6 pt-20 space-y-6">
       <div className="no-print flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Inventaire Florac</h1>
+        <h1 className="text-2xl font-semibold">{inventoryTitle}</h1>
         {canEdit && (
           <button
             type="button"
@@ -623,6 +795,50 @@ export default function FloracBoughtInventoryPage() {
 
       {/* Filtres */}
       <div className="no-print flex flex-col gap-4">
+        {canSelectClient && (
+          <div className="flex flex-col gap-2">
+            <label htmlFor="inventory-client" className="text-sm text-gray-600">Client</label>
+            <select
+              id="inventory-client"
+              className="border px-3 py-2 rounded bg-white"
+              value={selectedClientId ?? ""}
+              onChange={(event) => {
+                setBuyerId(null);
+                setClientProposals(null);
+                setSelectedClientId(event.target.value || null);
+              }}
+            >
+              <option value="">Tous les clients</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>{client.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex flex-col gap-2">
+          <label htmlFor="inventory-buyer" className="text-sm text-gray-600">
+            Buyer
+          </label>
+          <select
+            id="inventory-buyer"
+            className="border px-3 py-2 rounded bg-white"
+            value={effectiveBuyerId ?? ""}
+            onChange={(event) => setBuyerId(event.target.value || null)}
+            disabled={inventoryLoading || Boolean(inventoryError)}
+          >
+            <option value="">Tous les buyers</option>
+            {buyerOptions.map((buyer) => (
+              <option key={buyer.id} value={buyer.id}>{buyer.label}</option>
+            ))}
+          </select>
+          {selectedClient && (
+            <p className="text-sm text-gray-600">
+              Les filtres Client et Buyer se cumulent. « Tous les buyers » affiche toutes
+              les œuvres achetées et proposées à {selectedClient.label}, quel que soit leur buyer.
+              Le choix du client est synchronisé avec l&apos;en-tête.
+            </p>
+          )}
+        </div>
         <div className="flex flex-col gap-4 md:flex-row">
           <input
             className="border px-3 py-2 rounded w-full"
@@ -669,7 +885,8 @@ export default function FloracBoughtInventoryPage() {
       </div>
 
       <div className="inventory-print-header">
-        <h1>Inventaire Florac</h1>
+        <h1>{inventoryTitle}</h1>
+        {clientFilterLabel && <p>{clientFilterLabel}</p>}
         <p>
           {rows.length} œuvre{rows.length > 1 ? "s" : ""}
           {dateFrom || dateTo
@@ -683,6 +900,7 @@ export default function FloracBoughtInventoryPage() {
           type="button"
           className="rounded border bg-white px-3 py-2 font-medium"
           onClick={exportToExcel}
+          disabled={inventoryLoading || Boolean(inventoryError) || (usdInventory && (usdRatesLoading || Boolean(usdRatesError) || totalEur === null))}
         >
           Exporter vers Excel
         </button>
@@ -690,13 +908,30 @@ export default function FloracBoughtInventoryPage() {
           type="button"
           className="rounded border bg-white px-3 py-2 font-medium"
           onClick={() => window.print()}
+          disabled={inventoryLoading || Boolean(inventoryError) || (usdInventory && (usdRatesLoading || Boolean(usdRatesError) || totalEur === null))}
         >
           Imprimer l&apos;inventaire
         </button>
       </div>
 
-      {loading ? (
+      {usdInventory && (
+        <div role="status">
+          Total USD = (cost + commission) × FX. Sans fees.
+          Taux BCE via Frankfurter au dernier jour publié au plus tard à la date d&apos;achat.
+          {usdRatesLoading && <p>Chargement des taux historiques USD…</p>}
+          {usdRatesError && <p role="alert" className="text-red-600">{usdRatesError}</p>}
+          {!usdRatesLoading && totalEur === null && (
+            <p role="alert" className="text-red-600">Total incomplet : coût ou taux de change manquant.</p>
+          )}
+        </div>
+      )}
+      {inventoryLoading ? (
         <div className="text-sm text-gray-500">Chargement...</div>
+      ) : inventoryError ? (
+        <div className="ux-feedback-card ux-feedback-card-error" role="alert">
+          <strong>Impossible de charger l&apos;inventaire.</strong>
+          <span>{inventoryError}</span>
+        </div>
       ) : (
         <div className="inventory-table-container overflow-x-auto max-h-[75vh] border rounded print:overflow-visible print:max-h-none">
           <table className="inventory-table w-full text-sm border-collapse">
@@ -745,22 +980,22 @@ export default function FloracBoughtInventoryPage() {
                   Total devise{renderSortIndicator("total_foreign_currency")}
                 </th>
                 <th
-                  className="print:hidden w-[160px] px-3 py-2 text-right cursor-pointer select-none"
+                  className={`${usdInventory ? "" : "print:hidden"} w-[160px] px-3 py-2 text-right cursor-pointer select-none`}
                   onClick={() => handleSort("fx_rate_to_eur")}
                 >
                   FX{renderSortIndicator("fx_rate_to_eur")}
                 </th>
-                <th
+                {!usdInventory && <th
                   className="w-[160px] px-3 py-2 text-right cursor-pointer select-none"
                   onClick={() => handleSort("purchase_cost")}
                 >
                   Fees (EUR){renderSortIndicator("purchase_cost")}
-                </th>
+                </th>}
                 <th
                   className="w-[160px] px-3 py-2 text-right cursor-pointer select-none"
                   onClick={() => handleSort("total_eur")}
                 >
-                  Total EUR{renderSortIndicator("total_eur")}
+                  Total {totalCurrency}{renderSortIndicator("total_eur")}
                 </th>
                 <th
                   className="w-[160px] px-3 py-2 text-right cursor-pointer select-none"
@@ -907,11 +1142,19 @@ export default function FloracBoughtInventoryPage() {
 
                   <td
                     onClick={(e) => e.stopPropagation()}
-                    className={`print:hidden w-[50px] px-3 py-2 text-right tabular-nums ${
-                      !r.fx_rate_to_eur ? "text-red-500 font-medium" : ""
+                    className={`${usdInventory ? "" : "print:hidden"} w-[50px] px-3 py-2 text-right tabular-nums ${
+                      !inventoryRate(r) ? "text-red-500 font-medium" : ""
                     }`}
                   >
-                    {editingEnabled ? (
+                    {usdInventory ? (
+                      <span title="Taux BCE via Frankfurter">
+                        {inventoryRate(r)?.toFixed(4) ?? "—"}
+                        <small className="block">
+                          {usdRates[usdRateKey(r.cost_currency, r.date_acquisition)]?.date
+                            ?? (r.cost_currency === "USD" ? "USD / USD" : "")}
+                        </small>
+                      </span>
+                    ) : editingEnabled ? (
                       <input
                         type="number"
                         step="0.0001"
@@ -961,7 +1204,7 @@ export default function FloracBoughtInventoryPage() {
                     )}
                   </td>
 
-                  <td
+                  {!usdInventory && <td
                     className="w-[160px] px-3 py-2 text-right tabular-nums"
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -996,10 +1239,10 @@ export default function FloracBoughtInventoryPage() {
                     ) : (
                       formatAmount(r.purchase_cost, "EUR")
                     )}
-                  </td>
+                  </td>}
 
                   <td className="px-3 py-2 text-right tabular-nums font-medium truncate">
-                    {formatAmount(getComputedTotalEur(r), "EUR")}
+                    {formatAmount(inventoryTotal(r), totalCurrency)}
                   </td>
 
                   <td
@@ -1056,7 +1299,7 @@ export default function FloracBoughtInventoryPage() {
                     )}
                   </td>
 
-                  <td className="px-3 py-2">{r.company_name ?? "—"}</td>
+                  <td className="px-3 py-2 whitespace-normal">{inventoryLocationLabel(r)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1069,12 +1312,12 @@ export default function FloracBoughtInventoryPage() {
   <tr className="font-semibold">
     <td colSpan={7}></td>
 
-    <td className="print:hidden"></td>
+    <td className={usdInventory ? "" : "print:hidden"}></td>
 
-    <td></td>
+    {!usdInventory && <td></td>}
 
     <td className="px-3 py-2 text-right tabular-nums font-bold truncate">
-      {formatAmount(totalEur, "EUR")}
+      {formatAmount(totalEur, totalCurrency)}
     </td>
 
     <td className="px-3 py-2 text-right tabular-nums truncate">

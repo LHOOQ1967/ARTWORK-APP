@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import SearchSelect from '@/components/ui/SearchSelect'
 import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { addressLabel, type ContactAddress } from '@/components/contacts/ContactAddressSelect'
 
@@ -147,6 +148,7 @@ async function send(url: string, method: string, body?: unknown) {
 }
 
 export default function TransportsPage() {
+  const { matchesClient } = useClientFilter()
   const [transports, setTransports] = useState<Transport[]>([])
   const [artworks, setArtworks] = useState<ArtworkOption[]>([])
   const [contacts, setContacts] = useState<ContactRef[]>([])
@@ -205,10 +207,11 @@ export default function TransportsPage() {
     const needle = search.trim().toLowerCase()
     return transports.filter(
       (transport) =>
+        matchesClient(transport.artwork_id) &&
         (!statusFilter || transportStatus(transport) === statusFilter) &&
         (!needle || artworkLabel(transport.artwork).toLowerCase().includes(needle))
     )
-  }, [transports, statusFilter, search])
+  }, [transports, statusFilter, search, matchesClient])
 
   async function run(action: () => Promise<void>) {
     try {

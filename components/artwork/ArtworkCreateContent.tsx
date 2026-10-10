@@ -929,6 +929,7 @@ useEffect(() => {
           setArtwork({
             ...EMPTY_ARTWORK,
             ...parsed.artwork,
+            proposed_by_id: parsed.artwork.proposed_by_id ?? parsed.artwork.auction_contact_id ?? null,
           })
 
           if (parsed.queries) {
@@ -1155,7 +1156,7 @@ async function saveArtwork() {
       buyer_contact_id: artwork.buyer_contact_id,
       destination_contact_id: artwork.destination_contact_id,
       certificate_location_contact_id: artwork.certificate_location_contact_id,
-      proposed_by_id: artwork.proposed_by_id,
+      proposed_by_id: artwork.proposed_by_id ?? artwork.auction_contact_id,
 
       sale_date: artwork.sale_date,
       sale_time: artwork.sale_time,

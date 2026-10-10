@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import HeaderNav from '@/components/layout/HeaderNav'
 import { SessionProvider, useSessionProfile } from '@/contexts/SessionContext'
+import { ClientFilterProvider } from '@/contexts/ClientFilterContext'
 
 function ProtectedGuard({ children }: Readonly<{ children: React.ReactNode }>) {
   const router = useRouter()
@@ -33,12 +34,14 @@ export default function ProtectedLayout({
 
   return (
     <SessionProvider>
-      <HeaderNav />
-      <ProtectedGuard>
-        <div className="protected-page-shell" data-page-section={pageSection ?? undefined}>
-          <main>{children}</main>
-        </div>
-      </ProtectedGuard>
+      <ClientFilterProvider>
+        <HeaderNav />
+        <ProtectedGuard>
+          <div className="protected-page-shell" data-page-section={pageSection ?? undefined}>
+            <main>{children}</main>
+          </div>
+        </ProtectedGuard>
+      </ClientFilterProvider>
     </SessionProvider>
   )
 }

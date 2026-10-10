@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { privateImageUrl } from '@/lib/privateImageUrl'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 
 type Contact = {
   id: string
@@ -202,7 +203,12 @@ function acquisitionTotalsByValuationYear(
 }
 
 export default function ValuationsHistoryPage() {
-  const [artworks, setArtworks] = useState<Artwork[]>([])
+  const { matchesClient } = useClientFilter()
+  const [allArtworks, setArtworks] = useState<Artwork[]>([])
+  const artworks = useMemo(
+    () => allArtworks.filter((artwork) => matchesClient(artwork.id)),
+    [allArtworks, matchesClient]
+  )
   const [contacts, setContacts] = useState<Contact[]>([])
   const [valuations, setValuations] = useState<Valuation[]>([])
   const [firstExpertId, setFirstExpertId] = useState('')

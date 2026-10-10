@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEditMode } from '@/contexts/EditModeContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { supabase } from '@/lib/supabaseBrowser'
 import { ArtworkSection } from './ArtworkSection'
 import ImageUploader from '@/components/ImageUploader'
@@ -183,6 +184,7 @@ export default function ArtworkDetailContent({
   const id = decodeURIComponent(artworkId || '')
   const router = useRouter()
   const { isEditing, setIsEditing } = useEditMode()
+  const { selectedClient } = useClientFilter()
 
 const originalArtworkRef = useRef<ArtworkWithRelations | null>(null)
 const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1174,11 +1176,36 @@ const artworkDocuments = useMemo(
 
   if (!artwork) return null
 
+  const isOutsideSelectedClient =
+    selectedClient !== null &&
+    artwork.buyer_contact_id !== selectedClient.id &&
+    !(artwork.artwork_proposals ?? []).some(
+      (proposal) => (proposal.contact?.id ?? proposal.contact_id) === selectedClient.id
+    )
+
   return (
     <main
       style={pageStyle}
     >
       <div className="artwork-edit-shell">
+        {isOutsideSelectedClient && (
+          <div
+            role="status"
+            style={{
+              marginBottom: 16,
+              backgroundColor: '#fff6d6',
+              color: '#6b4e00',
+              border: '1px solid #f2c94c',
+              borderRadius: 8,
+              padding: '10px 12px',
+              fontSize: '0.95rem',
+            }}
+          >
+            ⚠ Cette œuvre n&apos;a pas été proposée à <strong>{selectedClient.label}</strong> (client
+            sélectionné dans l&apos;en-tête).
+          </div>
+        )}
+
         {error && (
           <div
             style={{
