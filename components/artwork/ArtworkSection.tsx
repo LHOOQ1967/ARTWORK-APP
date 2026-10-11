@@ -261,7 +261,7 @@ function useDebouncedArtistSearch(query: string) {
   return { results, loading }
 }
 
-function useDebouncedContactSearch(query: string) {
+function useDebouncedContactSearch(query: string, clientsOnly = false) {
   const [results, setResults] = useState<Contact[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -286,9 +286,15 @@ function useDebouncedContactSearch(query: string) {
         `last_name.ilike.%${term}%`,
       ])
 
-      const { data, error } = await supabase
+      let contactsQuery = supabase
         .from('contacts')
         .select('id, company_name, first_name, last_name')
+
+      if (clientsOnly) {
+        contactsQuery = contactsQuery.eq('is_client', true)
+      }
+
+      const { data, error } = await contactsQuery
         .or(orFilters.join(','))
         .limit(60)
 
@@ -1020,6 +1026,7 @@ function ArtworkEdit({
   removeProposal?: (proposalId: string) => Promise<void>
 }) {
   const [contactOptions, setContactOptions] = useState<Contact[]>([])
+  const [clientOptions, setClientOptions] = useState<Contact[]>([])
   const [artistOptions, setArtistOptions] = useState<Artist[]>([])
 
   // Queries
@@ -1067,7 +1074,7 @@ const [newProposedAt, setNewProposedAt] = useState(
     useDebouncedContactSearch(destinationQuery)
 
   const { results: proposalResults, loading: proposalLoading } =
-    useDebouncedContactSearch(proposalQuery)
+    useDebouncedContactSearch(proposalQuery, true)
 
   useEffect(() => {
     const loadContacts = async () => {
@@ -1083,6 +1090,26 @@ const [newProposedAt, setNewProposedAt] = useState(
     }
 
     loadContacts()
+  }, [])
+
+  useEffect(() => {
+    const loadClients = async () => {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, company_name, first_name, last_name')
+        .eq('is_client', true)
+        .order('company_name', { ascending: true })
+        .limit(200)
+
+      if (error) {
+        console.error('LOAD PROPOSAL CLIENTS FAILED:', error)
+        return
+      }
+
+      setClientOptions((data as Contact[]) ?? [])
+    }
+
+    loadClients()
   }, [])
 
   useEffect(() => {
@@ -1115,7 +1142,6 @@ const [newProposedAt, setNewProposedAt] = useState(
       ...auctionHouseResults,
       ...buyerResults,
       ...destinationResults,
-      ...proposalResults,
     ]
 
     if (merged.length > 0) {
@@ -1128,8 +1154,13 @@ const [newProposedAt, setNewProposedAt] = useState(
     auctionHouseResults,
     buyerResults,
     destinationResults,
-    proposalResults,
   ])
+
+  useEffect(() => {
+    if (proposalResults.length > 0) {
+      setClientOptions((current) => mergeUniqueContacts(current, proposalResults))
+    }
+  }, [proposalResults])
 
 
 useEffect(() => {
@@ -1335,13 +1366,13 @@ async function handleAddProposal() {
                       query={proposalQuery}
                       setQuery={setProposalQuery}
                       results={proposalResults}
-                      options={contactOptions}
+                      options={clientOptions}
                       getLabel={contactLabel}
-                      placeholder="Search contact to add"
+                      placeholder="Search client to add"
                       disabled={!isEditing}
                       isEditing={isEditing}
                       loading={proposalLoading}
-                      noResultsText="No contact found"
+                      noResultsText="No client found"
                     />
                   </div>
 
