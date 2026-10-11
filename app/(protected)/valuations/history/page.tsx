@@ -1,5 +1,7 @@
 'use client'
 
+import { formatArtworkYears } from '@/lib/artworkYears'
+
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { privateImageUrl } from '@/lib/privateImageUrl'
@@ -17,6 +19,7 @@ type Artwork = {
   image_url: string | null
   title: string | null
   year_execution: number | null
+  year_execution_start?: number | null
   date_acquisition: string | null
   cost_amount: number | null
   cost_currency: string | null
@@ -72,7 +75,7 @@ function artworkLabel(artwork: Artwork | undefined) {
   const artist = artwork.artist
     ? [artwork.artist.first_name, artwork.artist.last_name].filter(Boolean).join(' ')
     : ''
-  const title = [artwork.title, artwork.year_execution].filter(Boolean).join(', ')
+  const title = [artwork.title, formatArtworkYears(artwork.year_execution, artwork.year_execution_start)].filter(Boolean).join(', ')
   return [artist, title].filter(Boolean).join(' — ') || 'Œuvre sans titre'
 }
 
@@ -433,7 +436,7 @@ export default function ValuationsHistoryPage() {
                     .join(' ') || '—'}
                 </td>
                 <td className="p-3">
-                  {[artwork.title, artwork.year_execution].filter(Boolean).join(', ') || '—'}
+                  {[artwork.title, formatArtworkYears(artwork.year_execution, artwork.year_execution_start)].filter(Boolean).join(', ') || '—'}
                 </td>
                 <td className="p-3 text-right tabular-nums whitespace-nowrap">
                   {formatTotalAcquisitionCost(artwork)}

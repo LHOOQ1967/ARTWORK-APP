@@ -1,5 +1,7 @@
 'use client'
 
+import { formatArtworkYears } from '@/lib/artworkYears'
+
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import SearchSelect from '@/components/ui/SearchSelect'
@@ -44,6 +46,7 @@ type Transport = {
   artwork: {
     title: string | null
     year_execution: number | null
+    year_execution_start?: number | null
     artist: { first_name: string | null; last_name: string | null } | null
     location: ContactRef | null
     location_address: Partial<ContactAddress> | null
@@ -61,6 +64,7 @@ type ArtworkOption = {
   id: string
   title: string | null
   year_execution: number | null
+  year_execution_start?: number | null
   status: string | null
   location_contact_id: string | null
   destination_contact_id: string | null
@@ -91,7 +95,7 @@ function artworkLabel(artwork: Transport['artwork'] | ArtworkOption | null) {
   const artist = artwork.artist
     ? [artwork.artist.first_name, artwork.artist.last_name].filter(Boolean).join(' ')
     : ''
-  const title = [artwork.title, artwork.year_execution].filter(Boolean).join(', ')
+  const title = [artwork.title, formatArtworkYears(artwork.year_execution, artwork.year_execution_start)].filter(Boolean).join(', ')
   return [artist, title].filter(Boolean).join(' — ') || 'Œuvre sans titre'
 }
 

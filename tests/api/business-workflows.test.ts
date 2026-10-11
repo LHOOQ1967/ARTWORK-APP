@@ -146,6 +146,9 @@ describe('critical artwork workflows', () => {
       const response = await updateArtwork(
         requestJson('http://localhost/api/artworks/artwork-1', 'PATCH', {
           title: 'Updated title',
+          edition: '3/10',
+          year_execution_start: 2024,
+          year_execution: 2026,
           status: 'Viewed',
         }),
         { params: Promise.resolve({ id: 'artwork-1' }) }
@@ -156,6 +159,9 @@ describe('critical artwork workflows', () => {
         expect.objectContaining({
           status: 'Viewed',
           title: 'Updated title',
+          edition: '3/10',
+          year_execution_start: 2024,
+          year_execution: 2026,
         })
       )
       expect(artworkQuery.eq).toHaveBeenCalledWith('id', 'artwork-1')

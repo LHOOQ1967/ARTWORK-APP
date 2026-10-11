@@ -1,6 +1,8 @@
 
 'use client'
-import React from 'react'
+
+import { formatArtworkYears } from '@/lib/artworkYears'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(protected)/types/artwork'
 import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
@@ -8,6 +10,7 @@ import { LinkedText } from '@/components/ui/LinkedText'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { canEditArtworks } from '@/lib/permissions'
 import { privateImageUrl } from '@/lib/privateImageUrl'
+import { supabase } from '@/lib/supabaseBrowser'
 
 
 type Props = {
@@ -149,6 +152,35 @@ function hasValidNumber(value: unknown) {
 /* ---------- component ---------- */
 
 export default function ArtworkSheet({ artwork, isEditMode, canEdit }: Props) {
+  const [shipmentArtworkId, setShipmentArtworkId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function checkShipments() {
+      try {
+        const { data, error } = await supabase
+          .from('artwork_transports')
+          .select('id')
+          .eq('artwork_id', artwork.id)
+          .limit(1)
+
+        if (cancelled) return
+        if (error) throw new Error(error.message)
+        setShipmentArtworkId(data?.length ? artwork.id : null)
+      } catch (error) {
+        if (cancelled) return
+        console.error('LOAD FACTSHEET SHIPMENTS ERROR:', error)
+        setShipmentArtworkId(null)
+      }
+    }
+
+    void checkShipments()
+    return () => {
+      cancelled = true
+    }
+  }, [artwork.id])
+
   console.log('artwork print data', artwork)
 const artworkId = artwork.id
 const commission = artwork.calculated_commission ?? artwork.commission_blondeau
@@ -521,7 +553,7 @@ const displayTitle = (() => {
       {/* ✅ Title */}
       <h1 style={{ fontSize: '1.4rem',  }}>
         {artwork.title || 'Untitled'}
-        {artwork.year_execution ? `, ${artwork.year_execution}` : ''}
+        {formatArtworkYears(artwork.year_execution, artwork.year_execution_start) ? `, ${formatArtworkYears(artwork.year_execution, artwork.year_execution_start)}` : ''}
       </h1>
 
 
@@ -537,6 +569,10 @@ const displayTitle = (() => {
       )}
 
       {/* ✅ Dimensions */}
+      {artwork.edition && (
+        <div style={{ fontSize: '1.2rem' }}>Edition: {artwork.edition}</div>
+      )}
+
       {artwork.height_cm && (
         <div style={{ fontSize: '1.2rem', marginBottom: 5 }}>
           {artwork.height_cm} × {artwork.width_cm}
@@ -954,12 +990,12 @@ const displayTitle = (() => {
   />
 )}
 
-{artwork.acquired === true && (
+{shipmentArtworkId === artwork.id && (
   <InfoRowShort
     label="Transports"
     value={
       <Link href="/transports" style={{ color: '#007a5e', textDecoration: 'underline' }}>
-        Voir les transports
+        See shipments
       </Link>
     }
   />

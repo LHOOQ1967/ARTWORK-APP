@@ -20,10 +20,12 @@ const proposals: DashboardLink[] = [
 
 const collection: DashboardLink[] = [
   { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date' },
-  { href: '/inventory', title: 'Inventory', subtitle: '' },
-  { href: '/valuations', title: 'Valuations', subtitle: '' },
-  { href: '/commissions', title: 'Commissions', subtitle: '' },
+  { href: '/inventory', title: 'Inventory', subtitle: 'Collection and costs' },
+  { href: '/inventory/geneva-freeport', title: 'Inventory Geneva Freeport', subtitle: 'Customs and storage' },
+  { href: '/valuations', title: 'Valuations', subtitle: 'Values and history' },
+  { href: '/commissions', title: 'Commissions', subtitle: 'Fees and invoices' },
   { href: '/transports', title: 'Transports', subtitle: 'Quotes and deliveries' },
+  { href: '/insurance', title: 'Insurance', subtitle: 'Declaration and premium' },
 ]
 
 const tools: DashboardLink[] = [

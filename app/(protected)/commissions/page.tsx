@@ -1,5 +1,7 @@
 'use client'
 
+import { formatArtworkYears } from '@/lib/artworkYears'
+
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
@@ -19,6 +21,7 @@ type Artwork = {
   title: string | null
   medium: string | null
   year_execution: number | null
+  year_execution_start?: number | null
   date_acquisition: string
   cost_amount: number
   cost_currency: string
@@ -122,7 +125,7 @@ function totalsByCurrencyWithDefaults(totals: Record<string, number>) {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('fr-CH').format(new Date(`${value.slice(0, 10)}T00:00:00`))
+  return new Intl.DateTimeFormat('en-GB').format(new Date(`${value.slice(0, 10)}T00:00:00`))
 }
 
 function artistLabel(artwork: Artwork) {
@@ -132,7 +135,7 @@ function artistLabel(artwork: Artwork) {
 }
 
 function titleLabel(artwork: Artwork) {
-  return [artwork.title, artwork.year_execution].filter(Boolean).join(', ')
+  return [artwork.title, formatArtworkYears(artwork.year_execution, artwork.year_execution_start)].filter(Boolean).join(', ')
 }
 
 function contactLabel(contact: Artwork['proposedBy']) {
@@ -162,26 +165,26 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
     }, {})
   )
   const worksheet = XLSX.utils.aoa_to_sheet([
-    [`Commissions Blondeau & Cie — ${company} — ${year}`],
+    [`Blondeau & Cie commissions — ${company === 'Toutes' ? 'All companies' : company} — ${year}`],
     [],
     [
-      'Date achat',
-      'Société',
-      'Artiste',
-      'Titre',
+      'Purchase date',
+      'Company',
+      'Artist',
+      'Title',
       'Medium',
       'Proposed by',
-      'Prix achat',
-      'Devise',
-      'Prix achat USD',
-      'Base commission',
-      'Devise base',
-      'FX vers USD',
-      'Taux commission',
+      'Purchase price',
+      'Currency',
+      'Purchase price USD',
+      'Commission base',
+      'Base currency',
+      'FX to USD',
+      'Commission rate',
       'Commission',
       'Commission USD',
-      'Devise commission',
-      'Taux exceptionnel',
+      'Commission currency',
+      'Exceptional rate',
     ],
     ...rows.map((row) => [
       formatDate(row.date_acquisition),
@@ -264,7 +267,8 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
 
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Commissions')
-  XLSX.writeFile(workbook, `commissions-${company.toLowerCase().replace('é', 'e')}-${year}.xlsx`)
+  const companyFileLabel = company === 'Toutes' ? 'all' : company.toLowerCase().replace('é', 'e')
+  XLSX.writeFile(workbook, `commissions-${companyFileLabel}-${year}.xlsx`)
 }
 
 export default function CommissionsPage() {
@@ -304,7 +308,7 @@ export default function CommissionsPage() {
       if (cancelled) return
 
       if (!response.ok) {
-        setError(payload.error ?? 'Impossible de charger les commissions.')
+        setError(payload.error ?? 'Unable to load commissions.')
       } else {
         setArtworks(payload.artworks ?? [])
         setFxRates(payload.fxRates ?? [])
@@ -626,7 +630,7 @@ export default function CommissionsPage() {
       enteredRate !== null &&
       (!Number.isFinite(enteredRate) || enteredRate < 0 || enteredRate > 1)
     ) {
-      setError('Le taux exceptionnel doit être compris entre 0 % et 100 %.')
+      setError('The exceptional rate must be between 0% and 100%.')
       return
     }
 
@@ -642,7 +646,7 @@ export default function CommissionsPage() {
         body: JSON.stringify({ artworkId, rate }),
       })
       const payload = (await response.json()) as { error?: string }
-      if (!response.ok) throw new Error(payload.error ?? 'Enregistrement impossible.')
+      if (!response.ok) throw new Error(payload.error ?? 'Unable to save.')
 
       setExceptionalRates((previous) => {
         const next = { ...previous }
@@ -656,7 +660,7 @@ export default function CommissionsPage() {
         return next
       })
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save.')
     } finally {
       setSavingId(null)
     }
@@ -681,7 +685,7 @@ export default function CommissionsPage() {
 
     const rate = Number(draftFxRates[key])
     if (!Number.isFinite(rate) || rate <= 0) {
-      setError('Le taux de change doit être supérieur à zéro.')
+      setError('The exchange rate must be greater than zero.')
       return
     }
 
@@ -695,7 +699,7 @@ export default function CommissionsPage() {
       const payload = (await response.json()) as { error?: string; fxRate?: FxRate }
       const savedFxRate = payload.fxRate
       if (!response.ok || !savedFxRate) {
-        throw new Error(payload.error ?? 'Enregistrement du taux impossible.')
+        throw new Error(payload.error ?? 'Unable to save the exchange rate.')
       }
       setFxRates((previous) => [
         ...previous.filter(
@@ -714,7 +718,7 @@ export default function CommissionsPage() {
         return next
       })
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save.')
     }
   }
 
@@ -736,7 +740,7 @@ export default function CommissionsPage() {
         })
         const payload = (await response.json()) as { error?: string }
         if (!response.ok) {
-          throw new Error(payload.error ?? 'Suppression de la facture impossible.')
+          throw new Error(payload.error ?? 'Unable to delete the invoice.')
         }
         setInvoices((previous) => {
           const next = { ...previous }
@@ -754,14 +758,14 @@ export default function CommissionsPage() {
           return next
         })
       } catch (saveError) {
-        setError(saveError instanceof Error ? saveError.message : 'Suppression impossible.')
+        setError(saveError instanceof Error ? saveError.message : 'Unable to delete.')
       } finally {
         setSavingInvoiceId(null)
       }
       return
     }
     if (commissionAmount === null) {
-      setError('La commission ne peut pas être calculée sans base de commission et taux de change.')
+      setError('The commission cannot be calculated without a commission base and exchange rate.')
       return
     }
     const invoiceUrl = draftInvoiceUrls[artworkId] ?? invoices[artworkId]?.invoice_url ?? ''
@@ -776,7 +780,7 @@ export default function CommissionsPage() {
       })
       const payload = (await response.json()) as { error?: string; invoice?: Invoice }
       if (!response.ok || !payload.invoice) {
-        throw new Error(payload.error ?? 'Enregistrement de la facture impossible.')
+        throw new Error(payload.error ?? 'Unable to save the invoice.')
       }
       setInvoices((previous) => ({
         ...previous,
@@ -793,7 +797,7 @@ export default function CommissionsPage() {
         return next
       })
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save.')
     } finally {
       setSavingInvoiceId(null)
     }
@@ -832,7 +836,7 @@ export default function CommissionsPage() {
         correctionInvoice?: CorrectionInvoice
       }
       if (!response.ok || !payload.correctionInvoice) {
-        throw new Error(payload.error ?? 'Enregistrement de la correction impossible.')
+        throw new Error(payload.error ?? 'Unable to save the correction.')
       }
       setCorrectionInvoices((previous) => ({
         ...previous,
@@ -850,7 +854,7 @@ export default function CommissionsPage() {
         return next
       })
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Enregistrement impossible.')
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save.')
     }
   }
 
@@ -858,19 +862,19 @@ export default function CommissionsPage() {
     <div className="p-6 pt-20 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Commissions facturées</h1>
+          <h1 className="text-2xl font-semibold">Invoiced commissions</h1>
           <p className="text-sm text-gray-600">
-            Florac et Léopold Meyer cumulés pour le seuil annuel de USD 5&apos;000&apos;000.
+            Florac and Léopold Meyer are combined for the annual USD 5&apos;000&apos;000 threshold.
           </p>
         </div>
         <Link className="edit-button no-print" href="/inventory">
-          Inventaire
+          Inventory
         </Link>
       </div>
 
       <div className="no-print grid gap-3 rounded border bg-gray-50 p-4 md:grid-cols-4">
         <label className="flex flex-col gap-1 text-sm font-medium">
-          Année
+          Year
           <select
             className="rounded border bg-white px-3 py-2"
             value={selectedYear}
@@ -884,28 +888,28 @@ export default function CommissionsPage() {
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium">
-          Société
+          Company
           <select
             className="rounded border bg-white px-3 py-2"
             value={company}
             onChange={(event) => setCompany(event.target.value as Company | 'Toutes')}
           >
-            <option>Toutes</option>
+            <option value="Toutes">All companies</option>
             <option>Florac</option>
             <option>Léopold Meyer</option>
           </select>
         </label>
         <div className="text-sm">
-          <p className="font-medium">Cumul admissible annuel</p>
+          <p className="font-medium">Annual qualifying total</p>
           <p className="text-lg font-semibold">{formatMoney(annualQualifyingUsd, 'USD')}</p>
-          <p className="text-gray-600">Taux standard : {(standardRate * 100).toFixed(0)} %</p>
+          <p className="text-gray-600">Standard rate: {(standardRate * 100).toFixed(0)} %</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <button className="edit-button" type="button" onClick={() => exportWorkbook(rows, selectedYear, company)}>
-            Exporter vers Excel
+            Export to Excel
           </button>
           <button className="edit-button" type="button" onClick={() => window.print()}>
-            Imprimer
+            Print
           </button>
         </div>
       </div>
@@ -913,9 +917,9 @@ export default function CommissionsPage() {
       {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-800">{error}</p>}
       {displayedCorrections.length > 0 && (
         <section className="rounded border border-amber-300 bg-amber-50 p-4">
-          <h2 className="font-semibold">Corrections de commissions à facturer</h2>
+          <h2 className="font-semibold">Commission corrections to invoice</h2>
           <p className="mb-3 text-sm text-gray-700">
-            Le seuil annuel de USD 5&apos;000&apos;000 est atteint. La correction correspond à −1 % des commissions à 8 % déjà facturées.
+            The annual USD 5&apos;000&apos;000 threshold has been reached. The correction reduces already invoiced 8% commissions by one percentage point.
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             {displayedCorrections.map((correction) => {
@@ -932,7 +936,7 @@ export default function CommissionsPage() {
                       <p className="text-lg font-semibold">{formatMoney(correction.amount, 'USD')}</p>
                     </div>
                     <label className="flex items-center gap-2 text-sm">
-                      Facturée le
+                      Invoiced on
                       <input
                         className="rounded border px-2 py-1"
                         type="date"
@@ -948,7 +952,7 @@ export default function CommissionsPage() {
                     <label className="flex items-center gap-2 text-sm">
                       PDF OneDrive
                       <input
-                        aria-label={`Lien PDF de la correction ${correction.company}`}
+                        aria-label={`Correction PDF link for ${correction.company}`}
                         className="w-56 rounded border px-2 py-1"
                         type="url"
                         placeholder="https://..."
@@ -983,7 +987,7 @@ export default function CommissionsPage() {
                         )
                       }
                     >
-                      Enregistrer
+                      Save
                     </button>
                     <button
                       className="edit-button"
@@ -996,7 +1000,7 @@ export default function CommissionsPage() {
                         )
                       }
                     >
-                      Voir les œuvres à corriger ({correctionRows.length})
+                      View artworks to correct ({correctionRows.length})
                     </button>
                     {showsCorrectionRows && (
                       <button
@@ -1008,7 +1012,7 @@ export default function CommissionsPage() {
                           )
                         }
                       >
-                        Annuler
+                        Hide details
                       </button>
                     )}
                   </div>
@@ -1017,12 +1021,12 @@ export default function CommissionsPage() {
                       <table className="w-full text-sm">
                         <thead className="text-left">
                           <tr>
-                            <th className="pb-2 pr-3">Artiste</th>
-                            <th className="pb-2 pr-3">Titre</th>
-                            <th className="pb-2 text-right">Correction −1 % (devise)</th>
+                            <th className="pb-2 pr-3">Artist</th>
+                            <th className="pb-2 pr-3">Title</th>
+                            <th className="pb-2 text-right">Correction −1 % (currency)</th>
                             <th className="pb-2 text-right">Correction −1 % USD</th>
-                            <th className="pb-2 text-right">Nouvelle commission 7 % (devise)</th>
-                            <th className="pb-2 text-right">Nouvelle commission 7 % USD</th>
+                            <th className="pb-2 text-right">New commission 7 % (currency)</th>
+                            <th className="pb-2 text-right">New commission 7 % USD</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1063,25 +1067,25 @@ export default function CommissionsPage() {
         </section>
       )}
       {loading ? (
-        <p className="text-sm text-gray-500">Chargement…</p>
+        <p className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="overflow-x-auto rounded border">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-gray-50 text-left">
               <tr className="border-b">
-                <th className="p-3">Date achat</th>
-                <th className="p-3">Société</th>
-                <th className="p-3">Artiste</th>
-                <th className="p-3">Titre</th>
+                <th className="p-3">Purchase date</th>
+                <th className="p-3">Company</th>
+                <th className="p-3">Artist</th>
+                <th className="p-3">Title</th>
                 <th className="p-3">Proposed by</th>
-                <th className="p-3 text-right">Prix achat</th>
-                <th className="p-3 text-right">Prix achat USD</th>
+                <th className="p-3 text-right">Purchase price</th>
+                <th className="p-3 text-right">Purchase price USD</th>
                 <th className="p-3 text-right no-print">FX → USD</th>
-                <th className="p-3 text-right">Base commission</th>
-                <th className="p-3 text-right">Taux</th>
+                <th className="p-3 text-right">Commission base</th>
+                <th className="p-3 text-right">Rate</th>
                 <th className="p-3 text-right">Commission</th>
-                <th className="p-3 no-print">Facturée le</th>
-                <th className="p-3 no-print">Taux exceptionnel</th>
+                <th className="p-3 no-print">Invoiced on</th>
+                <th className="p-3 no-print">Exceptional rate</th>
               </tr>
             </thead>
             <tbody>
@@ -1124,12 +1128,12 @@ export default function CommissionsPage() {
                           <span className="text-sm">1.0000</span>
                         ) : (
                           <input
-                            aria-label={`Taux ${row.cost_currency} vers USD du ${rateDate}`}
+                            aria-label={`${row.cost_currency} to USD exchange rate on ${rateDate}`}
                             className="w-24 rounded border px-2 py-1 text-right"
                             type="number"
                             min="0"
                             step="0.0001"
-                            placeholder="taux"
+                            placeholder="rate"
                             value={draftFxRates[key] ?? (existingRate ? String(existingRate.rate) : '')}
                             onChange={(event) =>
                               setDraftFxRates((previous) => ({
@@ -1146,17 +1150,17 @@ export default function CommissionsPage() {
                       {formatMoney(row.commissionBase, row.commissionCurrency)}
                       {row.auctions && (
                         <p className={`text-xs ${row.sold_hammer === null ? 'text-red-700' : 'text-gray-600'}`}>
-                          {row.sold_hammer === null ? 'hammer price manquant' : 'hammer price'}
+                          {row.sold_hammer === null ? 'missing hammer price' : 'hammer price'}
                         </p>
                       )}
                     </td>
                     <td className="p-3 text-right tabular-nums">
                       {(row.appliedRate * 100).toFixed(2)} %
                       {row.exceptionalRate !== null && (
-                        <p className="text-xs text-amber-700">exceptionnel</p>
+                        <p className="text-xs text-amber-700">exceptional</p>
                       )}
                       {row.isCorrectionApplied && (
-                        <p className="text-xs text-green-700">corrigée à 7 %</p>
+                        <p className="text-xs text-green-700">corrected to 7 %</p>
                       )}
                     </td>
                     <td className="p-3 text-right font-medium tabular-nums">
@@ -1178,7 +1182,7 @@ export default function CommissionsPage() {
                     <td className="p-3 no-print">
                       <div className="flex min-w-56 flex-col gap-2">
                         <input
-                          aria-label={`Date de facture pour ${titleLabel(row)}`}
+                          aria-label={`Invoice date for ${titleLabel(row)}`}
                           className="rounded border px-2 py-1"
                           type="date"
                           value={draftInvoiceDates[row.id] ?? row.invoicedAt ?? ''}
@@ -1192,10 +1196,10 @@ export default function CommissionsPage() {
                         />
                         <div className="flex items-center gap-2">
                           <input
-                            aria-label={`Lien PDF de la facture pour ${titleLabel(row)}`}
+                            aria-label={`Invoice PDF link for ${titleLabel(row)}`}
                             className="w-40 rounded border px-2 py-1"
                             type="url"
-                            placeholder="Lien PDF OneDrive"
+                            placeholder="OneDrive PDF link"
                             value={draftInvoiceUrls[row.id] ?? row.invoiceUrl ?? ''}
                             onChange={(event) =>
                               setDraftInvoiceUrls((previous) => ({
@@ -1222,7 +1226,7 @@ export default function CommissionsPage() {
                     <td className="p-3 no-print">
                       <div className="flex min-w-44 items-center gap-2">
                         <input
-                          aria-label={`Taux exceptionnel pour ${titleLabel(row)}`}
+                          aria-label={`Exceptional rate for ${titleLabel(row)}`}
                           className="w-20 rounded border px-2 py-1 text-right"
                           type="number"
                           min="0"
@@ -1254,7 +1258,7 @@ export default function CommissionsPage() {
             </tbody>
             <tfoot className="border-t bg-gray-50 font-semibold">
               <tr>
-                <td className="p-3" colSpan={6}>Total facturé</td>
+                <td className="p-3" colSpan={6}>Total invoiced</td>
                 <td />
                 <td className="no-print" />
                 <td />
@@ -1272,7 +1276,7 @@ export default function CommissionsPage() {
               </tr>
               {hasInvoicedCorrections && (
                 <tr>
-                  <td className="p-3" colSpan={10}>Total facturé après corrections</td>
+                  <td className="p-3" colSpan={10}>Total invoiced after corrections</td>
                   <td className="p-3 text-right tabular-nums whitespace-nowrap">
                     {invoicedTotalsAfterCorrectionsByCurrency.map(([currency, amount]) => (
                       <p key={currency} className="whitespace-nowrap">
@@ -1290,7 +1294,7 @@ export default function CommissionsPage() {
               {commissionBasesUsdByRate.map(({ rate, amount }) => (
                 <tr key={rate}>
                   <td className="p-3" colSpan={8}>
-                    Base commissions au taux de {(rate * 100).toFixed(0)} %
+                    Commission base at {(rate * 100).toFixed(0)} %
                   </td>
                   <td className="p-3 text-right tabular-nums">
                     {formatMoney(amount, 'USD')}
@@ -1302,7 +1306,7 @@ export default function CommissionsPage() {
                 </tr>
               ))}
               <tr>
-                <td className="p-3" colSpan={10}>Commissions à facturer</td>
+                <td className="p-3" colSpan={10}>Commissions to invoice</td>
                 <td className="p-3 text-right tabular-nums whitespace-nowrap">
                   {commissionsToInvoiceTotalsByCurrency.map(([currency, amount]) => (
                     <p key={currency} className="whitespace-nowrap">{formatMoney(amount, currency)}</p>
@@ -1316,7 +1320,7 @@ export default function CommissionsPage() {
           </table>
           {rows.some((row) => row.purchaseUsd === null) && (
             <p className="p-3 text-sm text-red-700">
-              Certains prix ne peuvent pas être convertis en USD : renseignez le taux de change de la date d’achat dans l’inventaire.
+              Some prices cannot be converted to USD: enter the exchange rate for the purchase date in Inventory.
             </p>
           )}
         </div>

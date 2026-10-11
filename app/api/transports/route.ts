@@ -11,7 +11,7 @@ const TRANSPORT_SELECT = `
   destination_address:contact_addresses!artwork_transports_destination_address_id_fkey(id, label, address, postal_code, city, country),
   instruction_date, transport_date, arrival_date, notes, final_invoice_pdf_url, created_at,
   artwork:artworks!artwork_transports_artwork_id_fkey(
-    id, title, year_execution, artist:artists(first_name, last_name),
+    id, title, year_execution, year_execution_start, artist:artists(first_name, last_name),
     location:contacts!artworks_location_contact_fkey(id, company_name, first_name, last_name),
     location_address:contact_addresses!artworks_location_address_id_fkey(id, label, address, postal_code, city, country),
     artwork_destination_address:contact_addresses!artworks_destination_address_id_fkey(id, label, address, postal_code, city, country),
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       : supabase
           .from('artworks')
           .select(
-            'id, title, year_execution, status, location_contact_id, destination_contact_id, location_address_id, destination_address_id, artist:artists(first_name, last_name)'
+            'id, title, year_execution, year_execution_start, status, location_contact_id, destination_contact_id, location_address_id, destination_address_id, artist:artists(first_name, last_name)'
           )
           .order('title'),
     artworkId

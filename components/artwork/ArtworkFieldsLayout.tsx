@@ -720,7 +720,22 @@ export function ArtworkFieldsLayout({
           />
         </EditRow>
 
-        <EditRow label="Year">
+        <EditRow label="Year (start)">
+          <input
+            type="number"
+            value={artwork.year_execution_start ?? ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                year_execution_start: e.target.value === '' ? null : Number(e.target.value),
+              })
+            }
+            style={{ ...editInputStyle, width: 120 }}
+            disabled={!isEditing}
+          />
+        </EditRow>
+
+        <EditRow label="Year (end)">
           <input
             type="number"
             value={artwork.year_execution ?? ''}
@@ -759,6 +774,21 @@ export function ArtworkFieldsLayout({
               setArtwork({
                 ...artwork,
                 signature: e.target.value || null,
+              })
+            }
+            style={editInputStyle}
+            disabled={!isEditing}
+          />
+        </EditRow>
+
+        <EditRow label="Edition">
+          <input
+            type="text"
+            value={artwork.edition ?? ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                edition: e.target.value || null,
               })
             }
             style={editInputStyle}

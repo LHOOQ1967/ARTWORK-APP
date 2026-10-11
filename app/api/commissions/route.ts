@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         title,
         medium,
         year_execution,
+        year_execution_start,
         date_acquisition,
         cost_amount,
         cost_currency,

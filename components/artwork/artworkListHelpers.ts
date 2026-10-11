@@ -1,4 +1,5 @@
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
+import { formatArtworkYears } from '@/lib/artworkYears'
 
 export type ArtworkListMode = 'market' | 'auction' | 'bought'
 export type ArtworkListSection = 'active' | 'archived'
@@ -138,7 +139,8 @@ export function getArtistName(artwork: ArtworkListItem): string {
 
 export function getTitleWithYear(artwork: ArtworkListItem) {
   const title = artwork.title?.trim() || '—'
-  return artwork.year_execution ? `${title}, ${artwork.year_execution}` : title
+  const years = formatArtworkYears(artwork.year_execution, artwork.year_execution_start)
+  return years ? `${title}, ${years}` : title
 }
 
 export function getMainImage(artwork: ArtworkListItem) {

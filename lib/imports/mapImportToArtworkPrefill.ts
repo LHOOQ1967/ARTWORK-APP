@@ -14,8 +14,10 @@ export type ArtworkPrefill = {
   artist_id: string;
   title: string;
   year: string;
+  year_start: string;
   medium: string;
   signature: string;
+  edition: string;
   dimensions: string;
   notes: string;
 
@@ -70,8 +72,10 @@ export function mapImportToArtworkPrefill(importRow: ArtworkImportRow | null | u
     // ✅ champs principaux
     title: toSafeString(normalized.title),
     year: numberToString(normalized.year),
+    year_start: numberToString(normalized.year_start),
     medium: toSafeString(normalized.medium),
     signature: toSafeString(normalized.signature),
+    edition: toSafeString(normalized.edition),
     dimensions: toSafeString(normalized.dimensions),
     notes: toSafeString(normalized.notes),
 

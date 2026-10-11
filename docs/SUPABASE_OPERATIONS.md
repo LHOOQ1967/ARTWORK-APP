@@ -63,6 +63,103 @@ nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
 
+### Inventory Geneva Freeport
+
+Apply `20261011211500_create_geneva_freeport_inventory.sql` before opening
+`/inventory/geneva-freeport`. Editors and Administrators can edit; Viewers can
+read only artworks proposed to their linked clients, enforced by existing artwork
+RLS and `security.can_view_artwork` on both inventory tables. It includes only
+artworks with location contact `abbcf211-f94e-4435-918e-775390164cb2` (Florac Works)
+and address `9b46dacc-7e21-4be6-ac45-7c4dfc62882f` (PF, Geneva, Switzerland).
+These are existing contact/address identifiers, shared by the API and save RPC.
+
+`geneva_freeport_inventory` stores the external inventory number, owner,
+provenance, entry value/currency, inventory insured value in USD, room/shelf,
+packing, notes, and original import provenance. Inventory numbers are not unique:
+the source repeats HES.1 for two separate Eva Hesse artworks.
+The page shows only Document Date, Inventory No., Image, Goods designation,
+RoomShelf, and Edit Inventory, in that order. The image is the first artwork
+image document. Document Date is taken from the first customs document.
+Previous documents, issuing offices, stamp dates, provenance and 11.95
+references remain accessible in Edit Inventory and are still searchable.
+Click column headings to toggle ascending/descending artwork sorting.
+The initial order is Document Date, newest first. Geneva Freeport and Insurance
+use the same top spacing as Commissions so their titles clear the HeaderNav.
+Customs columns sort by the first displayed document without reordering history;
+numeric values sort numerically and missing values remain last in both directions.
+Export Excel downloads `inventory-geneva-freeport.xlsx` for the current search
+and artwork sort order. The Inventory sheet includes ArtMuse goods designations,
+all inventory fields and the insured-value total; Customs history includes every
+document and its individual values, dates, source row and artwork ID.
+Dates are native Excel dates and amounts remain numeric. Unsaved form edits are
+excluded, with a confirmation warning when a draft has changes.
+`geneva_freeport_customs_documents` preserves every document row and its own
+dates, issuing office, 11.95 reference, values, storage, and packing information.
+Excel continuation rows belong to the immediately preceding artwork, not to
+a globally unique inventory number. Excel serial dates must be converted as
+calendar dates, without a UTC timezone shift.
+
+The separate inventory form saves both tables atomically through
+`save_geneva_freeport_inventory`; a failed document save rolls back the whole
+change. Goods designation is composed from current ArtMuse artist, title,
+execution years, medium, signature, edition, and dimensions. The original Excel
+description is preserved only as import provenance. These records are never
+joined into factsheet views and do not overwrite artwork descriptions, years,
+dimensions, costs, or insured values. When an artwork leaves the PF location,
+it disappears from the page but its inventory and document history remain stored.
+
+The initial `Florac_Inventaire douanier2.xlsx` import matched 56 artworks and
+preserved 73 customs rows. Location was set to Florac Works / PF for 55 artworks.
+Trisha Donnelly's Untitled retained its existing location because the workbook
+indicates an exhibition in Frankfurt; its inventory/history were still imported.
+The PF inventory total is USD 13'245'000, matching the workbook's explicit
+`SUM(K6:K78)-500000` formula. All ArtMuse artwork descriptions, dimensions,
+execution dates, costs and insured values were preserved. Source inventory
+insurance values remain separate, including Donnelly's USD 500'000.
+
+### Insurance email drafts
+
+Apply `20261011214000_viewer_insurance_freeport_read_access.sql` for Viewer
+read access to Insurance policies and Freeport inventory/history. Both pages
+are linked in the Viewer Collection menu. Insurance loads the current user's
+client links from `/api/insurance/clients`; Viewers can switch only between their
+own clients and cannot edit policy dates/rates or use the insurance email action.
+Freeport exports include only visible artworks. Freeport saving remains
+Editor/Administrator-only in both the API and database write policies.
+
+The Insurance page provides an Email action beside each artwork premium.
+It opens the user's mail application with a draft addressed to
+`alison.hillier@howdengroup.com`, using the purchase date, artist, title,
+execution years, medium, dimensions, original insured value and currency,
+current location contact, and destination contact. Dimensions are composed
+from `artworks.height_cm`, `width_cm`, and `depth_cm` (height x width x depth,
+in cm), omitting empty or zero values. No email is sent by ArtMuse.
+Missing information is explicitly flagged beside the action and represented
+by placeholders in the draft for the user to complete before sending.
+No additional database migration is required for this action.
+
+### Artwork execution year range
+
+Apply `20261011203500_add_artwork_start_year.sql` with `npx supabase db push`
+before using Year (start). The existing `year_execution` is the end year;
+`year_execution_start` is optional. A start year requires an end year and
+must not exceed it. Single-year works continue to use only the existing field.
+Ranges display as `2024/2026` in artwork lists, details, factsheets, inventory,
+insurance, valuations, commissions, and shipments. Import prefills and drafts
+preserve the separate start year. This migration exposes the field in the
+artwork and inventory views without changing existing filters or grants.
+It does not infer dates from titles or alter existing artwork titles or years.
+
+### Artwork edition
+
+Apply `20261011194500_add_artwork_edition.sql` before using the Edition field.
+It adds nullable free-text `public.artworks.edition` and exposes it through
+`artworks_full_admin` and `viewer_artworks_full_secure`, preserving their
+existing columns, access filters, and grants. Existing records remain unchanged.
+Edition is displayed after Signature in creation, editing, and factsheets,
+and is carried through import prefills and saved drafts. Existing signature
+text is not automatically split or migrated into the new field.
+
 ### Inventaire par buyer
 
 La migration `20261010150000_add_inventory_all_buyers.sql` doit etre appliquee

@@ -1,6 +1,8 @@
 
 'use client'
 
+import { artworkYearError, formatArtworkYears } from '@/lib/artworkYears'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEditMode } from '@/contexts/EditModeContext'
@@ -571,6 +573,11 @@ useEffect(() => {
 
   async function saveArtwork() {
     if (!artwork?.id || saving || deleting) return
+    const yearError = artworkYearError(artwork.year_execution_start, artwork.year_execution)
+    if (yearError) {
+      setError(yearError)
+      return
+    }
 
     try {
       setSaving(true)
@@ -582,7 +589,9 @@ const payload = {
   title: artwork.title,
   medium: artwork.medium,
   signature: artwork.signature,
+  edition: artwork.edition,
   year_execution: artwork.year_execution,
+  year_execution_start: artwork.year_execution_start ?? null,
 
   location_contact_id: artwork.location_contact_id,
   location_address_id: artwork.location_address_id ?? null,
@@ -1232,7 +1241,7 @@ const artworkDocuments = useMemo(
           <div>
             <div className="artwork-edit-eyebrow">{isEditing ? 'Editing artwork' : 'Artwork record'}</div>
             <h1>{artwork.artist?.last_name || 'Artwork'}</h1>
-            <p>{artwork.title || 'Untitled'}{artwork.year_execution ? `, ${artwork.year_execution}` : ''}</p>
+            <p>{artwork.title || 'Untitled'}{formatArtworkYears(artwork.year_execution, artwork.year_execution_start) ? `, ${formatArtworkYears(artwork.year_execution, artwork.year_execution_start)}` : ''}</p>
           </div>
 
 <div

@@ -9,6 +9,7 @@ vi.mock('@/contexts/SessionContext', () => ({
 vi.mock('@/components/artwork/ArtworkViewerComment', () => ({
   default: () => null,
 }))
+vi.mock('@/lib/supabaseBrowser', () => ({ supabase: {} }))
 
 beforeEach(() => vi.spyOn(console, 'log').mockImplementation(() => {}))
 afterEach(() => vi.restoreAllMocks())
@@ -20,6 +21,28 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it('displays execution year ranges using a slash', () => {
+    const html = render({ title: 'Test work', year_execution_start: 2024, year_execution: 2026 })
+    expect(html).toContain('2024/2026')
+    expect(html).not.toContain('2024–2026')
+  })
+
+  it('preserves single-year factsheets', () => {
+    const html = render({ title: 'Test work', year_execution: 2026 })
+    expect(html).toContain('2026')
+    expect(html).not.toContain('/2026')
+  })
+
+  it('shows edition after signature', () => {
+    const html = render({ signature: 'Signed lower right', edition: '3/10' })
+    expect(html).toContain('Edition: 3/10')
+    expect(html.indexOf('Signed lower right')).toBeLessThan(html.indexOf('Edition: 3/10'))
+  })
+
+  it('hides edition when it is not provided', () => {
+    expect(render({ edition: null })).not.toContain('Edition:')
+  })
+
   it('shows a premium-only Blondeau suggestion', () => {
     const html = render({ auction_max_hammer: null, auction_max_premium: 125000 })
     expect(html).toContain('Suggestion B.')

@@ -74,7 +74,7 @@ export async function GET() {
     supabase
       .from('v_inventory_bought_florac')
       .select(
-        'id, image_url, title, year_execution, date_acquisition, first_name, last_name, cost_amount, cost_currency, purchase_cost, commission_blondeau, fx_rate_to_eur'
+        'id, image_url, title, year_execution, year_execution_start, date_acquisition, first_name, last_name, cost_amount, cost_currency, purchase_cost, commission_blondeau, fx_rate_to_eur'
       ),
     supabase
       .from('contacts')

@@ -61,7 +61,21 @@ function renderFields(
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <label>Year of execution</label>
+        <label>Year (start)</label>
+        <input
+          type="number"
+          value={artwork.year_execution_start ?? ''}
+          onChange={e =>
+            setArtwork(prev => ({
+              ...prev,
+              year_execution_start: e.target.value ? Number(e.target.value) : null,
+            }))
+          }
+        />
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <label>Year (end)</label>
         <input
           type="number"
           value={artwork.year_execution ?? ''}
@@ -84,6 +98,18 @@ function renderFields(
             setArtwork(prev => ({
               ...prev,
               signature: e.target.value || null,
+            }))
+          }
+        />
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <label>Edition</label>
+        <input
+          value={artwork.edition ?? ''}
+          onChange={e =>
+            setArtwork(prev => ({
+              ...prev,
+              edition: e.target.value || null,
             }))
           }
         />

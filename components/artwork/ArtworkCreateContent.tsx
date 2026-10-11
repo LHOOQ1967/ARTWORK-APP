@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import type { ArtworkForm, Artist, Contact } from '@/app/(protected)/types/artwork'
 import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
 import { supabase } from '@/lib/supabaseBrowser'
+import { artworkYearError } from '@/lib/artworkYears'
 
 type ArtworkCreateInitialValues = {
   import_id?: string
@@ -13,8 +14,10 @@ type ArtworkCreateInitialValues = {
   artist_name?: string
   title?: string
   year?: string | number
+  year_start?: string | number
   medium?: string
   signature?: string
+  edition?: string
   dimensions?: string
   notes?: string
   height_cm?: string | number
@@ -38,8 +41,10 @@ type ManualImportPrefill = {
   artist_id?: string | null
   title?: string | null
   year?: string | number | null
+  year_start?: string | number | null
   medium?: string | null
   signature?: string | null
+  edition?: string | null
   dimensions?: string | null
   notes?: string | null
   height_cm?: string | number | null
@@ -78,7 +83,9 @@ const EMPTY_ARTWORK: ArtworkForm = {
   title: '',
   medium: null,
   signature: null,
+  edition: null,
   year_execution: null,
+  year_execution_start: null,
   dimensions: null,
 
   acquired: false,
@@ -584,8 +591,10 @@ function mergeInitialValuesWithManualPrefill(
   assignText('artist_name', manualPrefill.artist_name)
   assignText('title', manualPrefill.title)
   assignNumberOrString('year', manualPrefill.year)
+  assignNumberOrString('year_start', manualPrefill.year_start)
   assignText('medium', manualPrefill.medium)
   assignText('signature', manualPrefill.signature)
+  assignText('edition', manualPrefill.edition)
   assignText('notes', manualPrefill.notes)
 
   assignNumberOrString('height_cm', manualPrefill.height_cm)
@@ -654,7 +663,9 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
     title: toNullableText(initialValues.title) ?? '',
     medium: toNullableText(initialValues.medium),
     signature: toNullableText(initialValues.signature),
+    edition: toNullableText(initialValues.edition),
     year_execution: toNullableNumber(initialValues.year),
+    year_execution_start: toNullableNumber(initialValues.year_start),
     dimensions,
     notes: toNullableText(initialValues.notes),
     artist_id: toNullableText(initialValues.artist_id),
@@ -715,6 +726,8 @@ function isMeaningfulArtworkDraft(artwork: ArtworkForm) {
     artwork.title?.trim() ||
       artwork.medium?.trim?.() ||
       artwork.signature?.trim?.() ||
+      artwork.edition?.trim?.() ||
+      artwork.year_execution_start != null ||
       artwork.dimensions?.trim?.() ||
       artwork.notes?.trim?.() ||
       artwork.artist_id ||
@@ -1119,6 +1132,11 @@ useEffect(() => {
 
 
 async function saveArtwork() {
+  const yearError = artworkYearError(artwork.year_execution_start, artwork.year_execution)
+  if (yearError) {
+    setError(yearError)
+    return
+  }
   if (!artwork.title || !artwork.title.trim()) {
     setError('Title is required')
     return
@@ -1133,7 +1151,9 @@ async function saveArtwork() {
       title: artwork.title,
       medium: artwork.medium,
       signature: artwork.signature,
+      edition: artwork.edition,
       year_execution: artwork.year_execution,
+      year_execution_start: artwork.year_execution_start ?? null,
 
       acquired: artwork.acquired,
       date_acquisition: artwork.date_acquisition,

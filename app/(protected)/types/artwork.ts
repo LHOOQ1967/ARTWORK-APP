@@ -72,7 +72,9 @@ export type ArtworkFull = {
   title?: string | null
   medium?: string | null
   signature?: string | null
+  edition?: string | null
   year_execution?: number | null
+  year_execution_start?: number | null
   dimensions?: string | null
 
   height_cm?: number | null
@@ -205,6 +207,7 @@ export type ArtworkListItem = Pick<
   | 'artist'
   | 'medium'
   | 'year_execution'
+  | 'year_execution_start'
   | 'status'
   | 'priority'
   | 'date_proposition'
@@ -243,7 +246,9 @@ export type ArtworkForm = {
   title: string | null
   medium: string | null
   signature: string | null
+  edition: string | null
   year_execution: number | null
+  year_execution_start?: number | null
   dimensions: string | null
 
   status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'

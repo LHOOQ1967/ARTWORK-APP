@@ -1,5 +1,7 @@
 'use client'
 
+import { formatArtworkYears } from '@/lib/artworkYears'
+
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
@@ -17,6 +19,7 @@ type Artwork = {
   id: string
   title: string | null
   year_execution: number | null
+  year_execution_start?: number | null
   artist: {
     first_name: string | null
     last_name: string | null
@@ -60,7 +63,7 @@ function artworkLabel(artwork: Artwork) {
   const artist = artwork.artist
     ? [artwork.artist.first_name, artwork.artist.last_name].filter(Boolean).join(' ')
     : ''
-  const title = [artwork.title, artwork.year_execution].filter(Boolean).join(', ')
+  const title = [artwork.title, formatArtworkYears(artwork.year_execution, artwork.year_execution_start)].filter(Boolean).join(', ')
   return [artist, title].filter(Boolean).join(' — ') || 'Œuvre sans titre'
 }
 

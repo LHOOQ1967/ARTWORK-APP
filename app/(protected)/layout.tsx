@@ -49,7 +49,7 @@ export default function ProtectedLayout({
 function resolvePageSection(pathname: string) {
   if (!pathname || pathname === '/') return null
 
-  if (pathname.startsWith('/artworks/bought') || pathname.startsWith('/inventory') || pathname.startsWith('/valuations') || pathname.startsWith('/commissions') || pathname.startsWith('/transports')) {
+  if (pathname.startsWith('/artworks/bought') || pathname.startsWith('/inventory') || pathname.startsWith('/insurance') || pathname.startsWith('/valuations') || pathname.startsWith('/commissions') || pathname.startsWith('/transports')) {
     return 'collection'
   }
 

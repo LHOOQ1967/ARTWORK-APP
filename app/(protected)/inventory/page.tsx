@@ -1,6 +1,8 @@
 
 "use client";
 
+import { formatArtworkYears } from "@/lib/artworkYears";
+
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx-js-style";
 import { supabase } from "@/lib/supabaseBrowser";
@@ -23,6 +25,7 @@ type InventoryRow = InventoryBuyer & InventoryLocation & {
   image_url: string | null;
   title: string | null;
   year_execution: string | null;
+  year_execution_start?: number | null;
   date_acquisition: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -90,10 +93,12 @@ function formatAmount(
 
 function formatArtworkTitle(
   title: string | null | undefined,
-  year: string | null | undefined
+  year: string | null | undefined,
+  start?: number | null
 ) {
-  if (!title) return year ?? "";
-  return year ? `${title}, ${year}` : title;
+  const years = formatArtworkYears(year, start);
+  if (!title) return years;
+  return years ? `${title}, ${years}` : title;
 }
 
 function formatDate(date: string | null) {
@@ -592,7 +597,7 @@ export default function BoughtInventoryPage() {
           : "",
         getArtistName(row),
         row.title ?? "",
-        row.year_execution ?? "",
+        formatArtworkYears(row.year_execution, row.year_execution_start),
         row.cost_currency ?? "",
         row.cost_amount ?? "",
         row.commission_blondeau ?? "",
@@ -1038,7 +1043,7 @@ export default function BoughtInventoryPage() {
                   <td className="w-[90px] px-3 py-2">{formatDate(r.date_acquisition)}</td>
                   <td className="w-[140px] px-3 py-2">{getArtistName(r) || "—"}</td>
                   <td className="w-[300px] px-3 py-2">
-                    {formatArtworkTitle(r.title, r.year_execution) || "—"}
+                    {formatArtworkTitle(r.title, r.year_execution, r.year_execution_start) || "—"}
                   </td>
 
                   <td

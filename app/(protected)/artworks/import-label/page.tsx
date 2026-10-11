@@ -44,8 +44,10 @@ type EditableNormalized = {
   artist_name: string;
   title: string;
   year: string;
+  year_start: string;
   medium: string;
   signature: string;
+  edition: string;
   height_cm: string;
   width_cm: string;
   depth_cm: string;
@@ -88,8 +90,10 @@ function normalizeForEdit(importRow: ArtworkImportRow | null): EditableNormalize
     artist_name: safeString(normalized.artist_name),
     title: safeString(normalized.title),
     year: safeString(normalized.year),
+    year_start: safeString(normalized.year_start),
     medium: safeString(normalized.medium),
     signature: safeString(normalized.signature),
+    edition: safeString(normalized.edition),
     height_cm: safeString(normalized.height_cm),
     width_cm: safeString(normalized.width_cm),
     depth_cm:
@@ -164,8 +168,10 @@ function buildPrefillPayload(importRow: ArtworkImportRow, edited: EditableNormal
     artist_name: edited.artist_name.trim() || null,
     title: edited.title.trim() || null,
     year: toNullableNumber(edited.year),
+    year_start: toNullableNumber(edited.year_start),
     medium: edited.medium.trim() || null,
     signature: edited.signature.trim() || null,
+    edition: edited.edition.trim() || null,
 
     height_cm: heightCm,
     width_cm: widthCm,
@@ -202,8 +208,10 @@ const [edited, setEdited] = useState<EditableNormalized>({
   artist_name: "",
   title: "",
   year: "",
+  year_start: "",
   medium: "",
   signature: "",
+  edition: "",
   height_cm: "",
   width_cm: "",
   depth_cm: "",
@@ -428,8 +436,10 @@ function handleResetAll() {
     artist_name: "",
     title: "",
     year: "",
+    year_start: "",
     medium: "",
     signature: "",
+    edition: "",
     height_cm: "",
     width_cm: "",
     depth_cm: "",
@@ -658,11 +668,18 @@ function handleResetAll() {
                   />
 
                   <EditableFieldRow
-                    label="Année"
+                    label="Year (start)"
+                    value={edited.year_start}
+                    onChange={(value) => handleEditChange("year_start", value)}
+                    placeholder="Year (start)"
+                  />
+
+                  <EditableFieldRow
+                    label="Year (end)"
                     value={edited.year}
                     onChange={(value) => handleEditChange("year", value)}
                     confidence={importRow.confidence?.year}
-                    placeholder="Année"
+                    placeholder="Year (end)"
                   />
 
                   <EditableFieldRow
@@ -674,13 +691,19 @@ function handleResetAll() {
                   />
                   
 <EditableFieldRow
-  label="Signature / édition"
+  label="Signature"
   value={edited.signature}
   onChange={(value) => handleEditChange("signature", value)}
   confidence={importRow.confidence?.signature}
   placeholder="Signed lower right, 3/10"
  />
 
+<EditableFieldRow
+  label="Edition"
+  value={edited.edition}
+  onChange={(value) => handleEditChange("edition", value)}
+  placeholder="3/10, AP, edition of 25"
+ />
 
                   <div style={styles.resultRow}>
                     <div style={styles.resultHeader}>
@@ -827,14 +850,20 @@ function handleResetAll() {
                       <strong>Titre :</strong> {safeString(normalized.title) || "—"}
                     </div>
                     <div style={styles.matchLine}>
-                      <strong>Année :</strong> {safeString(normalized.year) || "—"}
+                      <strong>Year (start):</strong> {safeString(normalized.year_start) || "—"}
+                    </div>
+                    <div style={styles.matchLine}>
+                      <strong>Year (end):</strong> {safeString(normalized.year) || "—"}
                     </div>
                     <div style={styles.matchLine}>
                       <strong>Medium :</strong> {safeString(normalized.medium) || "—"}
                     </div>
                     
 <div style={styles.matchLine}>
-  <strong>Signature / édition :</strong> {safeString(normalized.signature) || "—"}
+  <strong>Signature:</strong> {safeString(normalized.signature) || "—"}
+</div>
+<div style={styles.matchLine}>
+  <strong>Edition:</strong> {safeString(normalized.edition) || "—"}
 </div>
 
                     <div style={styles.matchLine}>

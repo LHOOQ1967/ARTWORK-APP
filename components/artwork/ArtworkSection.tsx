@@ -1,6 +1,8 @@
 
 'use client'
 
+import { formatArtworkYears } from '@/lib/artworkYears'
+
 import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
 import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
 
@@ -966,12 +968,15 @@ function ArtworkView({ artwork }: { artwork: ArtworkWithRelations }) {
 
       <div style={{ fontStyle: 'italic', marginTop: 2 }}>
         {artwork.title || '—'}
-        {artwork.year_execution && `, ${artwork.year_execution}`}
+        {formatArtworkYears(artwork.year_execution, artwork.year_execution_start) && `, ${formatArtworkYears(artwork.year_execution, artwork.year_execution_start)}`}
       </div>
 
       <div style={{ marginTop: 6 }}>{artwork.medium || '—'}</div>
 
       <div style={{ marginTop: 6 }}>{artwork.signature || '—'}</div>
+      {artwork.edition && (
+        <div style={{ marginTop: 6 }}>Edition: {artwork.edition}</div>
+      )}
 
       <div style={{ marginTop: 4 }}>
         {artwork.height_cm && artwork.width_cm
@@ -1527,7 +1532,22 @@ async function handleAddProposal() {
           />
         </EditRow>
 
-        <EditRow label="Year">
+        <EditRow label="Year (start)">
+          <input
+            type="number"
+            value={artwork.year_execution_start ?? ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                year_execution_start: e.target.value === '' ? null : Number(e.target.value),
+              })
+            }
+            style={{ ...editInputStyle, width: 120 }}
+            disabled={!isEditing}
+          />
+        </EditRow>
+
+        <EditRow label="Year (end)">
           <input
             type="number"
             value={artwork.year_execution ?? ''}
@@ -1566,6 +1586,21 @@ async function handleAddProposal() {
               setArtwork({
                 ...artwork,
                 signature: e.target.value || null,
+              })
+            }
+            style={editInputStyle}
+            disabled={!isEditing}
+          />
+        </EditRow>
+
+        <EditRow label="Edition">
+          <input
+            type="text"
+            value={artwork.edition ?? ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                edition: e.target.value || null,
               })
             }
             style={editInputStyle}

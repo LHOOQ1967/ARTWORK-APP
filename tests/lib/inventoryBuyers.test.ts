@@ -51,6 +51,16 @@ describe('inventory client and buyer filters', () => {
       .toEqual([rows[0], rows[1], rows[3]]);
   });
 
+  it('offers only buyers belonging to the selected client artworks', () => {
+    const clientRows = rows.filter((row) =>
+      matchesInventoryBuyer(row, null, 'client', new Set(['a', 'c', 'd']))
+    );
+    expect(getInventoryBuyerOptions(clientRows)).toEqual([
+      { id: 'florac', label: 'Florac' },
+    ]);
+    expect(clientRows.filter((row) => row.buyer_contact_id === 'lm')).toEqual([]);
+  });
+
   it('returns no works for a client without proposals', () => {
     expect(rows.filter((row) => matchesInventoryBuyer(row, 'lm', 'client', new Set())))
       .toEqual([]);
