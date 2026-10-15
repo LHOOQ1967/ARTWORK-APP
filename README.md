@@ -48,6 +48,10 @@ npm run dev
 
 Authorization is enforced in API route handlers. Supabase Row Level Security must remain enabled as a second layer of protection.
 
+Active proposal lists show Location below Proposed by, with Status and Priority
+on one line and Proposed to underneath. Proposed to remains visible only to
+Editors and Administrators.
+
 ## Supabase operations
 
 The production runbook, including the observed schema, migration workflow, RLS

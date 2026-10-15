@@ -233,6 +233,8 @@ export type ArtworkListItem = Pick<
   | 'images'
   | 'proposed_by_name'
   | 'proposed_by_label'
+  | 'location'
+  | 'location_of_work'
 > & {
   proposals?: ArtworkProposalSummary[] | null
 }

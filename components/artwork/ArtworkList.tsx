@@ -16,6 +16,7 @@ import {
   getDefaultSort,
   getDisplayDateValue,
   getMainImage,
+  getLocationText,
   getPriorityStatusText,
   getProposedByText,
   getProposedToText,
@@ -120,12 +121,28 @@ const { role } = useSessionProfile()
 const normalizedRole =
   typeof role === 'string' ? role.toLowerCase() : ''
 
-
+const isActiveProposal = section === 'active' && mode !== 'bought'
+const canSeeProposedTo = normalizedRole === 'administrator' || normalizedRole === 'editor'
 
 const [sortKey, setSortKey] = useState<ArtworkSortKey | null>(null)
-
-
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+const proposedToHeader = canSeeProposedTo ? (
+  <div
+    style={{
+      ...headerClickableLineStyle,
+      fontWeight: 500,
+      color: '#111',
+      backgroundColor: sortKey === 'proposed_to' ? '#eee' : 'transparent',
+    }}
+    onClick={() => handleSort('proposed_to')}
+    title="Sort by proposed to"
+  >
+    Proposed to
+    {sortKey === 'proposed_to' && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
+  </div>
+) : null
+
 
   const PREVIEW_COUNT = 5
   const [showAll, setShowAll] = useState(false)
@@ -246,22 +263,9 @@ return (
       Proposed by
     </div>
 
-    {/* ✅ PROPOSED TO = tri admin/editor */}
-    {(normalizedRole === 'administrator' || normalizedRole === 'editor') && (
-      <div
-        style={{
-          ...headerClickableLineStyle,
-          fontWeight: 500,
-          color: '#111',
-          backgroundColor: sortKey === 'proposed_to' ? '#eee' : 'transparent',
-        }}
-        onClick={() => handleSort('proposed_to')}
-        title="Sort by proposed to"
-      >
-        Proposed to
-        {sortKey === 'proposed_to' && (sortDirection === 'asc' ? ' ▲' : ' ▼')}
-      </div>
-    )}
+    {isActiveProposal ? (
+      <div style={headerStaticLineStyle}>Location</div>
+    ) : proposedToHeader}
   </div>
 </th>
 
@@ -318,7 +322,7 @@ return (
   style={{
     ...th,
     userSelect: 'none',
-    width: 140,
+    width: isActiveProposal ? 260 : 140,
     textAlign: 'right',
   }}
 >
@@ -347,7 +351,8 @@ return (
     marginTop: 4,
     textAlign: 'right',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: isActiveProposal ? 'row' : 'column',
+    justifyContent: 'flex-end',
     alignItems: 'flex-end',
     gap: 2,
   }}
@@ -388,6 +393,7 @@ return (
       (sortDirection === 'asc' ? ' ▲' : ' ▼')}
   </span>
 </div>
+{isActiveProposal && proposedToHeader}
 </th>
 
           </tr>
@@ -400,6 +406,21 @@ return (
 
             const proposedByText = getProposedByText(a)
 const proposedToText = getProposedToText(a)
+            const locationText = getLocationText(a)
+            const proposedToLine = canSeeProposedTo ? (
+              <div
+                style={{
+                  ...secondLine,
+                  color: '#006039',
+                  fontStyle: 'italic',
+                  fontSize: '0.98rem',
+                  opacity: 0.9,
+                }}
+                title={proposedToText}
+              >
+                {proposedToText ? truncateText(proposedToText, 26) : ''}
+              </div>
+            ) : null
             const artistText = getArtistName(a)
 
             const titleWithYear = getTitleWithYear(a)
@@ -484,21 +505,11 @@ const proposedToText = getProposedToText(a)
       {truncateText(proposedByText, 26)}
     </div>
 
-    {/* ✅ PROPOSED TO */}
-    {(normalizedRole === 'administrator' || normalizedRole === 'editor') && (
-      <div
-        style={{
-          ...secondLine,
-          color: '#006039',     // ✅ vert
-          fontStyle: 'italic',  // ✅ italique
-          fontSize: '0.98rem',  // ✅ légèrement plus discret
-          opacity: 0.9,
-        }}
-        title={proposedToText}
-      >
-        {proposedToText ? truncateText(proposedToText, 26) : ''}
+    {isActiveProposal ? (
+      <div style={secondLine} title={locationText}>
+        {truncateText(locationText, 26)}
       </div>
-    )}
+    ) : proposedToLine}
 
   </div>
 </td>
@@ -545,7 +556,7 @@ const proposedToText = getProposedToText(a)
 
 
 {/* 4) Price / Priority+Status */}
-<td style={{ ...td, width: 140, textAlign: 'right' }}>
+<td style={{ ...td, width: isActiveProposal ? 260 : 140, textAlign: 'right' }}>
   <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
 
     {/* ✅ PRICE */}
@@ -559,7 +570,7 @@ const proposedToText = getProposedToText(a)
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: isActiveProposal ? 'row' : 'column',
         gap: 4,
         alignItems: 'flex-end',
       }}
@@ -569,6 +580,7 @@ const proposedToText = getProposedToText(a)
     >
       {/* ✅ STATUS */}
       <select
+        aria-label="Status"
         value={(a.status ?? '').toString()}
         disabled={savingInlineKey === `${a.id}:status`}
         onClick={(e) => e.stopPropagation()}
@@ -594,6 +606,7 @@ const proposedToText = getProposedToText(a)
 
       {/* ✅ PRIORITY */}
       <select
+        aria-label="Priority"
         value={(a.priority ?? '').toString()}
         disabled={savingInlineKey === `${a.id}:priority`}
         onClick={(e) => e.stopPropagation()}
@@ -618,9 +631,10 @@ const proposedToText = getProposedToText(a)
     </div>
   ) : (
     // ✅ fallback VIEWER / lecture seule
-    prStatus
+    isActiveProposal ? `${a.status ?? '—'} • ${a.priority ?? '—'}` : prStatus
   )}
 </div>
+    {isActiveProposal && proposedToLine}
   </div>
 </td>
 

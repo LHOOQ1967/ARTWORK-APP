@@ -127,6 +127,13 @@ export function getProposedToText(artwork: ArtworkListItem): string {
     .join(', ')
 }
 
+export function getLocationText(artwork: ArtworkListItem): string {
+  const location = artwork.location
+  const name = location?.company_name?.trim() ||
+    `${location?.first_name?.trim() ?? ''} ${location?.last_name?.trim() ?? ''}`.trim()
+  return name || artwork.location_of_work?.trim() || '—'
+}
+
 export function getPriorityStatusText(artwork: ArtworkListItem): string {
   return `${artwork.priority ?? '—'} • ${artwork.status ?? '—'}`
 }
