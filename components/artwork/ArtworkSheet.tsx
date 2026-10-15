@@ -382,6 +382,8 @@ const displayTitle = (() => {
             ? '#006039'
             : artwork.priority === 'Medium'
             ? '#f2c94c'
+            : artwork.priority === 'Low'
+            ? '#dbeafe'
             : '#eef0f5',
         color: artwork.priority === 'High' ? '#fff' : '#111',
       }}

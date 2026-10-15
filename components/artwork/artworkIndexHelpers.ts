@@ -81,6 +81,13 @@ export const chunk = <T,>(items: T[], size: number) => {
   return chunks
 }
 
+export function splitDraftArtworks(artworks: ArtworkIndexItem[]) {
+  return {
+    drafts: artworks.filter(artwork => artwork.status === 'Draft'),
+    others: artworks.filter(artwork => artwork.status !== 'Draft'),
+  }
+}
+
 export const contactLabel = (contact?: ContactRow | null) => {
   const company = contact?.company_name?.trim()
   if (company) return company
@@ -148,16 +155,22 @@ export function logQueryError(label: string, error: unknown) {
 }
 
 export function groupByPriority(artworks: ArtworkIndexItem[]) {
-  const groups: Record<'High' | 'Medium' | 'Information' | 'Other', ArtworkIndexItem[]> = {
+  const groups: Record<'High' | 'Medium' | 'Low' | 'Information' | 'Other', ArtworkIndexItem[]> = {
     High: [],
     Medium: [],
+    Low: [],
     Information: [],
     Other: [],
   }
 
   for (const artwork of artworks) {
     const priority = artwork.priority?.trim()
-    if (priority === 'High' || priority === 'Medium' || priority === 'Information') {
+    if (
+      priority === 'High' ||
+      priority === 'Medium' ||
+      priority === 'Low' ||
+      priority === 'Information'
+    ) {
       groups[priority].push(artwork)
     } else {
       groups.Other.push(artwork)

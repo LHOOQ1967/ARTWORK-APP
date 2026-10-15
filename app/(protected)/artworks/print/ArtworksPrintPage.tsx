@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import ArtworkSheet from '@/components/artwork/ArtworkSheet'
 import { supabase } from '@/lib/supabaseBrowser'
-import type { ArtworkPrint } from '@/app/(protected)/types/artwork'
+import type { ArtworkPriority, ArtworkPrint } from '@/app/(protected)/types/artwork'
 import { resolveSource } from '@/lib/viewerSources'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
@@ -47,9 +47,10 @@ const STATUS_ORDER: Record<string, number> = {
 }
 
 const PRIORITY_ORDER: Record<string, number> = {
-  High: 3,
-  Medium: 2,
-Information: 1,
+  High: 4,
+  Medium: 3,
+  Low: 2,
+  Information: 1,
 }
 
 
@@ -281,7 +282,7 @@ const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
 
 
 const [priorityFilter, setPriorityFilter] =
-  useState<'Information' | 'Medium' | 'High' | 'all'>('all')
+  useState<ArtworkPriority | 'all'>('all')
 
 const [auctionFilter, setAuctionFilter] =
   useState<'all' | 'auction' | 'non-auction'>('all')
@@ -373,7 +374,7 @@ useEffect(() => {
 
   const market = searchParams.get('market') // private | auction | all
   const status = searchParams.get('status') // active | bought | archived | all
-  const priority = searchParams.get('priority') // High | Medium | Information | all
+  const priority = searchParams.get('priority') // High | Medium | Low | Information | all
   const sort = searchParams.get('sort') // date | sale_date | artist | asking | priority | status
   const dir = searchParams.get('dir') // asc | desc
   const proposedTo = searchParams.get('proposedTo') // uuid | all (optionnel)
@@ -392,10 +393,11 @@ useEffect(() => {
   if (
     priority === 'High' ||
     priority === 'Medium' ||
+    priority === 'Low' ||
     priority === 'Information' ||
     priority === 'all'
   ) {
-    setPriorityFilter(priority as any)
+    setPriorityFilter(priority)
   }
 
   // ✅ Sort key
@@ -629,6 +631,7 @@ const fieldBox =
         <option value="all">All priorities</option>
         <option value="High">High</option>
         <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
         <option value="Information">Information</option>
       </select>
     </div>

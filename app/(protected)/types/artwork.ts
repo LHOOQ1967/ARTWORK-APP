@@ -185,6 +185,8 @@ export type ArtworkFull = {
 
 export type ArtworkWithRelations = ArtworkFull
 
+export type ArtworkPriority = 'Information' | 'Low' | 'Medium' | 'High'
+
 
 
 /* =========================================
@@ -252,7 +254,7 @@ export type ArtworkForm = {
   dimensions: string | null
 
   status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
-  priority: 'Information' | 'Medium' | 'High'
+  priority: ArtworkPriority
   auctions: boolean
 
   asking_price: number | null

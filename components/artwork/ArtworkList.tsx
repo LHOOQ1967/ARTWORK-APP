@@ -612,6 +612,7 @@ const proposedToText = getProposedToText(a)
 
         <option value="High">High</option>
         <option value="Medium">Medium</option>
+        <option value="Low">Low</option>
         <option value="Information">Information</option>
       </select>
     </div>

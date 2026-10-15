@@ -26,6 +26,7 @@ import {
   logQueryError,
   nonActiveFilterDateMs,
   proposalLinkRows,
+  splitDraftArtworks,
   type ArtistRow,
   type ArtworkIndexItem,
   type ContactRow,
@@ -727,28 +728,47 @@ const handleUpdateArtworkField = async (
 </div>
 
 
-  {(['High', 'Medium', 'Information', 'Other'] as const).map(priority => {
-    const list = marketGroups[priority]
-    if (!list.length) return null
+  {(['High', 'Medium', 'Low', 'Information', 'Other'] as const).map(priority => {
+    const { drafts, others } = splitDraftArtworks(marketGroups[priority])
+    if (!drafts.length && !others.length) return null
 
     return (
       <div key={priority} style={{ marginTop: 16 }}>
-        <div style={subSectionHeaderRowStyle}>
+        {others.length > 0 && (
+          <>
+            <div style={subSectionHeaderRowStyle}>
+              <h3 style={subSectionTitle}>
+                Private market — {priority} ({others.length})
+              </h3>
+            </div>
+            <ArtworkList
+              artworks={others}
+              mode="market"
+              canEditStatusPriority={canEditStatusPriority}
+              statusOptions={statusOptions}
+              savingInlineKey={savingInlineKey}
+              onUpdateArtworkField={handleUpdateArtworkField}
+            />
+          </>
+        )}
 
-<h3 style={subSectionTitle}>
-  Private market — {priority} ({list.length})
-</h3>
-
-        </div>
-
-        <ArtworkList
-          artworks={list}
-          mode="market"
-          canEditStatusPriority={canEditStatusPriority}
-          statusOptions={statusOptions}
-          savingInlineKey={savingInlineKey}
-          onUpdateArtworkField={handleUpdateArtworkField}
-        />
+        {drafts.length > 0 && (
+          <>
+            <div style={subSectionHeaderRowStyle}>
+              <h3 style={subSectionTitle}>
+                Private market — {priority} Not viewed yet ({drafts.length})
+              </h3>
+            </div>
+            <ArtworkList
+              artworks={drafts}
+              mode="market"
+              canEditStatusPriority={canEditStatusPriority}
+              statusOptions={statusOptions}
+              savingInlineKey={savingInlineKey}
+              onUpdateArtworkField={handleUpdateArtworkField}
+            />
+          </>
+        )}
       </div>
     )
   })}
@@ -772,28 +792,49 @@ const handleUpdateArtworkField = async (
 
 
   {/* ✅ PRIORITY */}
-  {(['High', 'Medium', 'Information', 'Other'] as const).map(priority => {
-    const list = auctionGroups[priority]
-    if (!list.length) return null
+  {(['High', 'Medium', 'Low', 'Information', 'Other'] as const).map(priority => {
+    const { drafts, others } = splitDraftArtworks(auctionGroups[priority])
+    if (!drafts.length && !others.length) return null
 
     return (
       <div key={priority} style={{ marginTop: 16 }}>
+        {others.length > 0 && (
+          <>
+            <div style={subSectionHeaderRowStyle}>
+              <h3 style={subSectionTitle}>
+                Auctions — {priority} ({others.length})
+              </h3>
+            </div>
+            <ArtworkList
+              artworks={others}
+              mode="auction"
+              section="active"
+              canEditStatusPriority={canEditStatusPriority}
+              statusOptions={statusOptions}
+              savingInlineKey={savingInlineKey}
+              onUpdateArtworkField={handleUpdateArtworkField}
+            />
+          </>
+        )}
 
-        <div style={subSectionHeaderRowStyle}>
-          <h3 style={subSectionTitle}>
-            Auctions — {priority} ({list.length})
-          </h3>
-        </div>
-
-        <ArtworkList
-          artworks={list}
-          mode="auction"
-          section="active"
-          canEditStatusPriority={canEditStatusPriority}
-          statusOptions={statusOptions}
-          savingInlineKey={savingInlineKey}
-          onUpdateArtworkField={handleUpdateArtworkField}
-        />
+        {drafts.length > 0 && (
+          <>
+            <div style={subSectionHeaderRowStyle}>
+              <h3 style={subSectionTitle}>
+                Auctions — {priority} Not viewed yet ({drafts.length})
+              </h3>
+            </div>
+            <ArtworkList
+              artworks={drafts}
+              mode="auction"
+              section="active"
+              canEditStatusPriority={canEditStatusPriority}
+              statusOptions={statusOptions}
+              savingInlineKey={savingInlineKey}
+              onUpdateArtworkField={handleUpdateArtworkField}
+            />
+          </>
+        )}
 
       </div>
     )

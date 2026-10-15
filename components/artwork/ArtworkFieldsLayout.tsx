@@ -14,7 +14,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from 'react'
-import type { ArtworkForm, Artist, Contact } from '@/app/(protected)/types/artwork'
+import type { ArtworkForm, ArtworkPriority, Artist, Contact } from '@/app/(protected)/types/artwork'
 
 type Props = {
   artwork: ArtworkForm
@@ -927,16 +927,17 @@ export function ArtworkFieldsLayout({
             onChange={(e) =>
               setArtwork({
                 ...artwork,
-                priority: e.target.value as 'Information' | 'Medium' | 'High',
+                priority: e.target.value as ArtworkPriority,
               })
             }
             style={{ ...editInputStyle, width: 120 }}
             disabled={!isEditing}
           >
             <option value="">—</option>
-            <option value="Information">Information</option>
-            <option value="Medium">Medium</option>
             <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+            <option value="Information">Information</option>
           </select>
         </EditRow>
 
