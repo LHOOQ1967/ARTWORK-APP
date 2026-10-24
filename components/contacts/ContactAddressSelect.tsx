@@ -56,7 +56,7 @@ export default function ContactAddressSelect({
       disabled={disabled}
       onChange={(event) => onChange(event.target.value || null)}
     >
-      <option value="">Adresse…</option>
+      <option value="">Select address...</option>
       {addresses.map((address) => (
         <option key={address.id} value={address.id}>
           {addressLabel(address)}

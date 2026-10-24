@@ -24,6 +24,7 @@ import {
   getProposedByLabelFromRow,
   groupByPriority,
   logQueryError,
+  matchesArtworkSearch,
   nonActiveFilterDateMs,
   proposalLinkRows,
   splitDraftArtworks,
@@ -40,8 +41,8 @@ type Props = {
 }
 
 type ForcedStatus = 'Bought' | 'Archived' | 'Active'
-type EditableArtworkField = 'status' | 'priority'
-type EditableArtworkValue = string | null
+type EditableArtworkField = 'status' | 'quality' | 'priority'
+type EditableArtworkValue = string | number | null
 
 const applyForcedStatusFilter = <T extends {
   or: (filters: string) => T
@@ -386,8 +387,6 @@ if (auctionsError) {
   // Filtrage global
 
 const globallyFiltered = useMemo(() => {
-  const normalizedSearch = searchQuery.trim().toLocaleLowerCase('fr-CH')
-
   return artworks.filter(a => {
     // ✅ FORCE STATUS
 
@@ -409,22 +408,7 @@ if (forcedStatus) {
       if (!ids.includes(selectedProposedToIdFilter)) return false
     }
 
-    if (normalizedSearch) {
-      const searchableText = [
-        a.artist_label,
-        a.title,
-        a.medium,
-        a.status,
-        a.priority,
-        a.proposed_by_label,
-        ...(Array.isArray(a.proposals) ? a.proposals.map(p => p.contact_label) : []),
-      ]
-        .filter((value): value is string => typeof value === 'string')
-        .join(' ')
-        .toLocaleLowerCase('fr-CH')
-
-      if (!searchableText.includes(normalizedSearch)) return false
-    }
+    if (!matchesArtworkSearch(a, searchQuery)) return false
 
     return true
   })
@@ -551,20 +535,21 @@ const handleUpdateArtworkField = async (
   setSavingInlineKey(`${artworkId}:${field}`)
 
   try {
-    const payload =
-      field === 'status'
-        ? { status: value === '' ? null : value }
-        : { priority: value }
+    const payload = field === 'quality'
+      ? { quality: typeof value === 'number' ? value : null }
+      : { [field]: value === '' ? null : value }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('artworks')
       .update(payload)
       .eq('id', artworkId)
+      .select('id, status, quality, priority, view_date')
+      .maybeSingle()
 
-    if (error) {
+    if (error || !data) {
       console.error('Failed to update artwork field', error)
       setInlineEditError(
-        error.message || 'Failed to update artwork'
+        error?.message || 'Failed to update artwork'
       )
       return
     }
@@ -575,11 +560,12 @@ const handleUpdateArtworkField = async (
           ? {
               ...a,
               ...payload,
+              ...data,
             }
           : a
       )
     )
-    setInlineEditSuccess('Modification enregistrée.')
+    setInlineEditSuccess('Changes saved.')
   } catch (e) {
     console.error(e)
     setInlineEditError('Network error while updating artwork')
@@ -655,7 +641,7 @@ const handleUpdateArtworkField = async (
               type="search"
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
-              placeholder="Titre, artiste, statut, contact…"
+              placeholder="Title, artist, status, contact, location…"
               style={dateInputStyle}
             />
           </div>

@@ -83,6 +83,7 @@ export type ArtworkFull = {
 
   /* ---------- statut ---------- */
   status?: string | null
+  quality?: number | null
   priority?: string | null
   acquired?: boolean | null
 
@@ -149,6 +150,7 @@ export type ArtworkFull = {
   buyer_contact_id?: string | null
   destination_contact_id?: string | null
   certificate_location_contact_id?: string | null
+  certificate_location_address_id?: string | null
   proposed_by_id?: string | null
 
   proposedBy?: Contact | null
@@ -211,6 +213,7 @@ export type ArtworkListItem = Pick<
   | 'year_execution'
   | 'year_execution_start'
   | 'status'
+  | 'quality'
   | 'priority'
   | 'date_proposition'
   | 'asking_price'
@@ -256,6 +259,7 @@ export type ArtworkForm = {
   dimensions: string | null
 
   status: 'Draft' | 'Viewed' | 'Negotiation' | 'Bought' | 'Archived'
+  quality?: number | null
   priority: ArtworkPriority
   auctions: boolean
 
@@ -270,6 +274,7 @@ export type ArtworkForm = {
   buyer_contact_id: string | null
   destination_contact_id: string | null
   certificate_location_contact_id: string | null
+  certificate_location_address_id?: string | null
   proposed_by_id: string | null
 
   date_proposition: string | null

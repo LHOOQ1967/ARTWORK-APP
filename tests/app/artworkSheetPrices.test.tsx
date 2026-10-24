@@ -21,6 +21,26 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it('shows a clickable score between Priority and Status without Quality or History labels', () => {
+    const html = render({ priority: 'High', quality: 8, status: 'Viewed' })
+    const priorityIndex = html.indexOf('[High]')
+    const qualityIndex = html.indexOf('>8/10</button>')
+    const historyIndex = html.indexOf('View quality history')
+    const statusIndex = html.indexOf('>Viewed</span>')
+    expect(priorityIndex).toBeGreaterThanOrEqual(0)
+    expect(qualityIndex).toBeGreaterThan(priorityIndex)
+    expect(historyIndex).toBeGreaterThan(priorityIndex)
+    expect(qualityIndex).toBeGreaterThan(historyIndex)
+    expect(statusIndex).toBeGreaterThan(qualityIndex)
+    expect(html).toContain('aria-haspopup="dialog"')
+    expect(html).not.toContain('Quality:')
+    expect(html).not.toMatch(/aria-label="View quality history"[^>]*>History<\/button>/)
+  })
+
+  it('shows unrated Quality on the factsheet', () => {
+    expect(render({ quality: null })).toContain('>Not rated</button>')
+  })
+
   it('displays execution year ranges using a slash', () => {
     const html = render({ title: 'Test work', year_execution_start: 2024, year_execution: 2026 })
     expect(html).toContain('2024/2026')

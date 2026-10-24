@@ -13,6 +13,6 @@ export function addressLabel(address: Partial<ContactAddress> | null | undefined
   const place = [address.postal_code, address.city].filter(Boolean).join(' ')
   return (
     [address.label, address.address, place, address.country].filter(Boolean).join(', ') ||
-    'Adresse sans détail'
+    'Address without details'
   )
 }

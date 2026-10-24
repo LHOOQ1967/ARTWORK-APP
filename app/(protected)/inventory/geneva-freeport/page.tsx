@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { fetchWithAuth } from '@/lib/fetchWithAuth'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { buildFreeportWorkbook } from '@/lib/genevaFreeportExcel'
@@ -20,6 +21,7 @@ function money(value: string | number | null | undefined, currency: string) {
 
 export default function GenevaFreeportPage() {
   const { role } = useSessionProfile()
+  const { matchesClient } = useClientFilter()
   const router = useRouter()
   const canEdit = role === 'Editor' || role === 'Administrator'
   const canView = canEdit || role === 'Viewer'
@@ -67,9 +69,10 @@ export default function GenevaFreeportPage() {
     return () => { active = false }
   }, [canView, reload])
 
+  const clientRows = useMemo(() => rows.filter(row => matchesClient(row.id)), [rows, matchesClient])
   const filteredRows = useMemo(() => {
     const search = query.trim().toLocaleLowerCase('en')
-    return rows.filter(row => !search || [
+    return clientRows.filter(row => !search || [
       goodsDesignation(row), row.inventory?.inventory_number,
       row.inventory?.storage_location, row.inventory?.packing,
       row.inventory?.country_of_provenance,
@@ -79,8 +82,8 @@ export default function GenevaFreeportPage() {
       ]),
     ].join(' ').toLocaleLowerCase('en').includes(search))
       .sort((a, b) => compareFreeportRows(a, b, sort.key, sort.direction))
-  }, [rows, query, sort])
-  const selected = rows.find(row => row.id === selectedId)
+  }, [clientRows, query, sort])
+  const selected = clientRows.find(row => row.id === selectedId)
   const dirty = Boolean(selected && draft && JSON.stringify(draft) !== JSON.stringify(freeportDraft(selected)))
 
   useEffect(() => {

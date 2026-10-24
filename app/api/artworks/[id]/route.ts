@@ -130,6 +130,15 @@ export async function PATCH(
   const { supabase } = authorization
   const body = await req.json()
 
+  if (Object.prototype.hasOwnProperty.call(body, 'quality') &&
+      body.quality !== null &&
+      (typeof body.quality !== 'number' || !Number.isInteger(body.quality) || body.quality < 1 || body.quality > 10)) {
+    return NextResponse.json(
+      { error: 'Quality must be an integer from 1 to 10, or null' },
+      { status: 400 }
+    )
+  }
+
   const editableFields = [
     'title',
     'medium',
@@ -145,6 +154,7 @@ export async function PATCH(
     'location_address_id',
     'destination_address_id',
     'status',
+    'quality',
     'priority',
     'asking_price',
     'currency',
@@ -176,6 +186,7 @@ export async function PATCH(
     'condition',
     'certificate',
     'certificate_location_contact_id',
+    'certificate_location_address_id',
     'check_seller',
     'notes',
     'artist_id',

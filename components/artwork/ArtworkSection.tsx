@@ -4,7 +4,9 @@
 import { formatArtworkYears } from '@/lib/artworkYears'
 
 import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
+import { CertificateAddress, CertificateLocationHistory } from './CertificateLocation'
 import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
+import { AuctionPremiumFields, type PremiumPendingChange } from './AuctionPremiumFields'
 
 import {
   useEffect,
@@ -16,7 +18,6 @@ import {
 import { supabase } from '@/lib/supabaseBrowser'
 import type {
   ArtworkForm,
-  ArtworkPriority,
   ArtworkDocument,
   ArtworkWithRelations,
   ArtworkProposal,
@@ -41,6 +42,7 @@ type Props<T extends ArtworkBase> = {
   setArtwork: React.Dispatch<React.SetStateAction<T>>
   addProposal?: (contactId: string, date?: string | null) => Promise<void>
   removeProposal?: (proposalId: string) => Promise<void>
+  onPremiumPendingChange?: PremiumPendingChange
 }
 
 function hasPersistentId(artwork: ArtworkBase): artwork is ArtworkWithRelations {
@@ -919,6 +921,7 @@ export function ArtworkSection<T extends ArtworkBase>({
   setArtwork,
   addProposal,
   removeProposal,
+  onPremiumPendingChange,
 }: Props<T>) {
   const setArtworkWithRelations: React.Dispatch<
     React.SetStateAction<ArtworkWithRelations>
@@ -942,6 +945,7 @@ export function ArtworkSection<T extends ArtworkBase>({
           artwork={artwork}
           setArtwork={setArtworkWithRelations}
           isEditing={isEditing}
+          onPremiumPendingChange={onPremiumPendingChange}
           addProposal={addProposal}
           removeProposal={removeProposal}
         />
@@ -1010,6 +1014,8 @@ function ArtworkView({ artwork }: { artwork: ArtworkWithRelations }) {
           contact={artwork.certificateLocation}
         />
       )}
+      <CertificateAddress addressId={artwork.certificate_location_address_id} />
+      <CertificateLocationHistory artworkId={artwork.id} />
     </>
   )
 }
@@ -1024,12 +1030,14 @@ function ArtworkEdit({
   isEditing,
   addProposal,
   removeProposal,
+  onPremiumPendingChange,
 }: {
   artwork: ArtworkWithRelations
   setArtwork: React.Dispatch<React.SetStateAction<ArtworkWithRelations>>
   isEditing: boolean
   addProposal?: (contactId: string, date?: string | null) => Promise<void>
   removeProposal?: (proposalId: string) => Promise<void>
+  onPremiumPendingChange?: PremiumPendingChange
 }) {
   const [contactOptions, setContactOptions] = useState<Contact[]>([])
   const [clientOptions, setClientOptions] = useState<Contact[]>([])
@@ -1725,6 +1733,7 @@ async function handleAddProposal() {
                 setArtwork({
                   ...artwork,
                   certificate_location_contact_id: value || null,
+                  certificate_location_address_id: null,
                   certificateLocation: selected,
                 })
               }}
@@ -1739,54 +1748,16 @@ async function handleAddProposal() {
               loading={certificateLocationLoading}
               noResultsText="No certificate location found"
             />
+            <ContactAddressSelect
+              contactId={artwork.certificate_location_contact_id}
+              value={artwork.certificate_location_address_id}
+              onChange={addressId => setArtwork({ ...artwork, certificate_location_address_id: addressId })}
+              disabled={!isEditing}
+            />
           </EditRow>
         )}
+        <CertificateLocationHistory artworkId={artwork.id} />
 
-        <EditRow label="Priority">
-          <select
-            value={artwork.priority ?? ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                priority: e.target.value as ArtworkPriority,
-              })
-            }
-            style={{ ...editInputStyle, width: 120 }}
-            disabled={!isEditing}
-          >
-            <option value="">—</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-            <option value="Information">Information</option>
-          </select>
-        </EditRow>
-
-        <EditRow label="Status">
-          <select
-            value={artwork.status ?? ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                status: e.target.value as
-                  | 'Draft'
-                  | 'Viewed'
-                  | 'Negotiation'
-                  | 'Bought'
-                  | 'Archived',
-              })
-            }
-            style={{ ...editInputStyle, width: 160 }}
-            disabled={!isEditing}
-          >
-            <option value="">—</option>
-            <option value="Draft">Draft</option>
-            <option value="Viewed">Viewed</option>
-            <option value="Negotiation">Negotiation</option>
-            <option value="Bought">Bought</option>
-            <option value="Archived">Archived</option>
-          </select>
-        </EditRow>
       </SectionBlock>
 
       {/* ===================== */}
@@ -2027,36 +1998,23 @@ async function handleAddProposal() {
             </EditRow>
 
             <EditRow label="Suggestion Blondeau">
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="number"
-                  placeholder="Hammer"
-                  value={artwork.auction_max_hammer ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      auction_max_hammer:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-                <input
-                  type="number"
-                  placeholder="Premium"
-                  value={artwork.auction_max_premium ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      auction_max_premium:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-              </div>
+              <AuctionPremiumFields
+                key={`${artwork.id ?? 'new'}:suggestion`}
+                label="Suggestion"
+                houseId={artwork.auction_contact_id ?? artwork.proposed_by_id}
+                saleDate={artwork.sale_date}
+                currency={artwork.auction_currency}
+                hammer={artwork.auction_max_hammer}
+                premium={artwork.auction_max_premium}
+                disabled={!isEditing}
+                inputStyle={editInputStyle}
+                onPendingChange={pending => onPremiumPendingChange?.('suggestion', pending)}
+                onChange={amounts => setArtwork(previous => ({
+                  ...previous,
+                  ...('hammer' in amounts ? { auction_max_hammer: amounts.hammer } : {}),
+                  ...('premium' in amounts ? { auction_max_premium: amounts.premium } : {}),
+                }))}
+              />
             </EditRow>
 
             <EditRow label="Guarantee">
@@ -2077,35 +2035,23 @@ async function handleAddProposal() {
             </EditRow>
 
             <EditRow label="Result">
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  type="number"
-                  placeholder="Hammer"
-                  value={artwork.sold_hammer ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      sold_hammer:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-                <input
-                  type="number"
-                  placeholder="Premium"
-                  value={artwork.sold_premium ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      sold_premium:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
+              <AuctionPremiumFields
+                key={`${artwork.id ?? 'new'}:result`}
+                label="Result"
+                houseId={artwork.auction_contact_id ?? artwork.proposed_by_id}
+                saleDate={artwork.sale_date}
+                currency={artwork.auction_currency}
+                hammer={artwork.sold_hammer}
+                premium={artwork.sold_premium}
+                disabled={!isEditing}
+                inputStyle={editInputStyle}
+                onPendingChange={pending => onPremiumPendingChange?.('result', pending)}
+                onChange={amounts => setArtwork(previous => ({
+                  ...previous,
+                  ...('hammer' in amounts ? { sold_hammer: amounts.hammer } : {}),
+                  ...('premium' in amounts ? { sold_premium: amounts.premium } : {}),
+                }))}
+              />
                 <a
                   href="https://buyerspremium.blondeau.ch/calculate.php"
                   target="_blank"
@@ -2118,7 +2064,6 @@ async function handleAddProposal() {
                 >
                   Buyer’s premium calculator
                 </a>
-              </div>
             </EditRow>
 
             <EditRow label="Underbidder">

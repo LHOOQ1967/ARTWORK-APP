@@ -11,6 +11,8 @@ import { useSessionProfile } from '@/contexts/SessionContext'
 import { canEditArtworks } from '@/lib/permissions'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { supabase } from '@/lib/supabaseBrowser'
+import { QualityHistory } from './ArtworkQuality'
+import { CertificateAddress, CertificateLocationHistory } from './CertificateLocation'
 
 
 type Props = {
@@ -390,6 +392,22 @@ const displayTitle = (() => {
     >
       [{artwork.priority}]
     </span>
+
+    <QualityHistory
+      artworkId={artwork.id}
+      style={{
+        padding: '4px 12px',
+        border: 0,
+        borderRadius: 14,
+        fontSize: '1rem',
+        fontWeight: 600,
+        backgroundColor: '#eef0f5',
+        color: '#111',
+        textDecoration: 'none',
+      }}
+    >
+      {artwork.quality == null ? 'Not rated' : `${artwork.quality}/10`}
+    </QualityHistory>
 
     {/* Status */}
     <span
@@ -856,17 +874,24 @@ const displayTitle = (() => {
 {artwork.certificate === true && (
   <InfoRow
     label="Certificate"
-    value={
+    value="Yes"
+  />
+)}
+  <InfoRow label={<span style={{ whiteSpace: 'normal' }}>Certificate location</span>} value={<>
+    {
       artwork.certificateLocation
         ? artwork.certificateLocation.company_name ||
           [artwork.certificateLocation.first_name,
            artwork.certificateLocation.last_name]
             .filter(Boolean)
             .join(' ')
-        : 'Yes'
+        : 'Not specified'
     }
-  />
-)}
+    <div>
+      <CertificateAddress addressId={artwork.certificate_location_address_id} />
+    </div>
+      <CertificateLocationHistory artworkId={artwork.id} />
+    </>} />
 
 
 {(artwork.date_acquisition || invoiceDocument) && (

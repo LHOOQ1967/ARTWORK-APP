@@ -13,6 +13,7 @@ export type ArtworkSortKey =
   | 'sold_premium'
   | 'cost'
   | 'priority'
+  | 'quality'
   | 'status'
 export type SortDirection = 'asc' | 'desc'
 
@@ -222,6 +223,14 @@ export function sortArtworkItems(
       case 'priority':
         leftValue = priorityRank(left.priority)
         rightValue = priorityRank(right.priority)
+        break
+      case 'quality':
+        if (left.quality == null || right.quality == null) {
+          if (left.quality != null) return -1
+          if (right.quality != null) return 1
+        }
+        leftValue = left.quality ?? 0
+        rightValue = right.quality ?? 0
         break
       case 'status':
         leftValue = left.status ?? ''

@@ -625,7 +625,7 @@ button:focus-visible {
   .artwork-edit-header h1 {
     margin: 0;
     color: #143b2d;
-    font-size: clamp(2rem, 4vw, 3rem);
+    font-size: clamp(2.5rem, 5vw, 3.75rem);
     line-height: 1;
     letter-spacing: -0.03em;
   }
@@ -633,6 +633,31 @@ button:focus-visible {
   .artwork-edit-header p {
     margin: 9px 0 0;
     color: #687971;
+    font-size: 1rem;
+  }
+
+  .artwork-edit-status-fields {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .artwork-edit-status-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+  }
+
+  .artwork-edit-status-fields select {
+    min-width: 110px;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: white;
     font-size: 1rem;
   }
 

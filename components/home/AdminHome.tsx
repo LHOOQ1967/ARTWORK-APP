@@ -22,6 +22,7 @@ const collection: DashboardLink[] = [
   { href: '/artworks/bought', title: 'Collection', subtitle: 'Sorted by acquisition date' },
   { href: '/inventory', title: 'Inventory', subtitle: 'Collection and costs' },
   { href: '/inventory/geneva-freeport', title: 'Inventory Geneva Freeport', subtitle: 'Customs and storage' },
+  { href: '/inventory/certificates', title: 'Certificate locations', subtitle: 'Contacts, addresses and history' },
   { href: '/valuations', title: 'Valuations', subtitle: 'Values and history' },
   { href: '/commissions', title: 'Commissions', subtitle: 'Fees and invoices' },
   { href: '/transports', title: 'Transports', subtitle: 'Quotes and deliveries' },
@@ -64,24 +65,24 @@ export default function AdminHome() {
           </div>
         </section>
 
-        <div className={styles.sectionGrid}>
-          <section className={`${styles.section} ${styles.collectionSection}`}>
-            <SectionHeading title="Collection" description="Track and value the collection" />
-            <div className={styles.toolsGrid}>
-              {collection.map((item) => <DashboardCard key={item.href} item={item} compact />)}
-            </div>
-          </section>
+        <section className={`${styles.section} ${styles.collectionSection}`}>
+          <SectionHeading title="Collection" description="Track and value the collection" />
+          <div className={styles.collectionGrid}>
+            {collection.map((item) => <DashboardCard key={item.href} item={item} compact />)}
+          </div>
+        </section>
 
+        <div className={styles.sectionGrid}>
           <section className={`${styles.section} ${styles.managementSection}`}>
             <SectionHeading title="Management" description="Create, organize and administer" />
-            <div className={styles.compactGrid}>
+            <div className={styles.linkList}>
               {management.map((item) => <DashboardCard key={item.href} item={item} compact />)}
             </div>
           </section>
 
           <section className={`${styles.section} ${styles.toolsSection}`}>
             <SectionHeading title="Tools" description="Market and auction utilities" />
-            <div className={styles.toolsGrid}>
+            <div className={styles.linkList}>
               {tools.map((item) => <DashboardCard key={item.href} item={item} compact />)}
             </div>
           </section>

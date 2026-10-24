@@ -63,6 +63,100 @@ nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
 
+### Client-addressed artwork comments
+
+`20261024150000_scope_artwork_comments_to_clients.sql` was applied to the linked
+project on 2026-10-24. It adds a nullable recipient contact to artwork comments
+and replaces all legacy comment policies. NULL recipients are staff-only.
+Invited, active Viewers can read their client conversations only while the
+client is proposed the artwork or is its buyer, and artwork access remains
+valid. They can create comments for their eligible clients and edit/delete
+only their own comments. Editors and Administrators can read all comments and
+assign recipients, including assigning legacy internal comments.
+
+All 13 existing comments were retained: 5 Viewer-authored comments were assigned
+using exactly one invited client membership; 8 comments remain internal.
+No ambiguous attribution is inferred. A trigger prevents changing a comment's
+identity, artwork or author and rejects unrelated recipients. Authenticated
+grants are restricted to SELECT/INSERT/UPDATE/DELETE; RLS governs both the
+factsheet comments and the header notification query. The recipient-options
+RPC `artwork_comment_clients` returns only eligible contacts for the caller.
+
+Deploy the new UI alongside this migration: old Viewer forms lack the mandatory
+recipient and will fail writes. Run `supabase db query --linked --file
+tests\db\client-comments.sql` for rollback-only tests with two clients, peer
+Viewers, multi-client membership, revoked/inactive users, staff, notifications,
+recipient validation and attempted cross-client writes.
+
+### Certificate location and history
+
+`20261024130000_add_certificate_location_history.sql` was applied to the linked
+project on 2026-10-24. It adds `artworks.certificate_location_address_id`,
+validates address/contact consistency and records certificate location changes
+in `artwork_certificate_location_history`. History is trigger-written only,
+with RLS read access matching the artwork. It stores old/new location label
+snapshots, timestamp, actor ID and actor email. Existing contacts were preserved:
+55 certificate locations produced 55 explicitly marked initial records.
+
+The migration appends the address ID to both artwork read views while preserving
+their security-invoker setting. Apply it before deploying the address/history UI.
+Run `supabase db query --linked --file tests\db\certificate-location.sql` to
+validate insert, unchanged save, address-only change, mismatched contact,
+removal and snapshot preservation. The test uses rollback-only fixtures and
+does not persist artwork or contact changes.
+
+### Automatic artwork view date
+
+`20261024100000_set_view_date_when_viewed.sql` fills an empty `view_date` when
+an artwork transitions to `Viewed`, or is created with that status. Existing
+view dates and explicitly supplied dates are preserved. The day is calculated
+in `Europe/Zurich`, including daylight saving time. Already-viewed artworks
+are not backfilled, and unrelated saves do not change their date.
+The database trigger covers inline lists, forms and API writes. Creation/edit
+forms also prefill the date immediately when selecting Viewed; users can adjust
+it before saving. List updates read back the persisted date.
+
+### Restoring imported artist place names
+
+`20261024093000_restore_artist_place_encoding.sql` restores 149 damaged
+birth/death place fields across 142 artists from the original Access
+`TDIArtistes` table. The source was opened read-only and read directly through
+DAO to preserve Unicode. Artists were matched by normalized first/last names,
+not by legacy numbers, which differ in the available source copy.
+Each correction preserves all characters other than the lost replacement
+characters and has a single matching source value. Names, relationships and
+other artist fields are unchanged.
+
+The migration includes original and restored values and aborts if a target no
+longer matches its original value. After applying it, verify that no artist text
+contains `chr(65533)` (the Unicode replacement character). Do not strip accents
+or replace every damaged character with the same letter.
+
+### Artwork quality
+
+Apply `20261024090000_add_artwork_quality.sql` before deploying the Quality UI.
+`artworks.quality` is nullable and accepts only integer ratings from 1 to 10;
+existing artworks remain unrated. Active, All and Collection lists display
+Quality between Status and Priority, with inline editing for Editors and
+Administrators and read-only access for Viewers. Quality is also available in
+artwork creation and editing.
+
+The database trigger records the initial rating and every actual change,
+including clearing a rating, atomically in `artwork_quality_history`. Each entry
+stores the previous/new values, timestamp and actor ID. Saving the same value
+does not create history. Authenticated clients can only read history for artworks
+they can view, and cannot insert, alter or delete history entries. On the
+factsheet, clicking the rating (between Priority and Status at the top right)
+loads the dated changes; only the score is displayed, without a Quality label
+or separate History button. The artwork editing page retains its History button;
+lists have no history control.
+Collection displays Status, Quality and Priority on one line.
+Lists use compact selectors and display the priority `Information` as `Info`,
+without changing its stored value.
+On the editing
+page these fields are right-aligned above the images; the heading shows the
+artist's first and last names. Both artwork list views expose Quality.
+
 ### Inventory Geneva Freeport
 
 Apply `20261011211500_create_geneva_freeport_inventory.sql` before opening

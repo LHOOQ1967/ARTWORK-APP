@@ -6,6 +6,7 @@ import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { privateImageUrl } from '@/lib/privateImageUrl'
+import { QualitySelect } from './ArtworkQuality'
 import {
   formatAsking,
   formatCost,
@@ -40,8 +41,8 @@ canEditStatusPriority?: boolean
   savingInlineKey?: string | null
   onUpdateArtworkField?: (
     artworkId: string,
-    field: 'status' | 'priority',
-    value: string | null
+    field: 'status' | 'quality' | 'priority',
+    value: string | number | null
   ) => void
 
 }
@@ -122,6 +123,7 @@ const normalizedRole =
   typeof role === 'string' ? role.toLowerCase() : ''
 
 const isActiveProposal = section === 'active' && mode !== 'bought'
+const inlineStatusFields = isActiveProposal || mode === 'bought'
 const canSeeProposedTo = normalizedRole === 'administrator' || normalizedRole === 'editor'
 
 const [sortKey, setSortKey] = useState<ArtworkSortKey | null>(null)
@@ -322,7 +324,7 @@ return (
   style={{
     ...th,
     userSelect: 'none',
-    width: isActiveProposal ? 260 : 140,
+    width: inlineStatusFields ? 300 : 180,
     textAlign: 'right',
   }}
 >
@@ -351,7 +353,7 @@ return (
     marginTop: 4,
     textAlign: 'right',
     display: 'flex',
-    flexDirection: isActiveProposal ? 'row' : 'column',
+    flexDirection: inlineStatusFields ? 'row' : 'column',
     justifyContent: 'flex-end',
     alignItems: 'flex-end',
     gap: 2,
@@ -373,6 +375,14 @@ return (
     Status
     {sortKey === 'status' &&
       (sortDirection === 'asc' ? ' ▲' : ' ▼')}
+  </span>
+
+  <span
+    style={{ cursor: 'pointer', padding: '2px 6px', borderRadius: 4, backgroundColor: sortKey === 'quality' ? '#eee' : 'transparent' }}
+    onClick={event => { event.stopPropagation(); handleSort('quality') }}
+    title="Sort by quality"
+  >
+    Quality{getHeaderArrow('quality')}
   </span>
 
   <span
@@ -556,7 +566,7 @@ const proposedToText = getProposedToText(a)
 
 
 {/* 4) Price / Priority+Status */}
-<td style={{ ...td, width: isActiveProposal ? 260 : 140, textAlign: 'right' }}>
+<td style={{ ...td, width: inlineStatusFields ? 300 : 180, textAlign: 'right' }}>
   <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
 
     {/* ✅ PRICE */}
@@ -570,9 +580,9 @@ const proposedToText = getProposedToText(a)
     <div
       style={{
         display: 'flex',
-        flexDirection: isActiveProposal ? 'row' : 'column',
+        flexDirection: inlineStatusFields ? 'row' : 'column',
         gap: 4,
-        alignItems: 'flex-end',
+        alignItems: inlineStatusFields ? 'center' : 'flex-end',
       }}
       onClick={(e) => {
         e.stopPropagation()
@@ -593,7 +603,7 @@ const proposedToText = getProposedToText(a)
             e.target.value || null
           )
         }}
-        style={inlineMiniSelect}
+        style={{ ...inlineMiniSelect, width: 110 }}
       >
         <option value="">—</option>
 
@@ -603,6 +613,14 @@ const proposedToText = getProposedToText(a)
           </option>
         ))}
       </select>
+
+      <QualitySelect
+        value={a.quality}
+        disabled={savingInlineKey === `${a.id}:quality`}
+        onChange={value => onUpdateArtworkField(a.id, 'quality', value)}
+        style={{ ...inlineMiniSelect, width: 64 }}
+        unratedLabel="—"
+      />
 
       {/* ✅ PRIORITY */}
       <select
@@ -619,19 +637,22 @@ const proposedToText = getProposedToText(a)
             e.target.value || null
           )
         }}
-        style={inlineMiniSelect}
+        style={{ ...inlineMiniSelect, width: 84 }}
       >
         <option value="">—</option>
 
         <option value="High">High</option>
         <option value="Medium">Medium</option>
         <option value="Low">Low</option>
-        <option value="Information">Information</option>
+        <option value="Information">Info</option>
       </select>
     </div>
   ) : (
-    // ✅ fallback VIEWER / lecture seule
-    isActiveProposal ? `${a.status ?? '—'} • ${a.priority ?? '—'}` : prStatus
+    <div style={{ display: 'flex', flexDirection: inlineStatusFields ? 'row' : 'column', alignItems: inlineStatusFields ? 'center' : 'flex-end', gap: 4 }}>
+      <span>{a.status ?? '—'}</span>
+      <span>{a.quality == null ? 'Not rated' : `${a.quality}/10`}</span>
+      <span>{a.priority === 'Information' ? 'Info' : a.priority ?? '—'}</span>
+    </div>
   )}
 </div>
     {isActiveProposal && proposedToLine}
@@ -669,7 +690,9 @@ const proposedToText = getProposedToText(a)
 
 const inlineMiniSelect: React.CSSProperties = {
   fontSize: '1rem',
-  padding: '2px 4px',
+  padding: '2px',
+  minWidth: 0,
+  flexShrink: 0,
   borderRadius: 4,
   border: '1px solid rgba(0,0,0,0.25)',
   backgroundColor: '#fff',

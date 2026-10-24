@@ -1,4 +1,5 @@
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
+import { getLocationText } from './artworkListHelpers'
 
 export type ArtworkIndexItem = ArtworkListItem & {
   auctions?: boolean | null
@@ -27,6 +28,28 @@ export type ArtistRow = { id: string; last_name: string | null }
 export type ProposalLinkRow = { artwork_id: string; contact_id: string }
 
 type RecordLike = Record<string, unknown>
+
+export function matchesArtworkSearch(artwork: ArtworkIndexItem, query: string): boolean {
+  const normalizedSearch = query.trim().toLocaleLowerCase('fr-CH')
+  if (!normalizedSearch) return true
+
+  const location = getLocationText(artwork)
+  const searchableText = [
+    artwork.artist_label,
+    artwork.title,
+    artwork.medium,
+    artwork.status,
+    artwork.priority,
+    artwork.proposed_by_label,
+    location === '—' ? '' : location,
+    ...(Array.isArray(artwork.proposals) ? artwork.proposals.map(proposal => proposal.contact_label) : []),
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ')
+    .toLocaleLowerCase('fr-CH')
+
+  return searchableText.includes(normalizedSearch)
+}
 
 const isRecord = (value: unknown): value is RecordLike =>
   typeof value === 'object' && value !== null

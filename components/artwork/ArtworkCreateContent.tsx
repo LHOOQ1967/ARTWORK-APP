@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ArtworkForm, Artist, Contact } from '@/app/(protected)/types/artwork'
 import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
+import type { PremiumPair } from './AuctionPremiumFields'
 import { supabase } from '@/lib/supabaseBrowser'
 import { artworkYearError } from '@/lib/artworkYears'
 
@@ -755,6 +756,10 @@ const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
 
   const [saving, setSaving] = useState(false)
+  const [premiumPending, setPremiumPending] = useState({ suggestion: false, result: false })
+  const calculatingPremium = premiumPending.suggestion || premiumPending.result
+  const handlePremiumPending = (pair: PremiumPair, pending: boolean) =>
+    setPremiumPending(previous => previous[pair] === pending ? previous : { ...previous, [pair]: pending })
   const [error, setError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
 
@@ -1132,6 +1137,10 @@ useEffect(() => {
 
 
 async function saveArtwork() {
+  if (calculatingPremium) {
+    setError('Complete the buyer premium calculation or switch off Auto to enter both amounts manually before saving.')
+    return
+  }
   const yearError = artworkYearError(artwork.year_execution_start, artwork.year_execution)
   if (yearError) {
     setError(yearError)
@@ -1162,6 +1171,7 @@ async function saveArtwork() {
       commission_blondeau: artwork.commission_blondeau,
 
       status: artwork.status,
+      quality: artwork.quality ?? null,
       priority: artwork.priority,
       auctions: artwork.auctions,
 
@@ -1176,6 +1186,7 @@ async function saveArtwork() {
       buyer_contact_id: artwork.buyer_contact_id,
       destination_contact_id: artwork.destination_contact_id,
       certificate_location_contact_id: artwork.certificate_location_contact_id,
+      certificate_location_address_id: artwork.certificate_location_address_id ?? null,
       proposed_by_id: artwork.proposed_by_id ?? artwork.auction_contact_id,
 
       sale_date: artwork.sale_date,
@@ -1461,7 +1472,7 @@ try {
               className="artwork-create-primary-button"
               type="button"
               onClick={saveArtwork}
-              disabled={saving}
+              disabled={saving || calculatingPremium}
               style={{
                 opacity: saving ? 0.85 : 1,
                 cursor: saving ? 'not-allowed' : 'pointer',
@@ -1493,6 +1504,7 @@ try {
           artwork={artwork}
           setArtwork={setArtwork}
           isEditing={!saving}
+          onPremiumPendingChange={handlePremiumPending}
 
           // Artists
           artistQuery={artistQuery}

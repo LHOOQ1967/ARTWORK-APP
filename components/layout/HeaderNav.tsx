@@ -16,6 +16,8 @@ type CommentNotification = {
   comment: string
   created_at: string
   updated_at: string
+  recipient_contact_id: string | null
+  recipient: { company_name: string | null; first_name: string | null; last_name: string | null } | null
   authorEmail: string | null
   artworkLabel: string
 }
@@ -72,8 +74,12 @@ export default function HeaderNav() {
     selectedClientId,
     setSelectedClientId,
   } = useClientFilter()
-  const [notifications, setNotifications] = useState<MenuNotification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [storedNotifications, setNotifications] = useState<MenuNotification[]>([])
+  const [storedUnreadCount, setUnreadCount] = useState(0)
+  const [notificationScope, setNotificationScope] = useState('')
+  const currentNotificationScope = `${user?.id}:${role}`
+  const notifications = notificationScope === currentNotificationScope ? storedNotifications : []
+  const unreadCount = notificationScope === currentNotificationScope ? storedUnreadCount : 0
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const seenVersionsRef = useRef<Record<string, string>>({})
   const notificationMenuRef = useRef<HTMLDivElement | null>(null)
@@ -89,6 +95,7 @@ export default function HeaderNav() {
     const storageKey = `artwork-comment-notifications:${user.id}`
     let disposed = false
     let baselineInitialized = false
+    seenVersionsRef.current = {}
 
     try {
       const stored = localStorage.getItem(storageKey)
@@ -107,10 +114,12 @@ export default function HeaderNav() {
       const [commentsResult, acquisitionsResult] = await Promise.all([
         supabase
           .from('artwork_viewer_comments')
-          .select('id, artwork_id, user_id, comment, created_at, updated_at')
+          .select(`id, artwork_id, user_id, comment, created_at, updated_at, recipient_contact_id,
+            recipient:contacts!artwork_viewer_comments_recipient_contact_id_fkey(company_name, first_name, last_name)`)
           .neq('user_id', user.id)
           .order('updated_at', { ascending: false })
-          .limit(100),
+          .limit(100)
+          .returns<Omit<CommentNotification, 'kind' | 'authorEmail' | 'artworkLabel'>[]>(),
         supabase
           .from('artwork_acquisition_events')
           .select('id, artwork_id, actor_id, created_at')
@@ -126,6 +135,8 @@ export default function HeaderNav() {
           details: commentsResult.error.details,
           hint: commentsResult.error.hint,
         })
+        setNotifications([])
+        setUnreadCount(0)
         return
       }
       if (acquisitionsResult.error) {
@@ -137,10 +148,7 @@ export default function HeaderNav() {
         })
       }
 
-      const commentRows = (commentsResult.data ?? []) as Omit<
-        CommentNotification,
-        'kind' | 'authorEmail' | 'artworkLabel'
-      >[]
+      const commentRows = commentsResult.data ?? []
       const acquisitionRows = (acquisitionsResult.data ?? []) as Omit<
         AcquisitionNotification,
         'kind' | 'authorEmail' | 'artworkLabel'
@@ -234,6 +242,7 @@ export default function HeaderNav() {
       }
 
       setNotifications(nextNotifications)
+      setNotificationScope(`${user.id}:${role}`)
       setUnreadCount(
         nextNotifications.filter(
           (notification) =>
@@ -253,7 +262,7 @@ export default function HeaderNav() {
       window.clearInterval(interval)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [loading, user?.id])
+  }, [loading, user?.id, role])
 
   useEffect(() => {
     if (!notificationsOpen) return
@@ -408,7 +417,7 @@ export default function HeaderNav() {
           <div ref={notificationMenuRef} style={notificationMenuStyle}>
             <button
               type="button"
-              aria-label={`Messages et acquisitions${unreadCount ? `, ${unreadCount} alertes non lues` : ''}`}
+              aria-label={`Messages and acquisitions${unreadCount ? `, ${unreadCount} unread alerts` : ''}`}
               aria-expanded={notificationsOpen}
               title="Messages et acquisitions"
               onClick={() => {
@@ -443,16 +452,16 @@ export default function HeaderNav() {
             {notificationsOpen ? (
               <div role="dialog" aria-label="Messages" style={notificationPanelStyle}>
                 <div style={notificationPanelHeaderStyle}>
-                  <strong>Messages et acquisitions</strong>
+                  <strong>Messages and acquisitions</strong>
                   <span>
                     {unreadCount > 0
-                      ? `${unreadCount} alerte${unreadCount > 1 ? 's' : ''} non lue${unreadCount > 1 ? 's' : ''}`
-                      : 'Activité récente'}
+                      ? `${unreadCount} unread alert${unreadCount > 1 ? 's' : ''}`
+                      : 'Recent activity'}
                   </span>
                 </div>
 
                 {notifications.length === 0 ? (
-                  <p style={emptyNotificationsStyle}>Aucune activité récente.</p>
+                  <p style={emptyNotificationsStyle}>No recent activity.</p>
                 ) : (
                   notifications.slice(0, 8).map((comment) => {
                     const isModified =
@@ -471,21 +480,26 @@ export default function HeaderNav() {
                         style={notificationItemStyle}
                       >
                         <span style={notificationItemMetaStyle}>
-                          <strong>{comment.authorEmail || 'Utilisateur'}</strong>
+                          <strong>{comment.authorEmail || 'User'}</strong>
                           <span>
                             {comment.kind === 'acquisition'
                               ? 'New acquisition'
                               : isModified
-                                ? 'Commentaire modifié'
-                                : 'Nouveau commentaire'}
+                                ? 'Comment updated'
+                                : 'New comment'}
                           </span>
                         </span>
                         {comment.kind === 'comment' ? (
-                          <span style={notificationArtworkStyle}>{comment.artworkLabel}</span>
+                          <span style={notificationArtworkStyle}>{comment.artworkLabel}
+                            {' / '}{comment.recipient_contact_id
+                              ? comment.recipient?.company_name ||
+                                [comment.recipient?.first_name, comment.recipient?.last_name].filter(Boolean).join(' ') || 'Client'
+                              : 'Internal'}
+                          </span>
                         ) : null}
                         <span style={notificationPreviewStyle}>
                           {comment.kind === 'comment'
-                            ? preview || 'Commentaire sans texte'
+                            ? preview || 'Comment without text'
                             : preview}
                         </span>
                         <time style={notificationDateStyle} dateTime={notificationDate}>

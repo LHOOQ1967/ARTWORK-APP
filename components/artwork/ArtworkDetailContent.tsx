@@ -2,6 +2,7 @@
 'use client'
 
 import { artworkYearError, formatArtworkYears } from '@/lib/artworkYears'
+import { artworkStatusChange } from '@/lib/artworkStatus'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -9,6 +10,8 @@ import { useEditMode } from '@/contexts/EditModeContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { supabase } from '@/lib/supabaseBrowser'
 import { ArtworkSection } from './ArtworkSection'
+import { QualityHistory, QualitySelect } from './ArtworkQuality'
+import type { PremiumPair } from './AuctionPremiumFields'
 import ImageUploader from '@/components/ImageUploader'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import {
@@ -197,6 +200,10 @@ const hasLoadedArtworkRef = useRef(false)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [premiumPending, setPremiumPending] = useState({ suggestion: false, result: false })
+  const calculatingPremium = premiumPending.suggestion || premiumPending.result
+  const handlePremiumPending = (pair: PremiumPair, pending: boolean) =>
+    setPremiumPending(previous => previous[pair] === pending ? previous : { ...previous, [pair]: pending })
   const [deleting, setDeleting] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -573,6 +580,10 @@ useEffect(() => {
 
   async function saveArtwork() {
     if (!artwork?.id || saving || deleting) return
+    if (calculatingPremium) {
+      setError('Complete the buyer premium calculation or switch off Auto to enter both amounts manually before saving.')
+      return
+    }
     const yearError = artworkYearError(artwork.year_execution_start, artwork.year_execution)
     if (yearError) {
       setError(yearError)
@@ -597,6 +608,7 @@ const payload = {
   location_address_id: artwork.location_address_id ?? null,
   destination_address_id: artwork.destination_address_id ?? null,
   status: artwork.status,
+  quality: artwork.quality ?? null,
   priority: artwork.priority,
 
   asking_price: artwork.asking_price,
@@ -641,6 +653,7 @@ const payload = {
   condition: artwork.condition,
   certificate: artwork.certificate,
   certificate_location_contact_id: artwork.certificate_location_contact_id,
+  certificate_location_address_id: artwork.certificate_location_address_id ?? null,
   check_seller: artwork.check_seller,
   notes: artwork.notes,
 
@@ -1240,7 +1253,7 @@ const artworkDocuments = useMemo(
         <header className="artwork-edit-header">
           <div>
             <div className="artwork-edit-eyebrow">{isEditing ? 'Editing artwork' : 'Artwork record'}</div>
-            <h1>{artwork.artist?.last_name || 'Artwork'}</h1>
+            <h1>{[artwork.artist?.first_name, artwork.artist?.last_name].filter(Boolean).join(' ') || 'Artwork'}</h1>
             <p>{artwork.title || 'Untitled'}{formatArtworkYears(artwork.year_execution, artwork.year_execution_start) ? `, ${formatArtworkYears(artwork.year_execution, artwork.year_execution_start)}` : ''}</p>
           </div>
 
@@ -1327,7 +1340,7 @@ const artworkDocuments = useMemo(
             <button
               className="edit-button"
               type="button"
-              disabled={saving || deleting}
+              disabled={saving || deleting || calculatingPremium}
               onClick={saveArtwork}
               style={{
                 opacity: saving ? 0.85 : 1,
@@ -1349,6 +1362,46 @@ const artworkDocuments = useMemo(
           )}
         </div>
         </header>
+
+        <div className="artwork-edit-status-fields" role="group" aria-label="Artwork status, quality and priority">
+          <label>
+            <span>Status</span>
+            <select
+              aria-label="Status"
+              value={artwork.status ?? ''}
+              disabled={!isEditing || saving || deleting}
+              onChange={event => setArtwork({ ...artwork, ...artworkStatusChange(artwork, event.target.value || null) })}
+            >
+              <option value="">Not set</option>
+              {Array.from(new Set(['Draft', 'Viewed', 'Negotiation', 'Bought', 'Archived', ...(artwork.status ? [artwork.status] : [])])).map(status => (
+                <option key={status} value={status}>{status}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Quality</span>
+            <QualitySelect
+              value={artwork.quality}
+              onChange={quality => setArtwork({ ...artwork, quality })}
+              disabled={!isEditing || saving || deleting}
+            />
+          </label>
+          <label>
+            <span>Priority</span>
+            <select
+              aria-label="Priority"
+              value={artwork.priority ?? ''}
+              disabled={!isEditing || saving || deleting}
+              onChange={event => setArtwork({ ...artwork, priority: event.target.value || null })}
+            >
+              <option value="">Not set</option>
+              {Array.from(new Set(['High', 'Medium', 'Low', 'Information', ...(artwork.priority ? [artwork.priority] : [])])).map(priority => (
+                <option key={priority} value={priority}>{priority}</option>
+              ))}
+            </select>
+          </label>
+          <QualityHistory artworkId={artwork.id} />
+        </div>
 
         {(images.length > 0 || isEditing) && (
           <section
@@ -1411,6 +1464,7 @@ const artworkDocuments = useMemo(
           setArtwork={setArtworkNonNull}
           addProposal={addProposal}
           removeProposal={removeProposal}
+          onPremiumPendingChange={handlePremiumPending}
         />
 
         {(artworkDocuments.length > 0 || isEditing) && (

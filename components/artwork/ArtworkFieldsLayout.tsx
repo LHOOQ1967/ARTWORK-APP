@@ -3,6 +3,9 @@
 
 import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
 import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
+import { artworkStatusChange } from '@/lib/artworkStatus'
+import { QualitySelect } from './ArtworkQuality'
+import { AuctionPremiumFields, type PremiumPendingChange } from './AuctionPremiumFields'
 
 import {
   useEffect,
@@ -20,6 +23,7 @@ type Props = {
   artwork: ArtworkForm
   setArtwork: Dispatch<SetStateAction<ArtworkForm>>
   isEditing: boolean
+  onPremiumPendingChange?: PremiumPendingChange
 
   // Artist
   artistQuery?: string
@@ -587,6 +591,7 @@ export function ArtworkFieldsLayout({
   artwork,
   setArtwork,
   isEditing,
+  onPremiumPendingChange,
 
   artistQuery,
   setArtistQuery,
@@ -905,6 +910,7 @@ export function ArtworkFieldsLayout({
                 setArtwork({
                   ...artwork,
                   certificate_location_contact_id: value || null,
+                  certificate_location_address_id: null,
                 })
               }
               query={certificateLocationQuery}
@@ -918,8 +924,49 @@ export function ArtworkFieldsLayout({
               loading={certificateLocationLoading}
               noResultsText="No certificate location found"
             />
+            <ContactAddressSelect
+              contactId={artwork.certificate_location_contact_id}
+              value={artwork.certificate_location_address_id}
+              onChange={addressId => setArtwork({ ...artwork, certificate_location_address_id: addressId })}
+              disabled={!isEditing}
+            />
           </EditRow>
         )}
+
+        <EditRow label="Status">
+          <select
+            value={artwork.status ?? ''}
+            onChange={(e) =>
+              setArtwork({
+                ...artwork,
+                ...artworkStatusChange(artwork, e.target.value as
+                  | 'Draft'
+                  | 'Viewed'
+                  | 'Negotiation'
+                  | 'Bought'
+                  | 'Archived'),
+              })
+            }
+            style={{ ...editInputStyle, width: 160 }}
+            disabled={!isEditing}
+          >
+            <option value="">—</option>
+            <option value="Draft">Draft</option>
+            <option value="Viewed">Viewed</option>
+            <option value="Negotiation">Negotiation</option>
+            <option value="Bought">Bought</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </EditRow>
+
+        <EditRow label="Quality">
+          <QualitySelect
+            value={artwork.quality}
+            onChange={quality => setArtwork({ ...artwork, quality })}
+            disabled={!isEditing}
+            style={{ ...editInputStyle, width: 120 }}
+          />
+        </EditRow>
 
         <EditRow label="Priority">
           <select
@@ -938,32 +985,6 @@ export function ArtworkFieldsLayout({
             <option value="Medium">Medium</option>
             <option value="Low">Low</option>
             <option value="Information">Information</option>
-          </select>
-        </EditRow>
-
-        <EditRow label="Status">
-          <select
-            value={artwork.status ?? ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                status: e.target.value as
-                  | 'Draft'
-                  | 'Viewed'
-                  | 'Negotiation'
-                  | 'Bought'
-                  | 'Archived',
-              })
-            }
-            style={{ ...editInputStyle, width: 160 }}
-            disabled={!isEditing}
-          >
-            <option value="">—</option>
-            <option value="Draft">Draft</option>
-            <option value="Viewed">Viewed</option>
-            <option value="Negotiation">Negotiation</option>
-            <option value="Bought">Bought</option>
-            <option value="Archived">Archived</option>
           </select>
         </EditRow>
       </SectionBlock>
@@ -1130,69 +1151,41 @@ export function ArtworkFieldsLayout({
             </EditRow>
 
             <EditRow label="Suggestion Blondeau">
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="number"
-                  placeholder="Hammer"
-                  value={artwork.auction_max_hammer ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      auction_max_hammer:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-                <input
-                  type="number"
-                  placeholder="Premium"
-                  value={artwork.auction_max_premium ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      auction_max_premium:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-              </div>
+              <AuctionPremiumFields
+                label="Suggestion"
+                houseId={artwork.auction_contact_id}
+                saleDate={artwork.sale_date}
+                currency={artwork.auction_currency}
+                hammer={artwork.auction_max_hammer}
+                premium={artwork.auction_max_premium}
+                disabled={!isEditing}
+                inputStyle={editInputStyle}
+                onPendingChange={pending => onPremiumPendingChange?.('suggestion', pending)}
+                onChange={amounts => setArtwork(previous => ({
+                  ...previous,
+                  ...('hammer' in amounts ? { auction_max_hammer: amounts.hammer } : {}),
+                  ...('premium' in amounts ? { auction_max_premium: amounts.premium } : {}),
+                }))}
+              />
             </EditRow>
 
             <EditRow label="Result">
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="number"
-                  placeholder="Hammer"
-                  value={artwork.sold_hammer ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      sold_hammer:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-                <input
-                  type="number"
-                  placeholder="Premium"
-                  value={artwork.sold_premium ?? ''}
-                  onChange={(e) =>
-                    setArtwork({
-                      ...artwork,
-                      sold_premium:
-                        e.target.value === '' ? null : Number(e.target.value),
-                    })
-                  }
-                  style={{ ...editInputStyle, width: 120 }}
-                  disabled={!isEditing}
-                />
-              </div>
+              <AuctionPremiumFields
+                label="Result"
+                houseId={artwork.auction_contact_id}
+                saleDate={artwork.sale_date}
+                currency={artwork.auction_currency}
+                hammer={artwork.sold_hammer}
+                premium={artwork.sold_premium}
+                disabled={!isEditing}
+                inputStyle={editInputStyle}
+                onPendingChange={pending => onPremiumPendingChange?.('result', pending)}
+                onChange={amounts => setArtwork(previous => ({
+                  ...previous,
+                  ...('hammer' in amounts ? { sold_hammer: amounts.hammer } : {}),
+                  ...('premium' in amounts ? { sold_premium: amounts.premium } : {}),
+                }))}
+              />
             </EditRow>
 
             <EditRow label="Guarantee">
