@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
 import { buildArtworkFolderPath, deleteDocument, uploadDocument } from '@/lib/sharepoint'
+import { parseDocumentAccess } from '@/lib/documentVisibility'
+import { isDocumentCategory } from '@/lib/documentCategory'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 
@@ -28,12 +30,24 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id: artworkId } = await context.params
-  const authorization = await requireRole(['Editor', 'Administrator'])
+  const authorization = await requireRole(['Editor', 'Administrator'], req)
   if (authorization.response) return authorization.response
 
   const form = await req.formData()
   const file = form.get('file')
   const label = form.get('label')
+  const category = form.get('link_category') ?? 'general'
+  if (!isDocumentCategory(category)) {
+    return NextResponse.json({ error: 'Invalid link category' }, { status: 400 })
+  }
+  const accessResult = parseDocumentAccess({
+    visibility: form.get('visibility') ?? undefined,
+    recipient_contact_id: form.get('recipient_contact_id'),
+  })
+  if ('error' in accessResult) {
+    return NextResponse.json({ error: accessResult.error }, { status: 400 })
+  }
+  const access = accessResult.access
 
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: 'Missing file' }, { status: 400 })
@@ -50,6 +64,21 @@ export async function POST(
 
   if (artworkError || !artwork) {
     return NextResponse.json({ error: 'Artwork not found' }, { status: 404 })
+  }
+
+  if (access.visibility === 'selected_client') {
+    const { data: clients, error: clientError } = await authorization.supabase
+      .rpc('artwork_comment_clients', { p_artwork_id: artworkId })
+    if (clientError) {
+      console.error('DOCUMENT CLIENT VALIDATION ERROR:', clientError)
+      return NextResponse.json({ error: 'Unable to validate document client' }, { status: 502 })
+    }
+    if (!Array.isArray(clients) || !clients.some(client => client.id === access.recipient_contact_id)) {
+      return NextResponse.json(
+        { error: 'Document recipient must be a proposed client or the artwork buyer' },
+        { status: 400 }
+      )
+    }
   }
 
   const artistRaw = artwork.artist as
@@ -92,6 +121,8 @@ export async function POST(
     .insert({
       id: documentId,
       artwork_id: artworkId,
+      ...access,
+      link_category: category,
       document_type: 'link',
       label: typeof label === 'string' && label.trim() ? label.trim() : item.name,
       url: `/api/documents/${documentId}/open`,

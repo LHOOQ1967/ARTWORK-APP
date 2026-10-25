@@ -2,6 +2,9 @@
 
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
+import { parseDocumentAccess } from '@/lib/documentVisibility'
+import { isDocumentCategory } from '@/lib/documentCategory'
+import { scheduleThumbnailGeneration } from '@/lib/scheduleThumbnailCleanup'
 
 export async function POST(
   req: Request,
@@ -14,6 +17,17 @@ export async function POST(
   }
 
   const body = await req.json()
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Invalid document payload' }, { status: 400 })
+  }
+  const accessResult = parseDocumentAccess(body)
+  const category = body.link_category === undefined ? 'general' : body.link_category
+  if (!isDocumentCategory(category)) {
+    return NextResponse.json({ error: 'Invalid link category' }, { status: 400 })
+  }
+  if ('error' in accessResult) {
+    return NextResponse.json({ error: accessResult.error }, { status: 400 })
+  }
   if (
     typeof body.document_type !== 'string' ||
     typeof body.url !== 'string' ||
@@ -26,6 +40,8 @@ export async function POST(
     .from('documents')
     .insert({
       artwork_id: artworkId,
+      ...accessResult.access,
+      link_category: category,
       document_type: body.document_type,
       url: body.url,
       label: body.label ?? null,
@@ -41,7 +57,6 @@ export async function POST(
     )
   }
 
+  if (body.document_type === 'image') scheduleThumbnailGeneration(authorization.supabase, body.url)
   return NextResponse.json(data)
 }
-
-

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
 import { logAuditEvent } from '@/lib/audit'
+import { scheduleThumbnailGeneration } from '@/lib/scheduleThumbnailCleanup'
 
 export async function POST(
   req: NextRequest,
@@ -79,5 +80,6 @@ export async function POST(
     )
   }
 
+  scheduleThumbnailGeneration(authorization.supabase, publicUrlData.publicUrl, file)
   return NextResponse.json({ url: publicUrlData.publicUrl }, { status: 201 })
 }

@@ -13,6 +13,17 @@ import { ArtworkSection } from './ArtworkSection'
 import { QualityHistory, QualitySelect } from './ArtworkQuality'
 import type { PremiumPair } from './AuctionPremiumFields'
 import ImageUploader from '@/components/ImageUploader'
+import ArtworkDocumentUploader from './ArtworkDocumentUploader'
+import DocumentVisibilityFields from './DocumentVisibilityFields'
+import DocumentCategorySelect from './DocumentCategorySelect'
+import { groupDocumentLinks, isDocumentCategory, saveDocumentLinkCategory, type DocumentCategory } from '@/lib/documentCategory'
+import {
+  DEFAULT_DOCUMENT_ACCESS,
+  parseDocumentAccess,
+  saveDocumentVisibility,
+  type DocumentAccess,
+  type DocumentClientOption,
+} from '@/lib/documentVisibility'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -214,8 +225,34 @@ const hasLoadedArtworkRef = useRef(false)
   const [newDocLabel, setNewDocLabel] = useState('')
   const [newDocUrl, setNewDocUrl] = useState('')
   const [uploadingDoc, setUploadingDoc] = useState(false)
-  const [pendingFile, setPendingFile] = useState<File | null>(null)
-  const [isDraggingDoc, setIsDraggingDoc] = useState(false)
+  const [newDocAccess, setNewDocAccess] = useState<DocumentAccess>(DEFAULT_DOCUMENT_ACCESS)
+  const [newDocCategory, setNewDocCategory] = useState<DocumentCategory>('general')
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
+  const [bulkCategory, setBulkCategory] = useState<DocumentCategory>('general')
+  const [bulkAccess, setBulkAccess] = useState<DocumentAccess>(DEFAULT_DOCUMENT_ACCESS)
+  const [categorizing, setCategorizing] = useState(false)
+  const [categoryError, setCategoryError] = useState('')
+  const documentClients = useMemo(() => {
+    const options = new Map<string, DocumentClientOption>()
+    for (const proposal of artwork?.artwork_proposals ?? []) {
+      const contact = proposal.contact ?? proposal.proposedTo
+      const contactId = contact?.id ?? proposal.contact_id
+      if (contactId) options.set(contactId, {
+        id: contactId,
+        label: contact?.company_name ||
+          [contact?.first_name, contact?.last_name].filter(Boolean).join(' ') || proposal.contact_label || 'Client',
+      })
+    }
+    if (artwork?.buyer_contact_id) {
+      const buyer = artwork.buyer
+      options.set(artwork.buyer_contact_id, {
+        id: artwork.buyer_contact_id,
+        label: buyer?.company_name ||
+          [buyer?.first_name, buyer?.last_name].filter(Boolean).join(' ') || 'Artwork buyer',
+      })
+    }
+    return [...options.values()].sort((a, b) => a.label.localeCompare(b.label))
+  }, [artwork?.artwork_proposals, artwork?.buyer_contact_id, artwork?.buyer])
   
   const [isAddingProposal, setIsAddingProposal] = useState(false)
 
@@ -352,7 +389,7 @@ useEffect(() => {
 
         supabase
           .from('documents')
-          .select('id, artwork_id, document_type, url, label, position, storage_provider, legacy_url, file_name, mime_type, size_bytes')
+          .select('id, artwork_id, document_type, url, label, position, storage_provider, legacy_url, file_name, mime_type, size_bytes, visibility, recipient_contact_id, link_category')
           .eq('artwork_id', artworkRow.id)
           .order('position', { ascending: true }),
 
@@ -455,10 +492,19 @@ if (isEditMode && draftKey) {
         setArtwork({
           ...fullArtwork,
           ...parsed.artwork,
+          documents: fullArtwork.documents,
+          rapport_heritier_document: fullArtwork.rapport_heritier_document,
         })
 
         setNewDocLabel(parsed.newDocLabel ?? '')
         setNewDocUrl(parsed.newDocUrl ?? '')
+        if (isDocumentCategory(parsed.newDocCategory)) setNewDocCategory(parsed.newDocCategory)
+        const accessResult = parseDocumentAccess(parsed.newDocAccess ?? {})
+        if ('error' in accessResult) {
+          setError('The saved document visibility is invalid. Select it again before adding the link.')
+        } else {
+          setNewDocAccess(accessResult.access)
+        }
 
         return
       }
@@ -520,6 +566,8 @@ useEffect(() => {
         artwork,
         newDocLabel,
         newDocUrl,
+        newDocAccess,
+        newDocCategory,
       }
 
       sessionStorage.setItem(draftKey, JSON.stringify(draft))
@@ -538,6 +586,8 @@ useEffect(() => {
   artwork,
   newDocLabel,
   newDocUrl,
+  newDocAccess,
+  newDocCategory,
   draftKey,
   isEditing,
   saving,
@@ -579,7 +629,7 @@ useEffect(() => {
 
 
   async function saveArtwork() {
-    if (!artwork?.id || saving || deleting) return
+    if (!artwork?.id || saving || deleting || uploadingDoc || categorizing) return
     if (calculatingPremium) {
       setError('Complete the buyer premium calculation or switch off Auto to enter both amounts manually before saving.')
       return
@@ -835,13 +885,9 @@ const addDocument = async (e?: React.MouseEvent<HTMLButtonElement>) => {
 
   const label = newDocLabel.trim()
   const url = newDocUrl.trim()
-
-  if (pendingFile) {
-    if (!label) {
-      alert('Please provide a label')
-      return
-    }
-    await uploadSharePointDocument(pendingFile)
+  const accessResult = parseDocumentAccess(newDocAccess)
+  if ('error' in accessResult) {
+    alert(accessResult.error)
     return
   }
 
@@ -858,6 +904,8 @@ const addDocument = async (e?: React.MouseEvent<HTMLButtonElement>) => {
 
   const payload = {
     artwork_id: artwork.id,
+    ...accessResult.access,
+    link_category: newDocCategory,
     document_type: 'link',
     label,
     url,
@@ -902,45 +950,77 @@ const addDocument = async (e?: React.MouseEvent<HTMLButtonElement>) => {
 
   setNewDocLabel('')
   setNewDocUrl('')
+  setNewDocAccess(DEFAULT_DOCUMENT_ACCESS)
+  setNewDocCategory('general')
 }
 
-const uploadSharePointDocument = async (file: File) => {
-  if (!artwork?.id) return
+function updateDocumentCategory(documentId: string, category: DocumentCategory) {
+  setArtwork(previous => previous ? {
+    ...previous,
+    documents: (previous.documents ?? []).map(document =>
+      document.id === documentId ? { ...document, link_category: category } : document
+    ),
+  } : previous)
+}
 
-  const form = new FormData()
-  form.append('file', file)
-  if (newDocLabel.trim()) form.append('label', newDocLabel.trim())
-
-  setUploadingDoc(true)
+async function categorizeSelectedDocuments() {
+  if (!artwork || saving || deleting || uploadingDoc || categorizing || selectedDocumentIds.length === 0) return
+  setCategorizing(true)
+  setCategoryError('')
+  const failures: string[] = []
   try {
-    const res = await fetch(`/api/artworks/${artwork.id}/sharepoint-documents`, {
-      method: 'POST',
-      credentials: 'include',
-      body: form,
-    })
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => null)
-      alert(body?.error ?? 'Failed to upload document')
-      return
+    for (const documentId of selectedDocumentIds) {
+      try {
+        await saveDocumentLinkCategory(artwork.id, documentId, bulkCategory)
+        updateDocumentCategory(documentId, bulkCategory)
+      } catch (cause) {
+        console.error('BULK DOCUMENT CATEGORY ERROR:', documentId, cause)
+        failures.push(documentId)
+      }
     }
-
-    const data = await res.json()
-    setArtwork((prev) =>
-      prev ? { ...prev, documents: [...(prev.documents ?? []), data] } : prev
-    )
-    setNewDocLabel('')
-    setPendingFile(null)
+    setSelectedDocumentIds(failures)
+    if (failures.length > 0) setCategoryError(`${failures.length} link(s) could not be moved. They remain selected; retry to continue.`)
   } finally {
-    setUploadingDoc(false)
+    setCategorizing(false)
+  }
+}
+
+async function changeSelectedDocumentVisibility() {
+  if (!artwork || saving || deleting || uploadingDoc || categorizing || selectedDocumentIds.length === 0) return
+  const result = parseDocumentAccess(bulkAccess)
+  if ('error' in result) {
+    setCategoryError(result.error)
+    return
+  }
+  setCategorizing(true)
+  setCategoryError('')
+  const failures: string[] = []
+  try {
+    for (const documentId of selectedDocumentIds) {
+      try {
+        await saveDocumentVisibility(artwork.id, documentId, result.access)
+        setArtwork(previous => previous ? {
+          ...previous,
+          documents: (previous.documents ?? []).map(document =>
+            document.id === documentId ? { ...document, ...result.access } : document
+          ),
+        } : previous)
+      } catch (cause) {
+        console.error('BULK DOCUMENT VISIBILITY ERROR:', documentId, cause)
+        failures.push(documentId)
+      }
+    }
+    setSelectedDocumentIds(failures)
+    if (failures.length > 0) setCategoryError(`${failures.length} link(s) could not have their visibility updated. They remain selected; retry to continue.`)
+  } finally {
+    setCategorizing(false)
   }
 }
 
 
 
-
   async function deleteArtwork() {
-    if (!artwork?.id || deleting || saving) return
+    if (!artwork?.id || deleting || saving || uploadingDoc || categorizing) return
 
     const confirmed = confirm(
       'Are you sure you want to delete this artwork?\nThis action is irreversible.'
@@ -1082,6 +1162,8 @@ async function handleDocumentsDragEnd(event: DragEndEvent) {
   const newIndex = currentDocs.findIndex((doc) => doc.id === overId)
 
   if (oldIndex === -1 || newIndex === -1) return
+  if ((currentDocs[oldIndex].link_category ?? 'general') !==
+    (currentDocs[newIndex].link_category ?? 'general')) return
 
   const reordered = arrayMove(currentDocs, oldIndex, newIndex)
 
@@ -1294,7 +1376,7 @@ const artworkDocuments = useMemo(
 <button
   className="edit-button"
   type="button"
-  disabled={saving || deleting}
+  disabled={saving || deleting || uploadingDoc || categorizing}
   onClick={() => {
     if (!artwork?.id) return
 
@@ -1313,7 +1395,7 @@ const artworkDocuments = useMemo(
             <button
               className="edit-button"
               type="button"
-              disabled={saving || deleting}
+              disabled={saving || deleting || uploadingDoc || categorizing}
               onClick={deleteArtwork}
               style={{
                 backgroundColor: '#cc0000',
@@ -1340,7 +1422,7 @@ const artworkDocuments = useMemo(
             <button
               className="edit-button"
               type="button"
-              disabled={saving || deleting || calculatingPremium}
+              disabled={saving || deleting || uploadingDoc || categorizing || calculatingPremium}
               onClick={saveArtwork}
               style={{
                 opacity: saving ? 0.85 : 1,
@@ -1495,6 +1577,20 @@ const artworkDocuments = useMemo(
                     <option key={suggestion} value={suggestion} />
                   ))}
                 </datalist>
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>Upload files</h4>
+                <ArtworkDocumentUploader
+                  key={artwork.id}
+                  artworkId={artwork.id}
+                  labelSuggestionsId={NEW_DOCUMENT_LABEL_DATALIST_ID}
+                  clients={documentClients}
+                  disabled={saving || deleting || categorizing}
+                  onBusyChange={setUploadingDoc}
+                  onUploaded={document => setArtwork(previous =>
+                    previous ? { ...previous, documents: [...(previous.documents ?? []), document] } : previous
+                  )}
+                />
+                <hr style={{ border: 0, borderTop: '3px solid #999', margin: '24px 0' }} />
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>Add URL link</h4>
                 <div
                   style={{
                     display: 'flex',
@@ -1507,6 +1603,7 @@ const artworkDocuments = useMemo(
                     type="text"
                     placeholder="Label"
                     value={newDocLabel}
+                    disabled={saving || deleting || uploadingDoc}
                     onChange={(e) => setNewDocLabel(e.target.value)}
                     list={NEW_DOCUMENT_LABEL_DATALIST_ID}
                     style={{ ...editInputStyle, flex: 1 }}
@@ -1516,66 +1613,60 @@ const artworkDocuments = useMemo(
                     type="url"
                     placeholder="URL"
                     value={newDocUrl}
-                    disabled={!!pendingFile}
+                    disabled={saving || deleting || uploadingDoc}
                     onChange={(e) => setNewDocUrl(e.target.value)}
                     style={{ ...editInputStyle, flex: 2 }}
                   />
-
-
-<button type="button" className="edit-button" onClick={addDocument} disabled={uploadingDoc}>
-  {uploadingDoc ? 'Uploading...' : pendingFile ? 'Upload' : 'Add'}
-</button>
-
-                  <label
-                    onDragOver={(e) => {
-                      e.preventDefault()
-                      setIsDraggingDoc(true)
-                    }}
-                    onDragLeave={() => setIsDraggingDoc(false)}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      setIsDraggingDoc(false)
-                      const dropped = e.dataTransfer.files?.[0]
-                      if (dropped) setPendingFile(dropped)
-                    }}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '6px 14px',
-                      borderRadius: 6,
-                      fontSize: 13,
-                      whiteSpace: 'nowrap',
-                      border: `2px dashed ${isDraggingDoc ? '#0b5d2a' : '#999'}`,
-                      backgroundColor: isDraggingDoc ? '#eaf6ee' : '#fff',
-                    }}
-                  >
-                    {pendingFile ? pendingFile.name : 'Glissez un fichier ici ou cliquez pour choisir'}
-                    <input
-                      type="file"
-                      hidden
-                      disabled={uploadingDoc}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        e.target.value = ''
-                        if (file) setPendingFile(file)
-                      }}
-                    />
-                  </label>
-                  {pendingFile && (
-                    <button
-                      type="button"
-                      className="edit-button"
-                      disabled={uploadingDoc}
-                      onClick={() => setPendingFile(null)}
-                    >
-                      Cancel
-                    </button>
-                  )}
-
+                  <button type="button" className="edit-button" onClick={addDocument} disabled={saving || deleting || uploadingDoc}>
+                    Add link
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                  <DocumentCategorySelect label="New link category" value={newDocCategory}
+                    disabled={saving || deleting || uploadingDoc} onChange={setNewDocCategory} />
+                  <DocumentVisibilityFields
+                    label="New link"
+                    value={newDocAccess}
+                    clients={documentClients}
+                    disabled={saving || deleting || uploadingDoc}
+                    onChange={setNewDocAccess}
+                  />
                 </div>
               </div>
             )}
 
             {artworkDocuments.length > 0 && (
+              <>
+              {isEditing && (
+                <>
+                <hr style={{ border: 0, borderTop: '3px solid #999', margin: '24px 0' }} />
+                <fieldset disabled={categorizing || saving || deleting || uploadingDoc}
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+                  <legend style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>Organize links</legend>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, width: '100%' }}>
+                  <button type="button" className="edit-button"
+                    onClick={() => setSelectedDocumentIds(artworkDocuments.map(document => document.id))}>Select all</button>
+                  <button type="button" className="edit-button" onClick={() => setSelectedDocumentIds([])}>Clear selection</button>
+                  <span>{selectedDocumentIds.length} selected</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, width: '100%' }}>
+                  <DocumentCategorySelect label="Move selected links to" value={bulkCategory} onChange={setBulkCategory} />
+                  <button type="button" className="edit-button"
+                    disabled={selectedDocumentIds.length === 0}
+                    onClick={categorizeSelectedDocuments}>Move selected links</button>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, width: '100%' }}>
+                    <DocumentVisibilityFields label="Selected links" value={bulkAccess} clients={documentClients}
+                      onChange={setBulkAccess} />
+                    <button type="button" className="edit-button"
+                      disabled={selectedDocumentIds.length === 0}
+                      onClick={changeSelectedDocumentVisibility}>Apply visibility to selected links</button>
+                  </div>
+                </fieldset>
+                </>
+              )}
+              {categorizing && <p role="status">Updating selected links...</p>}
+              {categoryError && <p role="alert">{categoryError}</p>}
               <DndContext
                 collisionDetection={closestCenter}
                 onDragEnd={handleDocumentsDragEnd}
@@ -1591,12 +1682,32 @@ const artworkDocuments = useMemo(
                       gap: 8,
                     }}
                   >
-                    {artworkDocuments.map((doc) => (
+                    {groupDocumentLinks(artworkDocuments).filter(group => group.documents.length > 0).map(group => (
+                      <details key={group.category} open style={{ padding: 8, border: '1px solid #ccc', borderRadius: 6 }}>
+                        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+                          {group.label} ({group.documents.length})
+                        </summary>
+                        {group.documents.map(doc => (
+                      <div key={doc.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 8 }}>
+                        {isEditing && <input type="checkbox" aria-label={`Select ${doc.label || 'document'}`}
+                          disabled={categorizing || saving || deleting || uploadingDoc}
+                          checked={selectedDocumentIds.includes(doc.id)}
+                          onChange={event => setSelectedDocumentIds(previous => event.target.checked
+                            ? [...previous, doc.id] : previous.filter(id => id !== doc.id))} />}
+                        <div style={{ flex: 1, minWidth: 0 }}>
                       <SortableDocument
                         key={doc.id}
                         artworkId={artwork.id}
                         document={doc}
-                        isEditing={isEditing}
+                        isEditing={isEditing && !categorizing && !saving && !deleting && !uploadingDoc}
+                        onCategorySaved={updateDocumentCategory}
+                        clients={documentClients}
+                        onAccessSaved={(documentId, access) => setArtwork(previous => previous ? {
+                          ...previous,
+                          documents: (previous.documents ?? []).map(document =>
+                            document.id === documentId ? { ...document, ...access } : document
+                          ),
+                        } : previous)}
                         onDelete={deleteDocument}
                         labelSuggestions={DOCUMENT_LABEL_SUGGESTIONS}
                         onLabelSaved={(documentId, label) =>
@@ -1613,10 +1724,15 @@ const artworkDocuments = useMemo(
                           })
                         }
                       />
+                        </div>
+                      </div>
+                        ))}
+                      </details>
                     ))}
                   </div>
                 </SortableContext>
               </DndContext>
+              </>
             )}
           </section>
         )}

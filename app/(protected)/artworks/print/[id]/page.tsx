@@ -167,7 +167,7 @@ export default function ArtworkPrintPage() {
           sélectionné dans l&apos;en-tête).
         </div>
       )}
-      <ArtworkSheet artwork={artwork} canEdit={canEdit} />
+      <ArtworkSheet artwork={artwork} canEdit={canEdit} floatingControls />
     </main>
   )
 }

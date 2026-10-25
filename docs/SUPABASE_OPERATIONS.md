@@ -63,6 +63,149 @@ nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
 
+### Stored artwork thumbnails
+
+Apply `20261025200000_add_stored_artwork_thumbnails.sql` before the matching
+application release. It creates the private `artwork-thumbnails` bucket and a
+service-role-only durable cleanup queue. A restrictive Storage policy prevents
+authenticated/anonymous bucket access even if another permissive policy exists.
+The server verifies the source document with the caller's RLS client before
+reading stored thumbnails. Originals and their existing access paths are unchanged.
+
+Upload routes schedule generation with Next.js `after`; existing images populate
+on demand. The host must support `after` and allow enough request duration for
+image processing. Generation/storage errors are logged; display retries, never
+falls back to original bytes. Versioned keys include the source Storage version.
+
+Document deletion or URL/type replacement queues the old source, including artwork
+cascades and direct SQL changes. Application image reads/deletes process 20 sources
+per invocation. A failed job remains queued. For an idle application or a backlog,
+invoke `cleanArtworkThumbnails()` from `lib/artworkThumbnails.ts` in a trusted
+server maintenance process with service-role environment variables, repeatedly
+until `select count(*) from public.artwork_thumbnail_cleanup` is zero.
+Do not expose that helper or service-role credentials to browsers. Old versions
+from direct same-URL Storage overwrites remain until source/document removal.
+
+Validation: `tests/db/stored-artwork-thumbnails.sql` checks private bucket,
+authenticated isolation, replacement/deletion queueing and artwork cascades in a
+rolled-back transaction. API tests check RLS denial before privileged reads,
+stored hits without original downloads, version changes, real WebP encoding and
+storage failure handling.
+
+Migration applied on 2026-10-25 after approval; the rollback SQL suite also passed
+against the deployed schema. A disposable authenticated Editor fixture verified
+real Storage `info().version`, persistence, identical bytes on the second read
+with only one original download, 160 x 140 WebP dimensions, denied direct bucket
+reads (anonymous and authenticated), denied derivative access after changing the
+user to Viewer, and thumbnail deletion after artwork cascade. Temporary users,
+documents, originals and thumbnails were removed afterward.
+
+### Server-paginated artwork lists
+
+`20261025193000_add_paginated_artwork_lists.sql` adds the read-only
+`artwork_list_page(jsonb,jsonb,text,integer)` RPC. It is SECURITY INVOKER,
+not SECURITY DEFINER, with EXECUTE granted only to authenticated users.
+It selects the appropriate existing lightweight source according to the caller's
+staff eligibility and preserves underlying RLS. Anonymous execution is revoked.
+No artwork, file, policy or existing view is changed.
+
+Filtering, global group counts, filter options and sorting run before
+LIMIT 20/OFFSET. Null group requests return the first page of each group;
+named-group requests return only that group's requested page. Metadata options
+cover the whole accessible status/client scope. Viewer responses omit recipient
+summaries. Text sorts use the existing `pg_catalog."fr-CH-x-icu"` collation.
+Tie-breaks use the existing date direction then artwork ID; quality nulls sort last.
+
+Applied to the linked project on 2026-10-25 after approval. Rollback-only SQL
+tests passed before and after application. Deploy the paginated list UI after this
+migration. `tests\db\paginated-artwork-lists.sql` verifies 20/20/5 pages, no
+overlap, sorting/search outside the first page, complete options, client/buyer
+filters, date fallbacks, grouping, anonymous denial and existing role/document
+access behavior. This migration intentionally does not redefine artwork access
+rules or synchronize them with separate document-access eligibility rules.
+An authenticated staff read of the 797 current artworks returned 135 initial
+rows across 13 groups, with a maximum of 20 rows per group. The complete RPC
+response, including global filter options/counts, measured 227,577 uncompressed
+JSON bytes. This is a payload measurement, not a browser load-time benchmark.
+
+### Lightweight artwork lists
+
+`20261025190000_add_lightweight_artwork_lists.sql` adds
+`artworks_list_admin` and `viewer_artworks_list_secure`. Both are
+security-invoker views built on their corresponding existing full view, so
+artwork eligibility and document RLS are preserved. They omit document/history
+aggregates and detail-only columns and select at most one accessible gallery
+image per artwork. Anonymous access is not granted. Existing full views,
+records and policies are unchanged.
+
+Applied to the linked Supabase project on 2026-10-25 after approval.
+Rollback-only role/projection tests passed before and after application;
+the existing document visibility isolation tests also passed afterward. The list UI
+requires this migration; detail and print views remain independent.
+
+On the same 797 artworks, a database-side comparison of uncompressed row JSON
+measured 5,546,472 bytes for the full view and 1,039,254 bytes for the list view
+(about 81% less). This is a payload comparison, not a measured browser load-time
+improvement, and excludes the subsequent artist/contact/proposal requests.
+The list execution plan no longer aggregates the complete document/gallery JSON.
+
+Use `supabase db query --linked --file tests\db\artwork-lists.sql` for
+rollback-only comparisons of artwork IDs/field values across roles, image order,
+document visibility, empty galleries and payload shape.
+
+### Artwork link categories
+
+`20261025180000_add_document_link_categories.sql` adds
+`documents.link_category`, defaulting existing and new records to `general`.
+The only other accepted values are `images` and `exhibitions_literature`.
+It appends the category to the security-invoker `viewer_documents` projection.
+Artwork aggregate views already include the complete document JSON.
+No file, URL, visibility, recipient, gallery-image type or storage path changes.
+The migration was applied to the linked Supabase project on 2026-10-25.
+All 2,650 existing documents were verified as `general`, and the default for
+new documents was verified as `general`. Deploy the category UI/API to expose
+the controls.
+
+Use `supabase db query --linked --file tests\db\document-link-categories.sql`
+after migration for rollback-only checks of defaults, categories, aggregate
+projections, permission preservation, gallery separation and invalid values.
+Re-run `tests\db\document-visibility.sql` to confirm client isolation.
+Both rollback-only tests passed after application; no test fixtures were retained.
+
+### Artwork document visibility
+
+`20261025173000_add_document_visibility.sql` adds `documents.visibility`
+(`all_clients`, `internal`, `selected_client`) and `recipient_contact_id`.
+The non-null default assigns **All artwork clients** to all existing records
+and new documents, including inserts from older application versions.
+The migration was applied to the linked Supabase project on 2026-10-25.
+All 2,606 existing documents were verified as `all_clients`, with no recipient;
+the default for new records was verified as `all_clients`. Deploy the updated
+document UI/API to expose the visibility controls.
+
+Document reads are database-enforced for active, invited Viewers with existing
+artwork access and an eligible client membership. Staff retain full access.
+The selected client must be a current proposal recipient or the artwork buyer
+when assigned. Removing a proposal does not convert a private document into a
+shared one. A referenced contact cannot be deleted until its document recipient
+assignments are changed explicitly. Market access is unchanged.
+
+The migration replaces all existing document policies, limits authenticated
+table grants to CRUD, and preserves security-invoker artwork/document views.
+A restrictive change-log policy makes document history staff-only, including
+historic labels/URLs recorded before a document became restricted or was
+deleted. Other artwork history remains governed by its existing rules.
+SharePoint/external permissions are separate and are not revoked automatically.
+
+Run `supabase db query --linked --file tests\db\document-visibility.sql` after
+applying the migration for rollback-only tests of two clients, peer/multiple
+memberships, revoked/inactive users, staff, direct-ID reads, aggregate views,
+condition-report joins, document history, assignment validation and writes.
+The migration and this test were also executed together inside one rolled-back
+transaction against the linked database, without persisting schema or fixtures.
+After applying the migration, the rollback-only test passed again against the
+persisted schema. No test fixtures were retained.
+
 ### Client-addressed artwork comments
 
 `20261024150000_scope_artwork_comments_to_clients.sql` was applied to the linked

@@ -4,6 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import type { Session, User } from '@supabase/supabase-js'
+import { invalidateTemporaryCaches, observeMutationFetch } from '@/lib/temporaryCache'
 
 export type UserRole = 'Viewer' | 'Editor' | 'Administrator'
 
@@ -29,6 +30,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<UserRole | undefined>(undefined)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const original = window.fetch
+    const observed = observeMutationFetch(
+      original.bind(window), window.location.origin,
+      new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin,
+    )
+    window.fetch = observed
+    return () => {
+      if (window.fetch === observed) window.fetch = original
+      invalidateTemporaryCaches()
+    }
+  }, [])
 
   const fetchRole = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -119,6 +133,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (!active) return
+      invalidateTemporaryCaches()
       void loadSession(newSession)
     })
 
@@ -146,7 +161,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         role,
         isAuthenticated: Boolean(session),
         loading,
-        refreshSession: () => loadSession(),
+        refreshSession: () => {
+          invalidateTemporaryCaches()
+          return loadSession()
+        },
       }}
     >
       {children}

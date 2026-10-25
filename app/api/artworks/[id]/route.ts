@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole, requireUser } from '@/lib/apiAuth'
 import { logAuditEvent } from '@/lib/audit'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { scheduleThumbnailCleanup } from '@/lib/scheduleThumbnailCleanup'
 
 /* =========================================================
    GET /api/artworks/[id]
@@ -313,5 +314,6 @@ export async function DELETE(
     subjectId: id,
   })
 
+  scheduleThumbnailCleanup()
   return NextResponse.json({ success: true })
 }

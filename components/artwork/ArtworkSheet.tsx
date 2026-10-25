@@ -2,6 +2,12 @@
 'use client'
 
 import { formatArtworkYears } from '@/lib/artworkYears'
+import { groupDocumentLinks } from '@/lib/documentCategory'
+import ArtworkDocumentLink from './ArtworkDocumentLink'
+import ArtworkCategoryDownload from './ArtworkCategoryDownload'
+import ArtworkPrintToolbar from './ArtworkPrintToolbar'
+import ArtworkImageAlbum, { type AlbumImage } from './ArtworkImageAlbum'
+import { documentFileType } from '@/lib/documentFileType'
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(protected)/types/artwork'
@@ -16,6 +22,7 @@ import { CertificateAddress, CertificateLocationHistory } from './CertificateLoc
 
 
 type Props = {
+  floatingControls?: boolean
   artwork: ArtworkPrint
   isEditMode?: boolean
   canEdit: boolean
@@ -153,7 +160,7 @@ function hasValidNumber(value: unknown) {
 
 /* ---------- component ---------- */
 
-export default function ArtworkSheet({ artwork, isEditMode, canEdit }: Props) {
+export default function ArtworkSheet({ artwork, isEditMode, canEdit, floatingControls = false }: Props) {
   const [shipmentArtworkId, setShipmentArtworkId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -242,6 +249,20 @@ const images: ArtworkDocument[] =
         (a.position ?? 0) - (b.position ?? 0)
     ) ?? []
 
+const [album, setAlbum] = useState<{ images: AlbumImage[]; initialId: string } | null>(null)
+const galleryAlbum: AlbumImage[] = images.map(image => ({
+  id: image.id, url: privateImageUrl(image.url), label: image.label || artwork.title || 'Artwork image',
+}))
+const linkedImageAlbum: AlbumImage[] = (artwork.documents ?? [])
+  .filter(document => document.link_category === 'images' && document.document_type !== 'image' &&
+    ['JPG', 'PNG', 'TIF', 'WEBP', 'GIF', 'HEIC', 'HEIF', 'SVG'].includes(documentFileType(document)))
+  .sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999))
+  .map(image => ({
+    id: image.id, url: image.url, label: image.label || image.file_name || 'Artwork image',
+    downloadUrl: image.storage_provider === 'sharepoint'
+      ? `/api/documents/${image.id}/open?download=1` : undefined,
+  }))
+
 const thumbnailCount = Math.max(0, images.length - 1)
 const thumbnailRows = Math.max(1, Math.ceil(thumbnailCount / 2))
 const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
@@ -281,6 +302,10 @@ const links = [
     id: doc.id,
     url: doc.url,
     label: doc.label || 'Open document',
+    link_category: doc.link_category,
+    file_name: doc.file_name,
+    mime_type: doc.mime_type,
+    storage_provider: doc.storage_provider,
     })),
   ...(artwork.commission_invoice_url &&
   !artworkDocuments.some(
@@ -290,6 +315,7 @@ const links = [
         id: 'commission-invoice',
         url: artwork.commission_invoice_url,
         label: 'Facture Commission',
+        link_category: 'general' as const,
       }]
     : []),
 ]
@@ -361,16 +387,7 @@ const displayTitle = (() => {
 {/* LEFT: Proposed date + by */}
 
   {/* RIGHT: Priority + Status + Edit */}
-  <div
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 10,
-      flexShrink: 0,         // ✅ ne se compresse pas
-      flexWrap: 'wrap',  // ✅ reste sur une ligne
-    }}
-  >
+  <ArtworkPrintToolbar floating={floatingControls}>
     {/* Priority */}
     <span
       style={{
@@ -452,7 +469,7 @@ const displayTitle = (() => {
         </button>
       </Link>
     )}
-  </div>
+  </ArtworkPrintToolbar>
 </div>
 
 <div
@@ -635,6 +652,11 @@ const displayTitle = (() => {
       >
         <a
           href={privateImageUrl(images[0].url)}
+          onClick={event => {
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            setAlbum({ images: galleryAlbum, initialId: images[0].id })
+          }}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -675,6 +697,11 @@ const displayTitle = (() => {
             <a
               key={image.id ?? `${image.url}-${index}`}
               href={privateImageUrl(image.url)}
+              onClick={event => {
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+                event.preventDefault()
+                setAlbum({ images: galleryAlbum, initialId: image.id })
+              }}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -1065,25 +1092,23 @@ const displayTitle = (() => {
     label="Links"
     value={
       <>
-        {links.map((doc, index: number) => (
-          <span key={doc.id}>
-            <a
-              href={doc.url ?? undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                color: '#007a5e',
-                textDecoration: 'underline',
-                wordBreak: 'break-all',
-              }}
-            >
-              {doc.label}
-            </a>
-
-            {/* Séparateur sauf après le dernier */}
-            {index < links.length - 1 && ' / '}
-          </span>
+        {groupDocumentLinks(links).filter(group => group.documents.length > 0).map(group => (
+          <details key={group.category} open style={{ marginBottom: 8 }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+              {group.label} ({group.documents.length})
+            </summary>
+            <ul style={{ margin: '4px 0', paddingLeft: 20, lineHeight: 1.4 }}>
+        {group.documents.map(doc => (
+          <li key={doc.id} style={{ margin: 0, padding: 0 }}>
+            <ArtworkDocumentLink document={doc}
+              onOpenImage={linkedImageAlbum.some(image => image.id === doc.id)
+                ? () => setAlbum({ images: linkedImageAlbum, initialId: doc.id }) : undefined} />
+          </li>
         ))}
+            </ul>
+          </details>
+        ))}
+        <ArtworkCategoryDownload artworkId={artwork.id} documents={artworkDocuments} />
       </>
     }
   />
@@ -1098,6 +1123,7 @@ const displayTitle = (() => {
         </div>
       )}
 <ArtworkViewerComment artworkId={artwork.id} />
+{album && <ArtworkImageAlbum images={album.images} initialId={album.initialId} onClose={() => setAlbum(null)} />}
 
 </div>
 

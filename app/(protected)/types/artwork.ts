@@ -1,4 +1,7 @@
 
+import type { DocumentVisibility } from '@/lib/documentVisibility'
+import type { DocumentCategory } from '@/lib/documentCategory'
+
 /* =========================================
    BASE TYPES
 ========================================= */
@@ -46,6 +49,9 @@ export type ArtworkDocument = {
   file_name?: string | null
   mime_type?: string | null
   size_bytes?: number | null
+  visibility?: DocumentVisibility
+  recipient_contact_id?: string | null
+  link_category?: DocumentCategory
 }
 
 export type ArtworkProposal = {

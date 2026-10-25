@@ -12,12 +12,19 @@ export async function GET(
 
   const { data: doc } = await authorization.supabase
     .from('documents')
-    .select('storage_provider, sharepoint_drive_id, sharepoint_item_id')
+    .select('storage_provider, sharepoint_drive_id, sharepoint_item_id, visibility')
     .eq('id', id)
     .maybeSingle()
 
   if (!doc || doc.storage_provider !== 'sharepoint') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if (doc.visibility !== 'all_clients') {
+    return NextResponse.json(
+      { error: 'Use the authenticated ArtMuse document link for restricted documents' },
+      { status: 403 }
+    )
   }
 
   try {

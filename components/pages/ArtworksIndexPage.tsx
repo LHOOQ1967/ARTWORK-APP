@@ -1,595 +1,121 @@
-
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import ArtworkList from '@/components/artwork/ArtworkList'
+import {
+  DEFAULT_ARTWORK_TABLE_STATE, useArtworkListNavigation, type ArtworkTableState,
+} from '@/components/artwork/useArtworkListNavigation'
+import { usePaginatedArtworks } from '@/components/artwork/usePaginatedArtworks'
+import { artworkPageFilters } from '@/lib/paginatedArtworkLists'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
-import { resolveSource } from '@/lib/viewerSources'
 import SearchSelect from '@/components/ui/SearchSelect'
-import {
-  artistLabel,
-  artistRows,
-  artworkRows,
-  chunk,
-  contactLabel,
-  contactRows,
-  dateAcquisitionMs,
-  getArtistId,
-  getErrorSummary,
-  getProposedById,
-  getProposedByLabelFromRow,
-  groupByPriority,
-  logQueryError,
-  matchesArtworkSearch,
-  nonActiveFilterDateMs,
-  proposalLinkRows,
-  splitDraftArtworks,
-  type ArtistRow,
-  type ArtworkIndexItem,
-  type ContactRow,
-  type ProposalLinkRow,
-} from '@/components/artwork/artworkIndexHelpers'
 
 type Props = {
   title?: string
   fixedProposedToId?: string
-  forcedStatus?: ForcedStatus
+  forcedStatus?: 'Bought' | 'Archived' | 'Active'
 }
 
-type ForcedStatus = 'Bought' | 'Archived' | 'Active'
-type EditableArtworkField = 'status' | 'quality' | 'priority'
-type EditableArtworkValue = string | number | null
-
-const applyForcedStatusFilter = <T extends {
-  or: (filters: string) => T
-  eq: (column: string, value: string) => T
-}>(
-  query: T,
-  forcedStatus?: ForcedStatus
-) => {
-  if (!forcedStatus) return query
-
-  if (forcedStatus === 'Active') {
-    return query.or('status.is.null,status.not.in.(Bought,Archived)')
-  }
-
-  return query.eq('status', forcedStatus)
+export default function ArtworksIndexPage(props: Props) {
+  const { user, role } = useSessionProfile()
+  const { selectedClientId } = useClientFilter()
+  const scope = JSON.stringify([
+    user?.id ?? null, role ?? null, selectedClientId ?? null,
+    props.forcedStatus ?? null, props.fixedProposedToId ?? null,
+  ])
+  return <ArtworksIndexContent key={scope} {...props} navigationScope={scope} />
 }
 
-export default function ArtworksIndexPage({
-  title,
-  fixedProposedToId,
-  forcedStatus,   // ✅ AJOUT ICI
-}: Props)
- {
-  const searchParams = useSearchParams()
-  const { matchesClient } = useClientFilter()
-  const [allArtworks, setArtworks] = useState<ArtworkIndexItem[]>([])
-  const artworks = useMemo(
-    () => allArtworks.filter(artwork => matchesClient(artwork.id)),
-    [allArtworks, matchesClient]
-  )
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-
-const [savingInlineKey, setSavingInlineKey] = useState<string | null>(null)
-const [inlineEditError, setInlineEditError] = useState<string | null>(null)
-const [inlineEditSuccess, setInlineEditSuccess] = useState<string | null>(null)
-const statusOptions = useMemo(() => {
-  const baseStatuses = [
-    'Draft',
-    'Viewed',
-    'Negotiation',
-    'Bought',
-    'Archived',
-  ]
-
-  const existingStatuses = artworks
-    .map(a => a.status)
-    .filter(
-      (v): v is NonNullable<typeof v> =>
-        typeof v === 'string' && v.trim().length > 0
-    )
-
-  return Array.from(new Set([...baseStatuses, ...existingStatuses]))
-}, [artworks])
-
-const { role } = useSessionProfile()
-
-const normalizedRole = typeof role === 'string' ? role.toLowerCase() : ''
-
-const isViewer = normalizedRole === 'viewer'
-
-const canEditStatusPriority =
-  normalizedRole === 'administrator' || normalizedRole === 'editor'
-
-  const marketSource = role ? resolveSource('artworks', role) : null
-  const auctionsSource = role ? resolveSource('auctions', role) : null
-
-  // Filtres
-  const [artistIdFilter, setArtistIdFilter] = useState('all')
-  const [proposedByIdFilter, setProposedByIdFilter] = useState('all')
-  const [proposedToIdFilter, setProposedToIdFilter] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  const selectedProposedToIdFilter = fixedProposedToId ?? proposedToIdFilter
-
-
-
-const [fromDateProposed, setFromDateProposed] = useState<string>('')
-
-  useEffect(() => {
-    const artistId = searchParams.get('artistId')?.trim()
-    if (artistId) {
-      setArtistIdFilter(artistId)
-    }
-  }, [searchParams])
-
-  // Load artworks
-  useEffect(() => {
-    if (!marketSource || !auctionsSource) {
-      return
-    }
-
-    const load = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        // Viewer : pas de proposed_to (inutile)
-        const shouldLoadProposedTo = !isViewer && !fixedProposedToId
-
-
-let baseArtworks: ArtworkIndexItem[] = []
-
-if (marketSource === auctionsSource) {
-  // ✅ Une seule vue fusionnée : on charge UNE SEULE FOIS
-
-let query = supabase
-  .from(marketSource)
-  .select('*')
-
-query = applyForcedStatusFilter(query, forcedStatus)
-
-const { data, error } = await query
-
-  if (error) {
-    console.error(error)
-    setError('Failed to load artworks')
-    return
-  }
-
-  const rows = artworkRows(data)
-
-  // ✅ On garde le vrai champ auctions venant de la vue
-  baseArtworks = rows.map(a => ({
-    ...a,
-    auctions: !!a.auctions,
-  }))
-} else {
-  // ✅ Ancienne logique : deux sources distinctes
-
-let marketQuery = supabase
-  .from(marketSource)
-  .select('*')
-
-let auctionsQuery = supabase
-  .from(auctionsSource)
-  .select('*')
-
-marketQuery = applyForcedStatusFilter(marketQuery, forcedStatus)
-auctionsQuery = applyForcedStatusFilter(auctionsQuery, forcedStatus)
-
-const [
-  { data: marketData, error: marketError },
-  { data: auctionsData, error: auctionsError },
-] = await Promise.all([
-  marketQuery,
-  auctionsQuery,
-])
-
-
-
-if (marketError) {
-  logQueryError('marketError', marketError)
-
-  setError(
-    `Failed to load artworks (market): ${getErrorSummary(marketError)}`
-  )
-  return
+function groupLabel(id: string) {
+  if (id === 'bought') return 'Bought'
+  if (id === 'archived-market') return 'Archived — Private market'
+  if (id === 'archived-auction') return 'Archived — Auctions'
+  const [market, priority, kind] = id.split('-')
+  return `${market === 'auction' ? 'Auctions' : 'Private market'} — ${priority}${kind === 'drafts' ? ' Not viewed yet' : ''}`
 }
 
+const groupOrder = [
+  ...['market', 'auction'].flatMap(market =>
+    ['High', 'Medium', 'Low', 'Information', 'Other'].flatMap(priority =>
+      [`${market}-${priority}-others`, `${market}-${priority}-drafts`])),
+  'bought', 'archived-market', 'archived-auction',
+]
 
-if (auctionsError) {
-  logQueryError('auctionsError', auctionsError)
+function ArtworksIndexContent({
+  title, forcedStatus, fixedProposedToId, navigationScope,
+}: Props & { navigationScope: string }) {
+  const { role } = useSessionProfile()
+  const { selectedClientId } = useClientFilter()
+  const [ready, setReady] = useState(false)
+  const navigation = useArtworkListNavigation(navigationScope, ready)
+  const { filters, tables } = navigation
+  const requestFilters = artworkPageFilters(filters, forcedStatus, selectedClientId, fixedProposedToId)
+  const { data, loading, refreshing, error, refresh } = usePaginatedArtworks(navigationScope, requestFilters, tables)
+  const isReady = !loading && !refreshing && !error
+  useEffect(() => { setReady(isReady) }, [isReady])
+  const [savingInlineKey, setSavingInlineKey] = useState<string | null>(null)
+  const [inlineError, setInlineError] = useState('')
+  const [inlineSuccess, setInlineSuccess] = useState('')
+  const isViewer = role?.toLowerCase() === 'viewer'
+  const canEdit = role === 'Administrator' || role === 'Editor'
+  const statuses = Array.from(new Set(['Draft', 'Viewed', 'Negotiation', 'Bought', 'Archived', ...(data?.statuses ?? [])]))
 
-  setError(
-    `Failed to load artworks (auctions): ${getErrorSummary(auctionsError)}`
-  )
-  return
-}
-
-
-  const marketRows = artworkRows(marketData)
-  const auctionsRows = artworkRows(auctionsData)
-
-  baseArtworks = [
-    ...marketRows.map(a => ({ ...a, auctions: false })),
-    ...auctionsRows.map(a => ({ ...a, auctions: true })),
-  ]
-}
-
-
-
-        const artworkIds = baseArtworks.map(artwork => artwork.id)
-        const artistIds = Array.from(
-          new Set(baseArtworks.map(getArtistId).filter((id): id is string => Boolean(id)))
-        )
-        const proposedByIds = Array.from(
-          new Set(baseArtworks.map(getProposedById).filter((id): id is string => Boolean(id)))
-        )
-
-        // Proposals links
-        let proposalLinks: ProposalLinkRow[] = []
-        if (shouldLoadProposedTo && artworkIds.length > 0) {
-          const batches = chunk(artworkIds, 200)
-          for (const ids of batches) {
-            const { data, error } = await supabase
-              .from('artwork_proposals')
-              .select('artwork_id, contact_id')
-              .in('artwork_id', ids)
-
-            if (error) {
-              console.error(error)
-              setError('Failed to load proposals')
-              return
-            }
-
-            proposalLinks = proposalLinks.concat(proposalLinkRows(data))
-          }
-        }
-
-        const proposedToIds = shouldLoadProposedTo
-          ? Array.from(new Set(proposalLinks.map(proposal => proposal.contact_id)))
-          : []
-
-        // Contacts map
-        const allContactIds = Array.from(new Set([...proposedByIds, ...proposedToIds]))
-        const contactsMap = new Map<string, ContactRow>()
-
-        if (allContactIds.length > 0) {
-          const batches = chunk(allContactIds, 200)
-          for (const ids of batches) {
-            const { data, error } = await supabase
-              .from('contacts')
-              .select('id, company_name, first_name, last_name, email')
-              .in('id', ids)
-
-            if (error) {
-              console.error(error)
-              setError('Failed to load contacts')
-              return
-            }
-
-            for (const c of contactRows(data)) {
-              contactsMap.set(c.id, c)
-            }
-          }
-        }
-
-        // Artists map
-        const artistsMap = new Map<string, ArtistRow>()
-        if (artistIds.length > 0) {
-          const batches = chunk(artistIds, 200)
-          for (const ids of batches) {
-            const { data, error } = await supabase.from('artists').select('id, last_name').in('id', ids)
-            if (error) {
-              console.error(error)
-              setError('Failed to load artists')
-              return
-            }
-            for (const a of artistRows(data)) artistsMap.set(a.id, a)
-          }
-        }
-
-        // Proposals par artwork
-        const proposalsByArtwork = new Map<string, { contact_id: string; contact_label: string }[]>()
-        if (shouldLoadProposedTo) {
-          for (const p of proposalLinks) {
-            const c = contactsMap.get(p.contact_id)
-            const label = contactLabel(c)
-            if (!label) continue
-            const arr = proposalsByArtwork.get(p.artwork_id) ?? []
-            arr.push({ contact_id: p.contact_id, contact_label: label })
-            proposalsByArtwork.set(p.artwork_id, arr)
-          }
-        }
-
-        // Normalisation finale
-        const normalized: ArtworkIndexItem[] = baseArtworks.map(a => {
-          const artist_id = getArtistId(a)
-          const proposed_by_id = getProposedById(a)
-
-          const art = artist_id ? artistsMap.get(artist_id) : undefined
-          const pb = proposed_by_id ? contactsMap.get(proposed_by_id) : undefined
-
-          const artist_label = artistLabel(art)
-
-          const pbFromRow = getProposedByLabelFromRow(a)
-          const proposed_by_label = pbFromRow || contactLabel(pb)
-
-          const props = shouldLoadProposedTo ? proposalsByArtwork.get(a.id) ?? [] : []
-          const uniqueProps = Array.from(new Map(props.map(x => [x.contact_id, x])).values())
-
-          return {
-            ...a,
-            artist_id,
-            proposed_by_id,
-            artist_label,
-            proposed_by_label,
-            proposals: shouldLoadProposedTo ? uniqueProps : [],
-          }
-        })
-
-        setArtworks(normalized)
-      } catch (e) {
-        console.error(e)
-        setError('Network error')
-      } finally {
-        setLoading(false)
-      }
+  async function updateArtwork(id: string, field: 'status' | 'quality' | 'priority', value: string | number | null) {
+    if (!canEdit) return
+    setSavingInlineKey(`${id}:${field}`)
+    setInlineError('')
+    setInlineSuccess('')
+    try {
+      const { data, error } = await supabase.from('artworks')
+        .update({ [field]: value === '' ? null : value })
+        .eq('id', id).select('id, status, quality, priority, view_date').maybeSingle()
+      if (error || !data) throw new Error(error?.message || 'Failed to update artwork')
+      setInlineSuccess('Changes saved.')
+      refresh()
+    } catch (cause) {
+      console.error('UPDATE ARTWORK FIELD ERROR:', cause)
+      setInlineError(cause instanceof Error ? cause.message : 'Failed to update artwork')
+    } finally {
+      setSavingInlineKey(null)
     }
-
-    load()
-}, [marketSource, auctionsSource, isViewer, fixedProposedToId, forcedStatus, reloadKey])
-  // Options filtres
-  const artistOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const a of artworks) {
-      const id = a.artist_id
-      const label = (a.artist_label ?? '').trim()
-      if (id && label) map.set(id, label)
-    }
-    return Array.from(map.entries())
-      .map(([id, label]) => ({ id, label }))
-      .sort((x, y) => x.label.localeCompare(y.label, 'fr-CH', { sensitivity: 'base' }))
-  }, [artworks])
-
-  const proposedByOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const a of artworks) {
-      const id = a.proposed_by_id
-      const label = (a.proposed_by_label ?? '').trim()
-      if (id && label) map.set(id, label)
-    }
-    return Array.from(map.entries())
-      .map(([id, label]) => ({ id, label }))
-      .sort((x, y) => x.label.localeCompare(y.label, 'fr-CH', { sensitivity: 'base' }))
-  }, [artworks])
-
-  const proposedToOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const a of artworks) {
-      const props = Array.isArray(a.proposals) ? a.proposals : []
-      for (const p of props) {
-        if (p.contact_id && p.contact_label) map.set(p.contact_id, p.contact_label)
-      }
-    }
-    return Array.from(map.entries())
-      .map(([id, label]) => ({ id, label }))
-      .sort((x, y) => x.label.localeCompare(y.label, 'fr-CH', { sensitivity: 'base' }))
-  }, [artworks])
-
-  // Filtrage global
-
-const globallyFiltered = useMemo(() => {
-  return artworks.filter(a => {
-    // ✅ FORCE STATUS
-
-
-if (forcedStatus) {
-  if (forcedStatus === 'Active') {
-    if (['Bought', 'Archived'].includes(a.status ?? '')) return false
-  } else {
-    if (a.status !== forcedStatus) return false
-  }
-}
-
-
-    if (artistIdFilter !== 'all' && a.artist_id !== artistIdFilter) return false
-    if (proposedByIdFilter !== 'all' && a.proposed_by_id !== proposedByIdFilter) return false
-
-    if (!isViewer && selectedProposedToIdFilter !== 'all') {
-      const ids = (Array.isArray(a.proposals) ? a.proposals : []).map(p => p.contact_id)
-      if (!ids.includes(selectedProposedToIdFilter)) return false
-    }
-
-    if (!matchesArtworkSearch(a, searchQuery)) return false
-
-    return true
-  })
-}, [
-  artworks,
-  forcedStatus,     // ✅ important
-  artistIdFilter,
-  proposedByIdFilter,
-  selectedProposedToIdFilter,
-  isViewer,
-  searchQuery,
-])
-
-  // Active vs Non-active
-  const activeAll = useMemo(() => {
-    return globallyFiltered.filter(a => !['Bought', 'Archived'].includes(a.status ?? ''))
-  }, [globallyFiltered])
-
-  const nonActiveBase = useMemo(() => {
-    return globallyFiltered.filter(a => ['Bought', 'Archived'].includes(a.status ?? ''))
-  }, [globallyFiltered])
-
-  // ✅ Filtre date:
-  // - Bought -> acquisition
-  // - Archived -> proposed
-  const nonActiveFiltered = useMemo(() => {
-    const fromMs = fromDateProposed ? new Date(fromDateProposed + 'T00:00:00').getTime() : 0
-    if (!fromMs) return nonActiveBase
-
-    return nonActiveBase.filter(a => {
-      const d = nonActiveFilterDateMs(a)
-      return d && d >= fromMs
-    })
-  }, [nonActiveBase, fromDateProposed])
-
-  // Sections
-  const primaryMarket = useMemo(() => activeAll.filter(a => !a.auctions), [activeAll])
-  const auctions = useMemo(() => activeAll.filter(a => Boolean(a.auctions)), [activeAll])
-
-  const bought = useMemo(() => nonActiveFiltered.filter(a => a.status === 'Bought'), [nonActiveFiltered])
-  const archivedAll = useMemo(() => nonActiveFiltered.filter(a => a.status === 'Archived'), [nonActiveFiltered])
-
-  // ✅ Bought fusionné + tri acquisition DESC
-  const boughtSorted = useMemo(() => {
-    return [...bought].sort((a, b) => dateAcquisitionMs(b) - dateAcquisitionMs(a))
-  }, [bought])
-
-  // Archived séparés (comme tu veux)
-  const archivedMarket = useMemo(
-    () => archivedAll.filter(a => !a.auctions),
-    [archivedAll]
-  )
-
-  const archivedAuctions = useMemo(
-    () => archivedAll.filter(a => Boolean(a.auctions)),
-    [archivedAll]
-  )
-  
-const marketGroups = useMemo(
-  () => groupByPriority(primaryMarket),
-  [primaryMarket]
-)
-
-const auctionGroups = useMemo(
-  () => groupByPriority(auctions),
-  [auctions]
-)
-
-
-  const totalDisplayed = activeAll.length + nonActiveFiltered.length
-
-  // ✅ Reset : effacer la date (comme demandé)
-  const resetFilters = () => {
-    setArtistIdFilter('all')
-    setProposedByIdFilter('all')
-    setFromDateProposed('') // ✅ efface
-    setProposedToIdFilter('all')
-    setSearchQuery('')
   }
 
-  if (loading && marketSource && auctionsSource) {
-    return (
-      <main style={mainStyle}>
-        <div className="ux-feedback-card" role="status" aria-live="polite">
-          <span className="ux-spinner" aria-hidden="true" />
-          Chargement des œuvres…
-        </div>
-      </main>
-    )
+  function changeSort(id: string, state: ArtworkTableState) {
+    navigation.updateTable(id, { ...state, loadedCount: 20 })
   }
 
-  if (error) {
-    return (
-      <main style={mainStyle}>
-        <div className="ux-feedback-card ux-feedback-card-error" role="alert">
-          <strong>Impossible de charger les œuvres.</strong>
-          <span>{error}</span>
-          <button
-            type="button"
-            className="edit-button"
-            onClick={() => setReloadKey(key => key + 1)}
-          >
-            Réessayer
-          </button>
-        </div>
-      </main>
-    )
-  }
+  if (loading && !data) return <main style={mainStyle}>
+    <div className="ux-feedback-card" role="status">
+      <span className="ux-spinner" aria-hidden="true" />Loading artworks...
+    </div>
+  </main>
 
-  const baseTitle = title ?? 'Artworks — Private market & Auctions'
-  const headerTitle = fixedProposedToId ? `${baseTitle}` : baseTitle
+  if (error) return <main style={mainStyle}>
+    <div className="ux-feedback-card ux-feedback-card-error" role="alert">
+      <strong>Unable to load artworks.</strong><span>{error}</span>
+      <button type="button" className="edit-button" onClick={refresh}>Retry</button>
+    </div>
+  </main>
 
+  const groups = [...(data?.groups ?? [])].sort((a, b) => groupOrder.indexOf(a.id) - groupOrder.indexOf(b.id))
+  const sectionTotals = (prefix: string) => groups.filter(group => group.id.startsWith(prefix))
+    .reduce((total, group) => total + group.total, 0)
 
-
-const handleUpdateArtworkField = async (
-  artworkId: string,
-  field: EditableArtworkField,
-  value: EditableArtworkValue
-) => {
-  if (!canEditStatusPriority) return
-
-  setInlineEditError(null)
-  setInlineEditSuccess(null)
-  setSavingInlineKey(`${artworkId}:${field}`)
-
-  try {
-    const payload = field === 'quality'
-      ? { quality: typeof value === 'number' ? value : null }
-      : { [field]: value === '' ? null : value }
-
-    const { data, error } = await supabase
-      .from('artworks')
-      .update(payload)
-      .eq('id', artworkId)
-      .select('id, status, quality, priority, view_date')
-      .maybeSingle()
-
-    if (error || !data) {
-      console.error('Failed to update artwork field', error)
-      setInlineEditError(
-        error?.message || 'Failed to update artwork'
-      )
-      return
-    }
-
-    setArtworks(prev =>
-      prev.map(a =>
-        a.id === artworkId
-          ? {
-              ...a,
-              ...payload,
-              ...data,
-            }
-          : a
-      )
-    )
-    setInlineEditSuccess('Changes saved.')
-  } catch (e) {
-    console.error(e)
-    setInlineEditError('Network error while updating artwork')
-  } finally {
-    setSavingInlineKey(null)
-  }
-}
-
-
-
-  return (
-    <main style={mainStyle}>
-      <div className="artwork-index-shell">
+  return <main style={mainStyle}>
+    <div className="artwork-index-shell">
       <div className="artwork-index-header">
         <div>
           <div className="artwork-index-eyebrow">Collection management</div>
-          <h1 className="artwork-index-title">{headerTitle}</h1>
+          <h1 className="artwork-index-title">{title ?? 'Artworks — Private market & Auctions'}</h1>
           <p className="artwork-index-subtitle">Review, filter and update proposals from one workspace.</p>
+          {refreshing && <p role="status" aria-live="polite">Refreshing artworks...</p>}
         </div>
-
-        {!isViewer && (
-        <Link className="no-print artwork-index-new-link" href="/artworks/new">
+        {!isViewer && <Link className="no-print artwork-index-new-link" href="/artworks/new">
           <button className="artwork-index-primary-button">+ New artwork</button>
-        </Link>)}
+        </Link>}
       </div>
 
       <section className="no-print artwork-index-filters">
@@ -598,411 +124,77 @@ const handleUpdateArtworkField = async (
             <div className="artwork-index-filter-title">Filters</div>
             <div className="artwork-index-filter-caption">Refine the proposals displayed below</div>
           </div>
-          <div className="artwork-index-count">{totalDisplayed} proposals</div>
+          <div className="artwork-index-count">{data?.total ?? 0} proposals</div>
         </div>
-
         <div className="artwork-index-filter-grid">
-          <div style={dateBlockStyle}>
-            <div style={{ marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}>
-              From date{" "}
-              <span className="text-[12px] font-normal opacity-70">
-                (Bought = acquisition date, Archived = proposed date)
-              </span>
-              </div>
-
-<div style={dateWrapperStyle}>
-  <input
-    type="date"
-    value={fromDateProposed}
-    onChange={e => setFromDateProposed(e.target.value)}
-    style={dateInputStyle}
-  />
-</div>
-
-          </div>
-
-          <SearchSelect
-            label="Artist"
-            placeholder="Search artist…"
-            valueId={artistIdFilter}
-            onChangeId={setArtistIdFilter}
-            options={artistOptions}
-          />
-
-          <div className="artwork-index-search-field">
-            <label
-              htmlFor="artwork-search"
-              style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}
-            >
-              Recherche
+          <div style={{ minWidth: 0 }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 'bold', marginBottom: 6 }}>
+              From date <span style={{ fontWeight: 'normal', fontSize: 12 }}>(Bought = acquisition date, Archived = proposed date)</span>
+              <input type="date" aria-label="From date" value={filters.fromDate} style={inputStyle}
+                onChange={event => navigation.updateFilters({ fromDate: event.target.value })} />
             </label>
-            <input
-              id="artwork-search"
-              type="search"
-              value={searchQuery}
-              onChange={event => setSearchQuery(event.target.value)}
-              placeholder="Title, artist, status, contact, location…"
-              style={dateInputStyle}
-            />
           </div>
-
-          <SearchSelect
-            label="Proposed by"
-            placeholder="Search contact…"
-            valueId={proposedByIdFilter}
-            onChangeId={setProposedByIdFilter}
-            options={proposedByOptions}
-          />
-
-          {!fixedProposedToId && !isViewer && (
-            <SearchSelect
-              label="Proposed to"
-              placeholder="Search contact…"
-              valueId={proposedToIdFilter}
-              onChangeId={setProposedToIdFilter}
-              options={proposedToOptions}
-            />
-          )}
+          <SearchSelect label="Artist" placeholder="Search artist…" valueId={filters.artistId}
+            onChangeId={artistId => navigation.updateFilters({ artistId })} options={data?.artists ?? []} />
+          <div className="artwork-index-search-field">
+            <label htmlFor="artwork-search" style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 'bold' }}>Search</label>
+            <input id="artwork-search" type="search" value={filters.search} style={inputStyle}
+              placeholder="Title, artist, status, contact, location…"
+              onChange={event => navigation.updateFilters({ search: event.target.value })} />
+          </div>
+          <SearchSelect label="Proposed by" placeholder="Search contact…" valueId={filters.proposedBy}
+            onChangeId={proposedBy => navigation.updateFilters({ proposedBy })} options={data?.proposers ?? []} />
+          {!fixedProposedToId && !isViewer && <SearchSelect label="Proposed to" placeholder="Search contact…"
+            valueId={filters.proposedTo} onChangeId={proposedTo => navigation.updateFilters({ proposedTo })}
+            options={data?.recipients ?? []} />}
         </div>
-
         <div className="artwork-index-filter-actions">
-          <button
-            onClick={resetFilters}
-            className="artwork-index-reset-button"
-          >
-            Reset filters
-          </button>
+          <button type="button" className="artwork-index-reset-button" onClick={() =>
+            navigation.updateFilters({ artistId: 'all', proposedBy: 'all', proposedTo: 'all', search: '', fromDate: '' })
+          }>Reset filters</button>
+          <button type="button" className="artwork-index-reset-button" disabled={refreshing} onClick={refresh}>Refresh</button>
         </div>
       </section>
-
-
-{inlineEditError && (
-  <div
-    className="no-print"
-    style={{
-      marginBottom: 16,
-      padding: '10px 12px',
-      borderRadius: 10,
-      backgroundColor: '#fff3f3',
-      color: '#9b1c1c',
-      fontWeight: 600,
-      border: '1px solid rgba(155, 28, 28, 0.25)',
-    }}
-  >
-    {inlineEditError}
-  </div>
-)}
-
-{inlineEditSuccess && (
-  <div className="ux-inline-success" role="status" aria-live="polite">
-    {inlineEditSuccess}
-  </div>
-)}
-
-      {/* Primary market (active) */}
-
-
-{primaryMarket.length > 0 && (
-  <section>
-
-
-
-<div style={centeredHeaderRowStyle}>
-  <h2 style={centeredTitleStyle}>
-    Private market ({primaryMarket.length})
-  </h2>
-</div>
-
-
-  {(['High', 'Medium', 'Low', 'Information', 'Other'] as const).map(priority => {
-    const { drafts, others } = splitDraftArtworks(marketGroups[priority])
-    if (!drafts.length && !others.length) return null
-
-    return (
-      <div key={priority} style={{ marginTop: 16 }}>
-        {others.length > 0 && (
-          <>
-            <div style={subSectionHeaderRowStyle}>
-              <h3 style={subSectionTitle}>
-                Private market — {priority} ({others.length})
-              </h3>
-            </div>
-            <ArtworkList
-              artworks={others}
-              mode="market"
-              canEditStatusPriority={canEditStatusPriority}
-              statusOptions={statusOptions}
-              savingInlineKey={savingInlineKey}
-              onUpdateArtworkField={handleUpdateArtworkField}
-            />
-          </>
-        )}
-
-        {drafts.length > 0 && (
-          <>
-            <div style={subSectionHeaderRowStyle}>
-              <h3 style={subSectionTitle}>
-                Private market — {priority} Not viewed yet ({drafts.length})
-              </h3>
-            </div>
-            <ArtworkList
-              artworks={drafts}
-              mode="market"
-              canEditStatusPriority={canEditStatusPriority}
-              statusOptions={statusOptions}
-              savingInlineKey={savingInlineKey}
-              onUpdateArtworkField={handleUpdateArtworkField}
-            />
-          </>
-        )}
-      </div>
-    )
-  })}
-</section>
-)}
-
-
-
-
-{/* ✅ AUCTIONS */}
-
-{auctions.length > 0 && (
-  <section className="mt-8 border-t-2 border-white/30 pt-6">
-
-  {/* ✅ TITRE + BOUTON CENTRÉS ENSEMBLE */}
-  <div style={centeredHeaderRowStyle}>
-    <h2 style={centeredTitleStyle}>
-      Auctions ({auctions.length})
-    </h2>
-  </div>
-
-
-  {/* ✅ PRIORITY */}
-  {(['High', 'Medium', 'Low', 'Information', 'Other'] as const).map(priority => {
-    const { drafts, others } = splitDraftArtworks(auctionGroups[priority])
-    if (!drafts.length && !others.length) return null
-
-    return (
-      <div key={priority} style={{ marginTop: 16 }}>
-        {others.length > 0 && (
-          <>
-            <div style={subSectionHeaderRowStyle}>
-              <h3 style={subSectionTitle}>
-                Auctions — {priority} ({others.length})
-              </h3>
-            </div>
-            <ArtworkList
-              artworks={others}
-              mode="auction"
-              section="active"
-              canEditStatusPriority={canEditStatusPriority}
-              statusOptions={statusOptions}
-              savingInlineKey={savingInlineKey}
-              onUpdateArtworkField={handleUpdateArtworkField}
-            />
-          </>
-        )}
-
-        {drafts.length > 0 && (
-          <>
-            <div style={subSectionHeaderRowStyle}>
-              <h3 style={subSectionTitle}>
-                Auctions — {priority} Not viewed yet ({drafts.length})
-              </h3>
-            </div>
-            <ArtworkList
-              artworks={drafts}
-              mode="auction"
-              section="active"
-              canEditStatusPriority={canEditStatusPriority}
-              statusOptions={statusOptions}
-              savingInlineKey={savingInlineKey}
-              onUpdateArtworkField={handleUpdateArtworkField}
-            />
-          </>
-        )}
-
-      </div>
-    )
-  })}
-
-</section>
-)}
-
-
-
-
-
-      {/* Bought (fusionné) */}
-
-{boughtSorted.length > 0 && (
-  <section className="mt-8 border-t-2 border-white/30 pt-6">
-
-    <div style={centeredHeaderRowStyle}>
-      <h2 style={centeredTitleStyle}>
-        Bought ({boughtSorted.length})
-      </h2>
+      {inlineError && <p role="alert">{inlineError}</p>}
+      {inlineSuccess && <div className="ux-inline-success" role="status">{inlineSuccess}</div>}
+      {groups.map((group, index) => {
+        const section = group.id.startsWith('market-') ? 'market' : group.id.startsWith('auction-') ? 'auction'
+          : group.id === 'bought' ? 'bought' : 'archived'
+        const previousId = groups[index - 1]?.id
+        const sectionStart = index === 0 || !previousId?.startsWith(section === 'archived' ? 'archived-' : `${section}-`)
+        const table = tables[group.id] ?? DEFAULT_ARTWORK_TABLE_STATE
+        return <section key={group.id} style={{ marginTop: 16 }}>
+          {sectionStart && <div style={sectionHeaderStyle}><h2 style={{ fontSize: '1.6rem', fontWeight: 500, margin: 0 }}>
+            {section === 'market' ? `Private market (${sectionTotals('market-')})`
+              : section === 'auction' ? `Auctions (${sectionTotals('auction-')})`
+              : section === 'bought' ? `Bought (${group.total})` : `Archived (${sectionTotals('archived-')})`}
+          </h2></div>}
+          {group.id !== 'bought' && <h3 style={{ fontSize: '1.1rem', fontWeight: 400, marginBottom: 6 }}>
+            {groupLabel(group.id)} ({group.total})
+          </h3>}
+          <ArtworkList artworks={group.rows} mode={section === 'bought' ? 'bought' : group.id.includes('auction') ? 'auction' : 'market'}
+            section={section === 'archived' ? 'archived' : 'active'} tableState={table}
+            onTableStateChange={state => changeSort(group.id, state)} onOpenArtwork={navigation.saveScroll}
+            canEditStatusPriority={canEdit} statusOptions={statuses} savingInlineKey={savingInlineKey}
+            onUpdateArtworkField={updateArtwork}
+            pagination={{ total: group.total, loading: loading || refreshing, onLoadMore: () =>
+              navigation.updateTable(group.id, { ...table, loadedCount: group.rows.length + 20 }) }} />
+        </section>
+      })}
+      {data?.total === 0 && <div className="ux-empty-state" role="status">No artworks match the selected filters.</div>}
     </div>
-
-    <ArtworkList
-      artworks={boughtSorted}
-      mode="bought"
-      canEditStatusPriority={canEditStatusPriority}
-      statusOptions={statusOptions}
-      savingInlineKey={savingInlineKey}
-      onUpdateArtworkField={handleUpdateArtworkField}
-    />
-
-  </section>
-)}
-
-
-      {/* Archived (séparés) */}
-
-{(archivedMarket.length > 0 || archivedAuctions.length > 0) && (
-  <section className="mt-8 border-t-2 border-white/30 pt-6">
-
-    <div style={centeredHeaderRowStyle}>
-      <h2 style={centeredTitleStyle}>
-        Archived ({archivedMarket.length + archivedAuctions.length})
-      </h2>
-    </div>
-
-    {/* ✅ PRIVATE MARKET */}
-    {archivedMarket.length > 0 && (
-      <div style={{ marginTop: 12 }}>
-        <div style={subSectionHeaderRowStyle}>
-          <h3 style={subSectionTitle}>
-            Private market ({archivedMarket.length})
-          </h3>
-        </div>
-
-        <ArtworkList
-          artworks={archivedMarket}
-          mode="market"
-          canEditStatusPriority={canEditStatusPriority}
-          statusOptions={statusOptions}
-          savingInlineKey={savingInlineKey}
-          onUpdateArtworkField={handleUpdateArtworkField}
-        />
-      </div>
-    )}
-
-    {/* ✅ AUCTIONS */}
-    {archivedAuctions.length > 0 && (
-      <div style={{ marginTop: 16 }}>
-        <div style={subSectionHeaderRowStyle}>
-          <h3 style={subSectionTitle}>
-            Auctions ({archivedAuctions.length})
-          </h3>
-        </div>
-
-        <ArtworkList
-          artworks={archivedAuctions}
-          mode="auction"
-          section="archived"
-          canEditStatusPriority={canEditStatusPriority}
-          statusOptions={statusOptions}
-          savingInlineKey={savingInlineKey}
-          onUpdateArtworkField={handleUpdateArtworkField}
-        />
-      </div>
-    )}
-
-  </section>
-)}
-
-{totalDisplayed === 0 && (
-  <div className="ux-empty-state" role="status">
-    Aucune œuvre ne correspond aux filtres sélectionnés.
-  </div>
-)}
-
-      </div>
-    </main>
-  )
-}
-
-
-
-
-const dateInputStyle: React.CSSProperties = {
-  width: '100%',
-  maxWidth: '100%',
-  boxSizing: 'border-box',
-
-  padding: '8px 6px',
-  fontSize: 16,            // ✅ évite zoom iOS
-
-  borderRadius: 8,
-  border: '1px solid rgba(0,0,0,0.25)',
-  backgroundColor: '#fff',
-
-  WebkitAppearance: 'none', // ✅ iOS fix
-}
-
-
-
-
-
-const dateBlockStyle: React.CSSProperties = {
-  width: '100%',
-  minWidth: 0,            // ✅ CRITIQUE (remplace min-w-240px)
-}
-
-const dateWrapperStyle: React.CSSProperties = {
-  width: '100%',
-  overflow: 'hidden',     // ✅ empêche le débordement iOS
-  borderRadius: 8,
+  </main>
 }
 
 const mainStyle: React.CSSProperties = {
-  minHeight: '100vh',
-  backgroundColor: '#f3f5f1',
-  paddingTop: 98,
-  paddingBottom: 56,
-  paddingLeft: 20,
-  paddingRight: 20,
-
-  boxSizing: 'border-box',      // ✅ CRITIQUE (fix overflow iPhone)
-  width: '100%',
-  overflowX: 'hidden',          // ✅ empêche dépassement
+  minHeight: '100vh', backgroundColor: '#f3f5f1', paddingTop: 98, paddingBottom: 56,
+  paddingLeft: 20, paddingRight: 20, boxSizing: 'border-box', width: '100%', overflowX: 'hidden',
 }
-
-
-const subSectionTitle: React.CSSProperties = {
-  fontSize: '1.1rem',
-  fontWeight: 400,
-  color: '#000000',
-  marginBottom: 6,
-  opacity: 0.95,
+const inputStyle: React.CSSProperties = {
+  width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '8px 6px', fontSize: 16,
+  borderRadius: 8, border: '1px solid rgba(0,0,0,0.25)', backgroundColor: '#fff', WebkitAppearance: 'none',
 }
-
-
-const subSectionHeaderRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  marginBottom: 6,
-}
-
-
-const centeredHeaderRowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: 12,
-  textAlign: 'left',
-  marginTop: 30,
-  marginBottom: 14,
-  paddingBottom: 12,
-  borderBottom: '1px solid rgba(0,96,57,0.18)',
-}
-
-
-const centeredTitleStyle: React.CSSProperties = {
-  fontSize: '1.6rem',
-  fontWeight: 500,
-  color: '#000000',
-  margin: 0,
+const sectionHeaderStyle: React.CSSProperties = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+  marginTop: 30, marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(0,96,57,0.18)',
 }

@@ -3,6 +3,7 @@ import type { UserRole } from '@/contexts/SessionContext'
 
 export type ViewerPage =
   | 'artworks'
+  | 'artwork-lists'
   | 'auctions'
   | 'prints'
   | 'documents'
@@ -20,6 +21,9 @@ export function resolveSource(
 
 if (typeof role === 'string' && role.toLowerCase() === 'viewer') {
   switch (page) {
+    case 'artwork-lists':
+      return 'viewer_artworks_list_secure'
+
     case 'artworks':
       return 'viewer_artworks_full_secure'
 
@@ -40,6 +44,9 @@ if (typeof role === 'string' && role.toLowerCase() === 'viewer') {
 
   // ✅ Admin / Editor
   switch (page) {
+    case 'artwork-lists':
+      return 'artworks_list_admin'
+
     case 'artworks':
       return 'artworks_full_admin'
 

@@ -25,7 +25,7 @@ export type ContactRow = {
 }
 
 export type ArtistRow = { id: string; last_name: string | null }
-export type ProposalLinkRow = { artwork_id: string; contact_id: string }
+export type ProposalLinkRow = { artwork_id: string; contact_id: string; contact?: unknown }
 
 type RecordLike = Record<string, unknown>
 
@@ -119,7 +119,7 @@ export const contactLabel = (contact?: ContactRow | null) => {
   return fullName || contact?.email?.trim() || ''
 }
 
-export const artistLabel = (artist?: ArtistRow | null) => artist?.last_name?.trim() ?? ''
+export const artistLabel = (artist?: { last_name?: string | null } | null) => artist?.last_name?.trim() ?? ''
 
 export const getArtistId = (artwork: ArtworkIndexItem): string | null =>
   artwork.artist_id ?? artwork.artist?.id ?? artwork.artistId ?? null

@@ -21,6 +21,30 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it('shows collapsible link categories and keeps gallery images separate', () => {
+    const html = render({ documents: [
+      { id: 'general', artwork_id: 'work', document_type: 'link', label: 'Certificate', url: '/certificate' },
+      { id: 'photos', artwork_id: 'work', document_type: 'link', label: 'Photo archive', url: '/photos', link_category: 'images' },
+      { id: 'book', artwork_id: 'work', document_type: 'link', label: 'Catalogue scan', url: '/book', link_category: 'exhibitions_literature' },
+    ] })
+    expect(html).toContain('General (1)')
+    expect(html).toContain('Images (1)')
+    expect(html).toContain('Exhibitions &amp; Literature (1)')
+    expect(html.match(/<details /g)).toHaveLength(3)
+    expect(html).toContain('href="/book"')
+    expect(html.indexOf('Download by category')).toBeGreaterThan(html.indexOf('href="/book"'))
+    expect(html).not.toContain(' / </')
+  })
+
+  it('omits empty link groups', () => {
+    const html = render({ documents: [
+      { id: 'general', artwork_id: 'work', document_type: 'link', label: 'Certificate', url: '/certificate' },
+    ] })
+    expect(html).toContain('General (1)')
+    expect(html).not.toContain('Images (0)')
+    expect(html).not.toContain('Exhibitions &amp; Literature')
+  })
+
   it('shows a clickable score between Priority and Status without Quality or History labels', () => {
     const html = render({ priority: 'High', quality: 8, status: 'Viewed' })
     const priorityIndex = html.indexOf('[High]')

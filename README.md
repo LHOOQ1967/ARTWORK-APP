@@ -129,6 +129,246 @@ Deploy the new comment UI with this migration: old Viewer forms do not send
 a recipient and will be rejected after the policy change. Verify isolation
 with the rollback-only SQL test `tests\db\client-comments.sql`.
 
+## Artwork list loading
+
+Active, Bought/Collections, Archived and All artwork lists use dedicated
+security-invoker views: `artworks_list_admin` for staff and
+`viewer_artworks_list_secure` for Viewers. They retain the corresponding full
+view's artwork access rules and select only list fields. Each artwork includes
+at most one accessible gallery image, ordered by position (missing positions
+rank as 9999), then ID to break ties. Documents, full galleries, history diffs
+and detail-only text are not transferred to these lists.
+
+Detail pages and print sheets still use the full views.
+All reads use the current user's session and RLS.
+
+### Artwork list thumbnails
+
+Active, Bought/Collections, Archived and All request real 160 x 140 WebP
+thumbnails for Supabase artwork images displayed at 80 x 70 CSS pixels.
+On a cache miss the authenticated image route downloads through the user's Storage
+session, applies EXIF orientation, crops to cover and encodes at quality 75
+with Sharp. Small sources are not enlarged; image metadata is not copied.
+The originals, galleries, albums and downloads remain unchanged.
+External image URLs retain their original behavior.
+
+Thumbnails are loaded lazily and decoded asynchronously. Responses are
+`private, no-store`, so no shared image cache can bypass a fresh access check.
+Apply `20261025200000_add_stored_artwork_thumbnails.sql` before deploying.
+Generated files are saved in the private `artwork-thumbnails` bucket. Each
+request checks source-document RLS (including client visibility) and the Storage
+object version before a privileged server read. A hit transfers only the small
+WebP, not the original, and does not run Sharp again. Source replacement creates
+a new versioned key. No Supabase image-transformation subscription is required.
+New uploads generate thumbnails after the response; failures are logged and
+retried when displayed. Existing images are generated progressively on first
+display, without a bulk backfill.
+Sources above 100 MB or 100 million pixels are rejected. Unsupported or failed
+images show **Image unavailable**, rather than silently downloading the full
+original. The thumbnail route never stores or replaces an original image.
+
+Document deletion/URL replacement and artwork cascades enqueue thumbnail cleanup
+in the database. Image reads and application deletes drain up to 20 queued sources
+after the response. Failures are logged and retained for later retries; without
+application traffic cleanup waits for the next request. See the Supabase
+operations guide for manual draining. Direct source overwrites invalidate keys;
+historical source-version files remain until that document/source is removed.
+
+### Server pagination
+
+The `artwork_list_page` security-invoker RPC filters, groups, counts and sorts
+before returning at most 20 rows per table. Existing priority, draft, market,
+auction, Bought and Archived groups remain separate. **Load more** requests
+only the next 20 rows of its table; it does not download every artwork first.
+Counts and artist/contact filter options cover all accessible results, not
+only loaded pages. Artist/proposer labels and staff recipient summaries are
+included in the response, avoiding follow-up artist/contact queries.
+
+Search and filter changes request fresh server results (debounced by 200 ms
+after the first load); sort changes reset that table to its first page.
+Filters reset loaded page counts while preserving sort choices.
+Server ordering uses date and artwork ID tie-breakers and French-Swiss ICU
+collation for case-insensitive text sorting. Unrated quality values sort last.
+The global client filter includes proposed clients and the buyer; a fixed
+recipient is also enforced on the server. Viewers receive no recipient labels.
+Inline edits refresh page counts and group membership from the server.
+
+Deploy `20261025190000_add_lightweight_artwork_lists.sql` and
+`20261025193000_add_paginated_artwork_lists.sql` before the list UI.
+Use `tests\db\artwork-lists.sql` and `tests\db\paginated-artwork-lists.sql`
+for rollback-only projection, page-size, global-sort/filter and access checks.
+
+### Temporary navigation cache
+
+Artwork index pages (Active, Bought/Collections, Archived and All) share a
+60-second, in-memory data cache, bounded to 20 entries. Keys include user ID,
+role, selected client, forced status, fixed recipient, filters, sorts and loaded
+page counts. A recent list appears
+immediately on return while the current user's queries refresh it in the
+background. Expired entries require a fresh load. The cache stores neither
+files nor form drafts and does not persist to localStorage, disk or a shared
+server cache. Other pages are not yet opted in.
+
+Returning focus to the tab, returning to a visible tab, reconnecting and the
+**Refresh** button revalidate the list. Refresh failures show an explicit error
+rather than leaving cached data presented as current.
+
+The session provider clears all temporary caches on auth events, explicit
+session refresh and unmount. Successful browser mutations to same-origin API
+routes or Supabase REST/Storage endpoints also clear the caches and revalidate
+mounted lists. The read-only `artwork_comment_clients` and `artwork_list_page`
+RPCs are excluded so reads do not invalidate navigation data. Requests started before an
+invalidation cannot repopulate the cache or overwrite a newer list.
+
+Changes from another browser/user are picked up on the next revalidation, not
+through live push. A cached list can briefly reflect former permissions until
+that request finishes; every network query and file access still enforces RLS.
+This is not a replacement for server-side access checks or a guarantee of
+instant remote permission revocation.
+
+### Returning to artwork lists
+
+Active, Bought/Collections, Archived and All preserve the navigation context
+when an artwork is opened and the browser Back button returns to the list.
+Artist, proposer, recipient, search and date filters are kept in URL query
+parameters. Updating filters replaces the current history entry without a page
+reload and preserves unrelated query parameters. **Reset filters** removes the
+filter parameters.
+
+Each table's selected sort/direction and loaded page count, together
+with the page scroll position, are saved in that browser history entry.
+These settings are scoped by user, role, selected global client and list type;
+they contain no artwork records. Returning to the entry restores expanded rows
+and sorting, then scrolls after the data refresh has finished. If the underlying
+list has changed, the browser may clamp the old position to the new page height.
+Previously loaded pages are fetched in batches of 20 before scroll restoration,
+with at most four table-restoration sequences running concurrently.
+Filter URLs can be bookmarked/shared; table expansion, sorting and scroll are
+specific to the history entry, not a shared URL or a cross-device preference.
+This navigation state is independent of the 60-second data-cache lifetime.
+
+## Multiple artwork documents
+
+In an artwork's edit view, the Documents section accepts multiple files through
+the file picker or drag and drop. Further selections append to the upload list.
+Each file has an editable label, initially its original filename. Empty labels
+also use the filename. URL documents remain available through **Add link**.
+The file uploader appears first, followed by **Add URL link** and then
+**Organize links** when documents exist. Thick dividers separate these workflows.
+Category and Visibility share a wrapping row, below the drop zone for uploads.
+In **Organize links**, select documents to change their category or apply
+**All artwork clients**, **Internal only**, or **Selected client** visibility.
+Visibility changes save immediately and do not change categories. If some updates
+fail, confirmed changes remain saved and only failed documents stay selected for retry.
+
+Use **Upload files** to save the files immediately to the existing artwork
+folder in SharePoint, independently of the artwork's **Save** action.
+Uploads run sequentially to preserve order and limit server memory usage,
+with a per-file status and an overall completed-file count. The existing
+100 MB per-file limit applies; empty and oversized files are shown as errors.
+Other valid files can still upload. Failed uploads retain their labels and can
+be retried without re-uploading confirmed successes. **Clear list** only clears
+the upload list; it does not delete uploaded documents.
+
+Keep the page open during transfer. Save, Cancel and artwork deletion are
+disabled while uploads run, and closing/reloading the tab warns about unfinished
+files. Selected files are not restored after leaving or reloading the page.
+Existing authentication, roles and SharePoint storage permissions are unchanged.
+
+### Document visibility
+
+Existing artwork documents and new uploads/links default to **All artwork
+clients**. This means clients who already have access to the artwork, not all
+ArtMuse clients. Editors and Administrators can instead choose **Internal
+only** or **Selected client** (one proposed client or the artwork buyer).
+All invited, active Viewer accounts belonging to that selected client share
+the access; it is not restricted to one individual user. Artwork access must
+also remain valid, and removing the client's proposal revokes access unless
+the client remains an eligible buyer with artwork access.
+
+The upload batch selector applies to remaining files and later selections;
+individual files can override it before upload. Existing documents have a
+**Save visibility** action, saved independently of the artwork's **Save**.
+New URL links have their own visibility selector. Gallery images and Market
+documents retain their existing default visibility.
+
+Deploy `20261025173000_add_document_visibility.sql` before the updated UI/API.
+It defaults every existing document to `all_clients` and adds recipient
+validation and database-enforced read isolation. Security-invoker artwork
+views, document lists and authenticated file opening/downloading all apply
+the same RLS rules. Historic document change-log entries are staff-only so
+old labels and URLs cannot reveal files later made confidential.
+Client options reuse the existing `artwork_comment_clients` RPC.
+
+ArtMuse restrictions do not revoke pre-existing external/SharePoint links,
+Microsoft 365 permissions or downloaded copies. Manage those permissions in
+SharePoint separately; use authenticated ArtMuse links for restricted files.
+Creating new direct SharePoint share links through ArtMuse is blocked for
+restricted documents. Restricting an external URL hides it in ArtMuse, but
+cannot protect that external service independently.
+
+### Link categories
+
+On the artwork factsheet, each link includes a file-format icon (PDF, JPG,
+TIF, PNG and other recognized formats), using stored MIME type, filename or
+the link path. Unknown formats show a generic link icon. SharePoint files
+have a **Download** action using the existing authenticated document endpoint,
+with the same visibility/RLS checks as opening the file. External links show
+**Open source** instead: downloading depends on the external provider and
+its permissions. Download/source actions are hidden on paper prints.
+
+Compact neutral-gray file-format badges appear after each link title, followed
+immediately by an arrow-only download/source action with an accessible label
+and tooltip. Link rows use normal, compact line spacing.
+The **Download by category** controls appear below all link categories and
+let users select General, Images and/or Exhibitions & Literature, then download
+their accessible SharePoint files in a single ZIP. The archive contains a
+folder per selected category and preserves original filenames, adding numeric
+suffixes for duplicate names. External links are excluded and their count is
+shown before download; use **Open source** for those resources. The main image
+gallery is not included.
+
+The ZIP endpoint uses the authenticated user's session and document RLS,
+paginates the file list, and streams files sequentially without loading the
+whole archive into server memory. A failed file aborts the download instead of
+silently returning a successful but incomplete archive. Keep the download open
+until it completes. No new database migration is needed.
+
+On the artwork factsheet, clicking a main-gallery photo or a recognized image
+file in the Images link category opens a modal album. Each section has its own
+album, in the displayed order. Use Previous/Next, left/right arrow keys or a
+horizontal swipe to browse; Close or Escape returns to the factsheet.
+The viewer restores keyboard focus and page scrolling on close. Downloads keep
+using the authenticated document endpoints. Formats the browser cannot display
+(such as some TIFF/HEIC files) show an explicit message and retain a download or
+original-file action. PDFs and external image-folder links open normally.
+
+On a single artwork factsheet, priority, rating, status and Print/Edit controls
+remain in a floating toolbar while scrolling. The toolbar tracks the navigation
+header height (including the mobile client selector) and wraps on narrow screens.
+Paper printing and multi-artwork factsheets retain their normal in-flow controls.
+
+Artwork links are organized into three collapsible groups: **General**,
+**Images**, and **Exhibitions & Literature**, with visible-document counts.
+These are logical groups, not SharePoint folders; no files are moved or renamed.
+Categories describe the content, not its format: catalogue scans can belong to
+Exhibitions & Literature even when they are JPGs. The main artwork image gallery
+is separate and unchanged.
+
+New links and uploaded files default to General. Choose a category for a batch,
+override it per file, or change an existing link's category in edit mode.
+Use the checkboxes and **Move selected links** to reclassify several links.
+Successful moves appear immediately; any failed moves remain selected for retry.
+Category changes save immediately and do not change visibility or recipients.
+The factsheet displays one link per line in its category. Empty groups are hidden.
+Existing document ordering is retained within groups; drag sorting stays within
+the same category.
+
+Apply `20261025180000_add_document_link_categories.sql` before deploying this UI.
+All existing documents receive General; no category is inferred automatically,
+including for existing publication scans. The viewer projection and artwork
+aggregate views preserve RLS, so counts include only accessible documents.
+
 ## Documents on iPhone
 
 External links and documents request a separate tab; internal ArtMuse navigation

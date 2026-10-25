@@ -5,8 +5,9 @@ import React, { useMemo, useState } from 'react'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
-import { privateImageUrl } from '@/lib/privateImageUrl'
+import ArtworkThumbnail from './ArtworkThumbnail'
 import { QualitySelect } from './ArtworkQuality'
+import type { ArtworkTableState } from './useArtworkListNavigation'
 import {
   formatAsking,
   formatCost,
@@ -27,10 +28,13 @@ import {
   type ArtworkListMode,
   type ArtworkListSection,
   type ArtworkSortKey,
-  type SortDirection,
 } from './artworkListHelpers'
 
 type ArtworkListProps = {
+  pagination?: { total: number; loading: boolean; onLoadMore: () => void }
+  tableState?: ArtworkTableState
+  onTableStateChange?: (state: ArtworkTableState) => void
+  onOpenArtwork?: () => void
   artworks: ArtworkListItem[]
   mode?: ArtworkListMode
   /** active vs archived (utile surtout pour auctions: sold_premium + tri par défaut) */
@@ -113,6 +117,10 @@ export default function ArtworkList({
   statusOptions = [],
   savingInlineKey = null,
   onUpdateArtworkField,
+  tableState,
+  onTableStateChange,
+  onOpenArtwork,
+  pagination,
   
 }: ArtworkListProps) {
   const router = useRouter()
@@ -126,8 +134,15 @@ const isActiveProposal = section === 'active' && mode !== 'bought'
 const inlineStatusFields = isActiveProposal || mode === 'bought'
 const canSeeProposedTo = normalizedRole === 'administrator' || normalizedRole === 'editor'
 
-const [sortKey, setSortKey] = useState<ArtworkSortKey | null>(null)
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+const [localTableState, setLocalTableState] = useState<ArtworkTableState>({
+  sortKey: null, sortDirection: 'asc', showAll: false,
+})
+const { sortKey, sortDirection, showAll } = tableState ?? localTableState
+function updateTableState(change: Partial<ArtworkTableState>) {
+  const next = { ...(tableState ?? localTableState), ...change }
+  setLocalTableState(next)
+  onTableStateChange?.(next)
+}
 
 const proposedToHeader = canSeeProposedTo ? (
   <div
@@ -147,36 +162,21 @@ const proposedToHeader = canSeeProposedTo ? (
 
 
   const PREVIEW_COUNT = 5
-  const [showAll, setShowAll] = useState(false)
 
   const defaultSort = useMemo(() => getDefaultSort(mode, section), [mode, section])
 
 function handleSort(columnKey: ArtworkSortKey) {
-  // 1) Si on reclique sur la même colonne : toggle asc/desc
-  if (sortKey === columnKey) {
-    setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    return
-  }
-
-  // 2) Nouveau tri : choisir une direction "par défaut" selon la colonne
-  setSortKey(columnKey)
-
-  // ✅ Priority : High d'abord au premier clic
-  if (columnKey === 'priority') {
-    setSortDirection('desc')
-    return
-  }
-
-  // (Optionnel) Status : A→Z par défaut
-  // if (columnKey === 'status') { setSortDirection('asc'); return }
-
-  // (Optionnel) Prix : plus petit d'abord par défaut (garde 'asc')
-  setSortDirection('asc')
+  updateTableState({
+    sortKey: columnKey,
+    sortDirection: sortKey === columnKey
+      ? sortDirection === 'asc' ? 'desc' : 'asc'
+      : columnKey === 'priority' ? 'desc' : 'asc',
+  })
 }
 
 
-  const sortedArtworks = sortArtworkItems(artworks, mode, defaultSort, sortKey, sortDirection)
-  const displayedArtworks = showAll ? sortedArtworks : sortedArtworks.slice(0, PREVIEW_COUNT)
+  const sortedArtworks = pagination ? artworks : sortArtworkItems(artworks, mode, defaultSort, sortKey, sortDirection)
+  const displayedArtworks = pagination || showAll ? sortedArtworks : sortedArtworks.slice(0, PREVIEW_COUNT)
 
   const dateHeaderLabel =
     mode === 'bought' ? 'Acquisition date' : mode === 'auction' ? 'Sale date' : 'Date proposed'
@@ -452,7 +452,10 @@ const proposedToText = getProposedToText(a)
             return (
               <tr
                 key={a.id}
-                onClick={() => router.push(`/artworks/print/${a.id}`)}
+                onClick={() => {
+                  onOpenArtwork?.()
+                  router.push(`/artworks/print/${a.id}`)
+                }}
                 style={{ cursor: 'pointer', transition: 'background-color 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f5f5f5')}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}
@@ -461,18 +464,7 @@ const proposedToText = getProposedToText(a)
 
 <td style={{ ...td, width: 80 }}>
   {mainImage?.url ? (
-      <img
-        src={privateImageUrl(mainImage.url)}
-        alt=""
-        style={{
-          width: 80,
-          height: 70,
-          objectFit: 'cover',
-          borderRadius: 4,
-          display: 'block',
-        }}
-        loading="lazy"
-      />
+      <ArtworkThumbnail key={mainImage.url} url={mainImage.url} />
     ) : (
       <div
         style={{
@@ -666,7 +658,18 @@ const proposedToText = getProposedToText(a)
         </tbody>
       </table>
 
-      {artworks.length > PREVIEW_COUNT && (
+      {pagination && (
+        <div style={{ padding: '10px 12px', borderTop: '1px solid #eee' }}>
+          <span>{artworks.length} of {pagination.total} artworks</span>
+          {artworks.length < pagination.total && (
+            <button type="button" style={{ ...showMoreButtonStyle, marginLeft: 12 }}
+              disabled={pagination.loading} onClick={pagination.onLoadMore}>
+              {pagination.loading ? 'Loading...' : 'Load more'}
+            </button>
+          )}
+        </div>
+      )}
+      {!pagination && artworks.length > PREVIEW_COUNT && (
         <div
           style={{
             padding: '10px 12px',
@@ -675,7 +678,7 @@ const proposedToText = getProposedToText(a)
         >
           <button
             type="button"
-            onClick={() => setShowAll(v => !v)}
+            onClick={() => updateTableState({ showAll: !showAll })}
             style={showMoreButtonStyle}
           >
             {showAll ? 'Show less' : `Show ${artworks.length - PREVIEW_COUNT} more`}

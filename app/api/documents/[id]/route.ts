@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole } from '@/lib/apiAuth'
 import { deleteDocument } from '@/lib/sharepoint'
+import { scheduleThumbnailCleanup } from '@/lib/scheduleThumbnailCleanup'
 
 export async function DELETE(
   req: Request,
@@ -30,5 +31,6 @@ export async function DELETE(
   const { error } = await authorization.supabase.from('documents').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
+  scheduleThumbnailCleanup()
   return NextResponse.json({ success: true })
 }
