@@ -300,6 +300,8 @@ export default function CommissionsPage() {
   const correctionTables = useRef<Partial<Record<Company, HTMLTableElement>>>({})
   const commissionsTable = useRef<HTMLTableElement>(null)
   const [printingCommissions, setPrintingCommissions] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   async function printCommissions(calendarYear: string) {
     if (!commissionsTable.current) return
@@ -335,9 +337,40 @@ export default function CommissionsPage() {
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
+    let timeout: ReturnType<typeof setTimeout>
 
     async function load() {
-      const response = await fetchWithAuth('/api/commissions')
+      setLoading(true)
+      setLoadFailed(false)
+      setError('')
+      try {
+        await Promise.race([
+          loadData(),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => {
+              reject(new Error('Loading commissions timed out. Please try again.'))
+              controller.abort()
+            }, 30_000)
+          }),
+        ])
+      } catch (loadError) {
+        if (cancelled) return
+        console.error('LOAD COMMISSIONS ERROR:', loadError)
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load commissions.')
+        setLoadFailed(true)
+      } finally {
+        clearTimeout(timeout)
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    async function loadData() {
+      const response = await fetchWithAuth('/api/commissions', { signal: controller.signal })
+      if (cancelled || controller.signal.aborted) return
+      if (!response.headers.get('content-type')?.includes('application/json')) {
+        throw new Error(`Unable to load commissions: the server returned an unexpected response (HTTP ${response.status}).`)
+      }
       const payload = (await response.json()) as {
         artworks?: Artwork[]
         fxRates?: FxRate[]
@@ -346,11 +379,16 @@ export default function CommissionsPage() {
         correctionInvoices?: CorrectionInvoice[]
         error?: string
       }
-      if (cancelled) return
+      if (cancelled || controller.signal.aborted) return
 
       if (!response.ok) {
-        setError(payload.error ?? 'Unable to load commissions.')
+        throw new Error(payload.error ?? `Unable to load commissions (HTTP ${response.status}).`)
       } else {
+        if (!payload || !Array.isArray(payload.artworks) || !Array.isArray(payload.fxRates) ||
+            !Array.isArray(payload.commissionRates) || !Array.isArray(payload.invoices) ||
+            !Array.isArray(payload.correctionInvoices)) {
+          throw new Error('Unable to load commissions: the server returned invalid commission data.')
+        }
         setArtworks(payload.artworks ?? [])
         setFxRates(payload.fxRates ?? [])
         setExceptionalRates(
@@ -375,14 +413,15 @@ export default function CommissionsPage() {
           )
         )
       }
-      setLoading(false)
     }
 
     void load()
     return () => {
       cancelled = true
+      clearTimeout(timeout)
+      controller.abort()
     }
-  }, [])
+  }, [loadAttempt])
 
   const years = useMemo(
     () =>
@@ -978,7 +1017,12 @@ export default function CommissionsPage() {
         </div>
       </div>
 
-      {error && <p className="rounded border border-red-300 bg-red-50 p-3 text-red-800">{error}</p>}
+      {error && <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-red-800">{error}</p>}
+      {loadFailed && (
+        <button className="edit-button" type="button" onClick={() => setLoadAttempt(previous => previous + 1)}>
+          Retry loading commissions
+        </button>
+      )}
       {displayedCorrections.length > 0 && (
         <section className="rounded border border-amber-300 bg-amber-50 p-4">
           <h2 className="font-semibold">Commission corrections to invoice</h2>
@@ -1177,7 +1221,7 @@ export default function CommissionsPage() {
       )}
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
-      ) : (
+      ) : loadFailed ? null : (
         <div className="overflow-x-auto rounded border">
           <table className="w-full border-collapse text-sm" ref={commissionsTable}>
             <thead className="bg-gray-50 text-left">

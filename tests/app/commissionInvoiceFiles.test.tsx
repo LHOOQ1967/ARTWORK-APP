@@ -85,6 +85,41 @@ describe('commission invoice file input', () => {
     container.remove()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it.each([
+    ['a network failure', () => Promise.reject(new Error('Network unavailable')), 'Network unavailable'],
+    ['an HTML error page', () => Promise.resolve(new Response('<html>Server error</html>', {
+      status: 502, headers: { 'Content-Type': 'text/html' },
+    })), 'HTTP 502'],
+    ['an API error', () => Promise.resolve(Response.json({ error: 'Database unavailable' }, { status: 500 })), 'Database unavailable'],
+    ['invalid data', () => Promise.resolve(Response.json({})), 'invalid commission data'],
+  ])('stops loading and offers retry after %s', async (_label, response, message) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.fetchWithAuth.mockImplementationOnce(response).mockResolvedValueOnce(loadResponse())
+    await act(async () => root.render(<CommissionsPage />))
+    expect(container.textContent).not.toContain('Loading…')
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(message)
+    await clickButton('Retry loading commissions')
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(container.textContent).toContain('Artwork')
+    expect(mocks.fetchWithAuth).toHaveBeenCalledTimes(2)
+  })
+
+  it('times out even if authentication never resolves, then permits a retry', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.fetchWithAuth.mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValueOnce(loadResponse())
+    await act(async () => root.render(<CommissionsPage />))
+    expect(container.textContent).toContain('Loading…')
+    await act(async () => vi.advanceTimersByTimeAsync(30_000))
+    expect(container.textContent).not.toContain('Loading…')
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('timed out')
+    expect(mocks.fetchWithAuth.mock.calls[0][1].signal.aborted).toBe(true)
+    await clickButton('Retry loading commissions')
+    expect(container.textContent).toContain('Artwork')
   })
 
   it('renders a compact single-line Add file invoice button and a single-file picker', async () => {

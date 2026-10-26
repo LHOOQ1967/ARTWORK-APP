@@ -45,6 +45,12 @@ npm ci
 npm run dev
 ```
 
+## Production build
+
+Run `npm run build:prod` on Windows or Linux to build with webpack and a
+1024 MB Node.js heap limit. The script passes the memory option directly
+to Node.js without shell-specific environment-variable syntax.
+
 ## Roles
 
 | Role | Access |
@@ -56,6 +62,11 @@ npm run dev
 Authorization is enforced in API route handlers. Supabase Row Level Security must remain enabled as a second layer of protection.
 
 ## Commission invoice files
+
+Commission loading failures are shown with a Retry loading commissions
+button rather than leaving the page on Loading. Requests, including session
+lookup, time out after 30 seconds. Unexpected HTML responses report the HTTP
+status so production proxy errors can be distinguished from API errors.
 
 On Commissions, choose an invoice date, select or drop **one file**, then click
 **Save**. This applies to artwork invoices and annual correction invoices.
