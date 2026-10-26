@@ -16,8 +16,8 @@ export async function GET(request: Request) {
   const code = url.searchParams.get('code')
   const next = getSafeNextPath(url.searchParams.get('next'))
 
-  // ✅ reconstruire l’origin public derrière reverse proxy
-  const proto = request.headers.get('x-forwarded-proto') ?? 'https'
+  // Preserve HTTP locally while honoring the public origin behind a reverse proxy.
+  const proto = request.headers.get('x-forwarded-proto') ?? url.protocol.slice(0, -1)
   const host =
     request.headers.get('x-forwarded-host') ??
     request.headers.get('host') ??
@@ -32,12 +32,11 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: name => cookieStore.get(name)?.value,
-        set: (name, value, options) => {
-          cookieStore.set({ name, value, ...options })
-        },
-        remove: (name, options) => {
-          cookieStore.set({ name, value: '', ...options, maxAge: 0 })
+        getAll: () => cookieStore.getAll(),
+        setAll: cookiesToSet => {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set({ name, value, ...options })
+          })
         },
       },
     }

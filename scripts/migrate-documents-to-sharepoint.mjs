@@ -2,6 +2,7 @@
 // Usage: node --env-file=.env.local scripts/migrate-documents-to-sharepoint.mjs [--apply] [--limit N] [--artist text] [--market] [--recover]
 // --market: migrate Market documents into Markets/<section>. --recover: search by file name when a link no longer resolves.
 import { mkdirSync, appendFileSync } from 'node:fs'
+import { migrateCommissionInvoices } from './migrate-commission-invoices.mjs'
 
 const e = process.env
 const args = process.argv.slice(2)
@@ -14,6 +15,8 @@ const LIMIT = argValue('--limit') ? Number(argValue('--limit')) : Infinity
 const ARTIST = argValue('--artist')?.toLowerCase()
 const MARKET = args.includes('--market')
 const RECOVER = args.includes('--recover')
+const COMMISSIONS = args.includes('--commissions')
+if (COMMISSIONS && (MARKET || ARTIST)) throw new Error('--commissions cannot be combined with --market or --artist')
 
 for (const k of [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -264,6 +267,12 @@ function buildFolder(d) {
   return `Artistes/${sanitize(artistName, 'Artiste inconnu')}/${sanitize(d.artworks?.title, 'Sans titre')} (${d.artwork_id.slice(0, 8)})`
 }
 
+if (COMMISSIONS) {
+  await migrateCommissionInvoices({
+    apply: APPLY, limit: LIMIT, sb, gfetch, getSource, upload,
+    buildFolder, logFile, csv,
+  })
+} else {
 const select = MARKET
   ? 'select=id,market_section_item_id,label,url,legacy_url,market_section_items!documents_market_section_item_id_fkey(label,market_sections(title))'
   : 'select=id,artwork_id,label,url,legacy_url,artworks!documents_artwork_id_fkey(title,artists(first_name,last_name))'
@@ -340,3 +349,4 @@ for (const d of candidates) {
 }
 
 console.log(`Done: ${stats.ok} ok, ${stats.skipped} skipped, ${stats.failed} failed. Log: ${logFile}`)
+}

@@ -3,10 +3,13 @@
 import { formatArtworkYears } from '@/lib/artworkYears'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { printCommissionCorrections } from '@/lib/printCommissionCorrections'
 import * as XLSX from 'xlsx-js-style'
 import { fetchWithAuth } from '@/lib/fetchWithAuth'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
+import CommissionInvoiceFileInput from '@/components/CommissionInvoiceFileInput'
 
 const THRESHOLD_USD = 5_000_000
 const STANDARD_RATE = 0.08
@@ -81,6 +84,8 @@ type CommissionRow = Artwork & {
   invoicedAt: string | null
   invoiceUrl: string | null
   isCorrectionApplied?: boolean
+  originalCommission?: number | null
+  originalCommissionUsd?: number | null
 }
 
 function normalize(value: string | null | undefined) {
@@ -169,7 +174,7 @@ function exportWorkbook(rows: CommissionRow[], year: string, company: Company | 
     [],
     [
       'Purchase date',
-      'Company',
+      'Buyer',
       'Artist',
       'Title',
       'Medium',
@@ -285,12 +290,48 @@ export default function CommissionsPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [savingInvoiceId, setSavingInvoiceId] = useState<string | null>(null)
   const [draftInvoiceDates, setDraftInvoiceDates] = useState<Record<string, string>>({})
-  const [draftInvoiceUrls, setDraftInvoiceUrls] = useState<Record<string, string>>({})
+  const [draftInvoiceFiles, setDraftInvoiceFiles] = useState<Record<string, File | undefined>>({})
   const [draftCorrectionDates, setDraftCorrectionDates] = useState<Record<string, string>>({})
-  const [draftCorrectionUrls, setDraftCorrectionUrls] = useState<Record<string, string>>({})
+  const [draftCorrectionFiles, setDraftCorrectionFiles] = useState<Record<string, File | undefined>>({})
   const [shownCorrectionCompanies, setShownCorrectionCompanies] = useState<Company[]>([])
   const [draftFxRates, setDraftFxRates] = useState<Record<string, string>>({})
   const [error, setError] = useState('')
+  const [printingCorrectionCompany, setPrintingCorrectionCompany] = useState<Company | null>(null)
+  const correctionTables = useRef<Partial<Record<Company, HTMLTableElement>>>({})
+  const commissionsTable = useRef<HTMLTableElement>(null)
+  const [printingCommissions, setPrintingCommissions] = useState(false)
+
+  async function printCommissions(calendarYear: string) {
+    if (!commissionsTable.current) return
+    setPrintingCommissions(true)
+    try {
+      await printCommissionCorrections(
+        commissionsTable.current,
+        `Commissions — ${company === 'Toutes' ? 'All companies' : company} — ${calendarYear}`,
+        true
+      )
+    } catch (printError) {
+      setError(printError instanceof Error ? printError.message : 'Unable to print commissions.')
+    } finally {
+      setPrintingCommissions(false)
+    }
+  }
+
+  async function printCorrections(correctionCompany: Company, calendarYear: string) {
+    flushSync(() => setPrintingCorrectionCompany(correctionCompany))
+    try {
+      const table = correctionTables.current[correctionCompany]
+      if (!table) throw new Error('Unable to find the correction table to print.')
+      await printCommissionCorrections(
+        table,
+        `Correction commissions — ${correctionCompany === 'Florac' ? 'Florac Works' : correctionCompany} — ${calendarYear}`
+      )
+    } catch (printError) {
+      setError(printError instanceof Error ? printError.message : 'Unable to print commission corrections.')
+    } finally {
+      setPrintingCorrectionCompany(null)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -586,6 +627,8 @@ export default function CommissionsPage() {
         return {
           ...row,
           appliedRate: REDUCED_RATE,
+          originalCommission: row.commission,
+          originalCommissionUsd: row.commissionUsd,
           commission: row.commissionBase * REDUCED_RATE,
           commissionUsd:
             row.commissionBaseUsd === null
@@ -723,12 +766,16 @@ export default function CommissionsPage() {
   }
 
   async function saveArtworkInvoice(artworkId: string, commissionAmount: number | null) {
+    if (savingInvoiceId) return
     const hasDraftDate = Object.hasOwn(draftInvoiceDates, artworkId)
     const invoicedAt = hasDraftDate
       ? draftInvoiceDates[artworkId]
       : invoices[artworkId]?.invoiced_at
     if (!invoicedAt) {
-      if (!invoices[artworkId]) return
+      if (draftInvoiceFiles[artworkId] || !invoices[artworkId]) {
+        setError('Choose an invoice date before saving an invoice file.')
+        return
+      }
 
       setError('')
       setSavingInvoiceId(artworkId)
@@ -752,7 +799,7 @@ export default function CommissionsPage() {
           delete next[artworkId]
           return next
         })
-        setDraftInvoiceUrls((previous) => {
+        setDraftInvoiceFiles((previous) => {
           const next = { ...previous }
           delete next[artworkId]
           return next
@@ -768,15 +815,22 @@ export default function CommissionsPage() {
       setError('The commission cannot be calculated without a commission base and exchange rate.')
       return
     }
-    const invoiceUrl = draftInvoiceUrls[artworkId] ?? invoices[artworkId]?.invoice_url ?? ''
+    const invoiceUrl = invoices[artworkId]?.invoice_url ?? ''
+    const file = draftInvoiceFiles[artworkId]
+    const invoice = { kind: 'artwork', artworkId, invoicedAt, invoiceUrl, commissionAmount }
+    const form = new FormData()
+    if (file) {
+      form.append('file', file)
+      form.append('invoice', JSON.stringify(invoice))
+    }
 
     setError('')
     setSavingInvoiceId(artworkId)
     try {
       const response = await fetchWithAuth('/api/commissions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'artwork', artworkId, invoicedAt, invoiceUrl, commissionAmount }),
+        headers: file ? undefined : { 'Content-Type': 'application/json' },
+        body: file ? form : JSON.stringify(invoice),
       })
       const payload = (await response.json()) as { error?: string; invoice?: Invoice }
       if (!response.ok || !payload.invoice) {
@@ -791,7 +845,7 @@ export default function CommissionsPage() {
         delete next[artworkId]
         return next
       })
-      setDraftInvoiceUrls((previous) => {
+      setDraftInvoiceFiles((previous) => {
         const next = { ...previous }
         delete next[artworkId]
         return next
@@ -808,28 +862,36 @@ export default function CommissionsPage() {
     key: string,
     correctionRows: CommissionRow[]
   ) {
+    if (savingInvoiceId) return
     const invoicedAt =
       draftCorrectionDates[key] ?? correctionInvoices[key]?.invoiced_at
     if (!invoicedAt) return
-    const invoiceUrl =
-      draftCorrectionUrls[key] ?? correctionInvoices[key]?.invoice_url ?? ''
+    const invoiceUrl = correctionInvoices[key]?.invoice_url ?? ''
+    const file = draftCorrectionFiles[key]
+    const invoice = {
+      kind: 'correction',
+      calendarYear: Number(selectedYear),
+      company: correctionCompany,
+      invoicedAt,
+      invoiceUrl,
+      artworkCommissions: correctionRows.map((row) => ({
+        artworkId: row.id,
+        commissionAmount: row.commissionBase! * REDUCED_RATE,
+      })),
+    }
+    const form = new FormData()
+    if (file) {
+      form.append('file', file)
+      form.append('invoice', JSON.stringify(invoice))
+    }
 
     setError('')
+    setSavingInvoiceId(key)
     try {
       const response = await fetchWithAuth('/api/commissions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'correction',
-          calendarYear: Number(selectedYear),
-          company: correctionCompany,
-          invoicedAt,
-          invoiceUrl,
-          artworkCommissions: correctionRows.map((row) => ({
-            artworkId: row.id,
-            commissionAmount: row.commissionBase! * REDUCED_RATE,
-          })),
-        }),
+        headers: file ? undefined : { 'Content-Type': 'application/json' },
+        body: file ? form : JSON.stringify(invoice),
       })
       const payload = (await response.json()) as {
         error?: string
@@ -848,13 +910,15 @@ export default function CommissionsPage() {
         delete next[key]
         return next
       })
-      setDraftCorrectionUrls((previous) => {
+      setDraftCorrectionFiles((previous) => {
         const next = { ...previous }
         delete next[key]
         return next
       })
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save.')
+    } finally {
+      setSavingInvoiceId(null)
     }
   }
 
@@ -908,8 +972,8 @@ export default function CommissionsPage() {
           <button className="edit-button" type="button" onClick={() => exportWorkbook(rows, selectedYear, company)}>
             Export to Excel
           </button>
-          <button className="edit-button" type="button" onClick={() => window.print()}>
-            Print
+          <button className="edit-button" type="button" disabled={loading || printingCommissions} onClick={() => void printCommissions(selectedYear)}>
+            {printingCommissions ? 'Preparing print...' : 'Print'}
           </button>
         </div>
       </div>
@@ -925,11 +989,33 @@ export default function CommissionsPage() {
             {displayedCorrections.map((correction) => {
               const dateValue =
                 draftCorrectionDates[correction.key] ?? correction.invoicedAt ?? ''
-              const invoiceUrl = draftCorrectionUrls[correction.key] ?? correction.invoiceUrl ?? ''
               const correctionRows = correctionRowsForCompany(correction.company)
+              const correctionUsdTotal = correctionRows.reduce(
+                (total, row) => total - row.commissionBaseUsd! * 0.01,
+                0
+              )
+              const newCommissionUsdTotal = correctionRows.reduce(
+                (total, row) => total + row.commissionBaseUsd! * REDUCED_RATE,
+                0
+              )
+              const originalCommissionUsdTotal = correctionRows.reduce(
+                (total, row) => total + row.commissionBaseUsd! * STANDARD_RATE,
+                0
+              )
               const showsCorrectionRows = shownCorrectionCompanies.includes(correction.company)
               return (
-                <div key={correction.key} className="rounded border border-amber-200 bg-white p-3">
+                <div
+                  key={correction.key}
+                  className="rounded border border-amber-200 bg-white p-3"
+                >
+                  <button
+                    className="edit-button no-print mb-3"
+                    type="button"
+                    disabled={correctionRows.length === 0 || savingInvoiceId !== null || printingCorrectionCompany !== null}
+                    onClick={() => void printCorrections(correction.company, selectedYear)}
+                  >
+                    Print {correction.company}
+                  </button>
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="min-w-48">
                       <p className="font-medium">{correction.company}</p>
@@ -940,6 +1026,7 @@ export default function CommissionsPage() {
                       <input
                         className="rounded border px-2 py-1"
                         type="date"
+                        disabled={savingInvoiceId !== null}
                         value={dateValue}
                         onChange={(event) =>
                           setDraftCorrectionDates((previous) => ({
@@ -949,36 +1036,29 @@ export default function CommissionsPage() {
                         }
                       />
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      PDF OneDrive
-                      <input
-                        aria-label={`Correction PDF link for ${correction.company}`}
-                        className="w-56 rounded border px-2 py-1"
-                        type="url"
-                        placeholder="https://..."
-                        value={invoiceUrl}
-                        onChange={(event) =>
-                          setDraftCorrectionUrls((previous) => ({
-                            ...previous,
-                            [correction.key]: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
+                    <CommissionInvoiceFileInput
+                      label={`Correction invoice file for ${correction.company}`}
+                      file={draftCorrectionFiles[correction.key]}
+                      disabled={savingInvoiceId !== null}
+                      onChange={file => setDraftCorrectionFiles(previous => ({
+                        ...previous, [correction.key]: file,
+                      }))}
+                    />
                     {correction.invoiceUrl && (
                       <a
                         className="text-sm font-medium text-blue-700 underline"
+                        data-print-exclude
                         href={correction.invoiceUrl}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        PDF
+                        Open invoice
                       </a>
                     )}
                     <button
                       className="edit-button"
                       type="button"
-                      disabled={!dateValue}
+                      disabled={!dateValue || savingInvoiceId !== null}
                       onClick={() =>
                         void saveCorrectionInvoice(
                           correction.company,
@@ -987,7 +1067,7 @@ export default function CommissionsPage() {
                         )
                       }
                     >
-                      Save
+                      {savingInvoiceId === correction.key ? 'Saving...' : 'Save'}
                     </button>
                     <button
                       className="edit-button"
@@ -1016,22 +1096,32 @@ export default function CommissionsPage() {
                       </button>
                     )}
                   </div>
-                  {showsCorrectionRows && (
-                    <div className="mt-3 overflow-x-auto border-t pt-3">
-                      <table className="w-full text-sm">
+                  {(showsCorrectionRows || printingCorrectionCompany === correction.company) && (
+                    <div className={`${showsCorrectionRows ? '' : 'hidden '}mt-3 overflow-x-auto border-t pt-3 correction-details`}>
+                      <table
+                        className="w-full text-sm"
+                        ref={table => {
+                          if (table) correctionTables.current[correction.company] = table
+                          else delete correctionTables.current[correction.company]
+                        }}
+                      >
                         <thead className="text-left">
                           <tr>
+                            <th className="pb-2 pr-3 text-left">Purchase date</th>
                             <th className="pb-2 pr-3">Artist</th>
                             <th className="pb-2 pr-3">Title</th>
-                            <th className="pb-2 text-right">Correction −1 % (currency)</th>
+                            <th className="pb-2 text-right">Rate</th>
+                            <th className="pb-2 text-right">Commissions (currency)</th>
+                            <th className="pb-2 text-right">Commissions USD</th>
                             <th className="pb-2 text-right">Correction −1 % USD</th>
-                            <th className="pb-2 text-right">New commission 7 % (currency)</th>
-                            <th className="pb-2 text-right">New commission 7 % USD</th>
                           </tr>
                         </thead>
                         <tbody>
                           {correctionRows.map((row) => (
                             <tr key={row.id} className="border-t">
+                              <td className="py-2 pr-3 text-left whitespace-nowrap">
+                                {formatDate(row.date_acquisition)}
+                              </td>
                               <td className="py-2 pr-3 font-medium">
                                 {artistLabel(row) ? (
                                   <Link className="underline" href={`/artworks/print/${row.id}`}>
@@ -1043,20 +1133,39 @@ export default function CommissionsPage() {
                               </td>
                               <td className="py-2 pr-3">{titleLabel(row) || '—'}</td>
                               <td className="py-2 text-right tabular-nums">
-                                {formatMoney(-row.commissionBase! * 0.01, row.commissionCurrency)}
+                                <p><del>{(STANDARD_RATE * 100).toFixed(0)} %</del></p>
+                                <p className="font-bold text-green-700">{(REDUCED_RATE * 100).toFixed(0)} %</p>
                               </td>
                               <td className="py-2 text-right tabular-nums">
+                                <p><del>{formatMoney(row.commissionBase! * STANDARD_RATE, row.commissionCurrency)}</del></p>
+                                <p className="font-bold text-green-700">
+                                  {formatMoney(row.commissionBase! * REDUCED_RATE, row.commissionCurrency)}
+                                </p>
+                              </td>
+                              <td className="py-2 text-right tabular-nums">
+                                <p><del>{formatMoney(row.commissionBaseUsd! * STANDARD_RATE, 'USD')}</del></p>
+                                <p className="font-bold text-green-700">
+                                  {formatMoney(row.commissionBaseUsd! * REDUCED_RATE, 'USD')}
+                                </p>
+                              </td>
+                              <td className="py-2 text-right tabular-nums font-bold text-red-700">
                                 {formatMoney(-row.commissionBaseUsd! * 0.01, 'USD')}
-                              </td>
-                              <td className="py-2 text-right tabular-nums font-medium">
-                                {formatMoney(row.commissionBase! * REDUCED_RATE, row.commissionCurrency)}
-                              </td>
-                              <td className="py-2 text-right tabular-nums font-medium">
-                                {formatMoney(row.commissionBaseUsd! * REDUCED_RATE, 'USD')}
                               </td>
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot className="border-t font-semibold">
+                          <tr>
+                            <th scope="row" colSpan={5} className="py-2 pr-3 text-left">Total</th>
+                            <td className="py-2 text-right tabular-nums">
+                              <p><del>{formatMoney(originalCommissionUsdTotal, 'USD')}</del></p>
+                              <p className="font-bold text-green-700">{formatMoney(newCommissionUsdTotal, 'USD')}</p>
+                            </td>
+                            <td className="py-2 text-right tabular-nums font-bold text-red-700">
+                              {formatMoney(correctionUsdTotal, 'USD')}
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   )}
@@ -1070,14 +1179,16 @@ export default function CommissionsPage() {
         <p className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="overflow-x-auto rounded border">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full border-collapse text-sm" ref={commissionsTable}>
             <thead className="bg-gray-50 text-left">
               <tr className="border-b">
                 <th className="p-3">Purchase date</th>
-                <th className="p-3">Company</th>
+                <th className="p-3">
+                  <p>Proposed by</p>
+                  <p className="italic font-bold">Buyer</p>
+                </th>
                 <th className="p-3">Artist</th>
                 <th className="p-3">Title</th>
-                <th className="p-3">Proposed by</th>
                 <th className="p-3 text-right">Purchase price</th>
                 <th className="p-3 text-right">Purchase price USD</th>
                 <th className="p-3 text-right no-print">FX → USD</th>
@@ -1098,7 +1209,10 @@ export default function CommissionsPage() {
                 return (
                   <tr key={row.id} className="border-b align-top">
                     <td className="p-3 whitespace-nowrap">{formatDate(row.date_acquisition)}</td>
-                    <td className="p-3">{row.company}</td>
+                    <td className="p-3">
+                      <p>{contactLabel(row.proposedBy)}</p>
+                      <p className="italic font-bold">{row.company}</p>
+                    </td>
                     <td className="p-3 font-medium">
                       {artistLabel(row) ? (
                         <Link className="underline" href={`/artworks/print/${row.id}`}>
@@ -1112,7 +1226,6 @@ export default function CommissionsPage() {
                       <p>{titleLabel(row) || '—'}</p>
                       {row.medium && <p className="text-xs text-gray-600">{row.medium}</p>}
                     </td>
-                    <td className="p-3">{contactLabel(row.proposedBy)}</td>
                     <td className="p-3 text-right tabular-nums">
                       {formatMoney(row.cost_amount, row.cost_currency)}
                     </td>
@@ -1155,73 +1268,76 @@ export default function CommissionsPage() {
                       )}
                     </td>
                     <td className="p-3 text-right tabular-nums">
-                      {(row.appliedRate * 100).toFixed(2)} %
+                      {row.isCorrectionApplied ? (
+                        <>
+                          <del>{(STANDARD_RATE * 100).toFixed(2)} %</del>
+                          <p className="text-xs" aria-hidden="true">&nbsp;</p>
+                          <p className="font-bold text-green-700">7 %</p>
+                        </>
+                      ) : (
+                        <>{(row.appliedRate * 100).toFixed(2)} %</>
+                      )}
                       {row.exceptionalRate !== null && (
                         <p className="text-xs text-amber-700">exceptional</p>
                       )}
-                      {row.isCorrectionApplied && (
-                        <p className="text-xs text-green-700">corrected to 7 %</p>
-                      )}
                     </td>
                     <td className="p-3 text-right font-medium tabular-nums">
-                      {formatMoney(row.commission, row.commissionCurrency)}
-                      <p className={`text-xs ${row.commissionUsd === null ? 'text-red-700' : 'text-gray-600'}`}>
-                        {formatMoney(row.commissionUsd, 'USD')}
-                      </p>
-                      {row.invoiceUrl && (
-                        <a
-                          className="text-xs font-medium text-blue-700 underline"
-                          href={row.invoiceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Facture PDF
-                        </a>
+                      {row.isCorrectionApplied ? (
+                        <>
+                          <div className="text-gray-600">
+                            <p><del>{formatMoney(row.originalCommission ?? null, row.commissionCurrency)}</del></p>
+                            <p className="text-xs"><del>{formatMoney(row.originalCommissionUsd ?? null, 'USD')}</del></p>
+                          </div>
+                          <div className="font-bold text-green-700">
+                            <p>{formatMoney(row.commission, row.commissionCurrency)}</p>
+                            <p className="text-xs">{formatMoney(row.commissionUsd, 'USD')}</p>
+                          </div>
+                          <p className="text-xs font-bold text-red-700">
+                            {formatMoney(
+                              row.originalCommissionUsd == null || row.commissionUsd === null
+                                ? null
+                                : row.originalCommissionUsd - row.commissionUsd,
+                              'USD'
+                            )}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {formatMoney(row.commission, row.commissionCurrency)}
+                          <p className={`text-xs ${row.commissionUsd === null ? 'text-red-700' : 'text-gray-600'}`}>
+                            {formatMoney(row.commissionUsd, 'USD')}
+                          </p>
+                        </>
                       )}
                     </td>
                     <td className="p-3 no-print">
-                      <div className="flex min-w-56 flex-col gap-2">
-                        <input
-                          aria-label={`Invoice date for ${titleLabel(row)}`}
-                          className="rounded border px-2 py-1"
-                          type="date"
-                          value={draftInvoiceDates[row.id] ?? row.invoicedAt ?? ''}
-                          onChange={(event) =>
-                            setDraftInvoiceDates((previous) => ({
-                              ...previous,
-                              [row.id]: event.target.value,
-                            }))
-                          }
-                          onBlur={() => void saveArtworkInvoice(row.id, invoicedCommissionAmount)}
-                        />
-                        <div className="flex items-center gap-2">
-                          <input
-                            aria-label={`Invoice PDF link for ${titleLabel(row)}`}
-                            className="w-40 rounded border px-2 py-1"
-                            type="url"
-                            placeholder="OneDrive PDF link"
-                            value={draftInvoiceUrls[row.id] ?? row.invoiceUrl ?? ''}
-                            onChange={(event) =>
-                              setDraftInvoiceUrls((previous) => ({
-                                ...previous,
-                                [row.id]: event.target.value,
-                              }))
-                            }
-                            onBlur={() => void saveArtworkInvoice(row.id, invoicedCommissionAmount)}
-                          />
-                          {row.invoiceUrl && (
-                            <a
-                              className="text-sm font-medium text-blue-700 underline"
-                              href={row.invoiceUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              PDF
-                            </a>
-                          )}
-                        </div>
+                      <input
+                        aria-label={`Invoice date for ${titleLabel(row)}`}
+                        className="rounded border px-2 py-1"
+                        type="date"
+                        disabled={savingInvoiceId !== null}
+                        value={draftInvoiceDates[row.id] ?? row.invoicedAt ?? ''}
+                        onChange={(event) =>
+                          setDraftInvoiceDates((previous) => ({
+                            ...previous,
+                            [row.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        {row.exceptionalRate !== 0 && (
+                          <>
+                            <CommissionInvoiceFileInput
+                              label={`Invoice file for ${titleLabel(row)}`}
+                              file={draftInvoiceFiles[row.id]}
+                              disabled={savingInvoiceId !== null}
+                              onChange={file => setDraftInvoiceFiles(previous => ({
+                                ...previous, [row.id]: file,
+                              }))}
+                            />
+                          </>
+                        )}
                       </div>
-                      {savingInvoiceId === row.id && <span className="ml-1">…</span>}
                     </td>
                     <td className="p-3 no-print">
                       <div className="flex min-w-44 items-center gap-2">
@@ -1251,6 +1367,30 @@ export default function CommissionsPage() {
                           {savingId === row.id ? '…' : 'OK'}
                         </button>
                       </div>
+                      <div className="mt-2 flex items-center justify-start gap-2">
+                        {row.exceptionalRate !== 0 && (
+                          <button
+                            className="edit-button"
+                            type="button"
+                            disabled={savingInvoiceId !== null}
+                            onClick={() => void saveArtworkInvoice(row.id, invoicedCommissionAmount)}
+                          >
+                            {savingInvoiceId === row.id ? 'Saving...' : 'Save'}
+                          </button>
+                        )}
+                        {row.invoiceUrl && (
+                          <a
+                            className="text-sm font-medium text-blue-700 underline"
+                            data-print-exclude
+                            href={row.invoiceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open invoice
+                          </a>
+                        )}
+                      </div>
+                      {savingInvoiceId === row.id && <span className="ml-1">…</span>}
                     </td>
                   </tr>
                 )
@@ -1258,7 +1398,7 @@ export default function CommissionsPage() {
             </tbody>
             <tfoot className="border-t bg-gray-50 font-semibold">
               <tr>
-                <td className="p-3" colSpan={6}>Total invoiced</td>
+                <td className="p-3" colSpan={5}>Total invoiced</td>
                 <td />
                 <td className="no-print" />
                 <td />
@@ -1276,7 +1416,7 @@ export default function CommissionsPage() {
               </tr>
               {hasInvoicedCorrections && (
                 <tr>
-                  <td className="p-3" colSpan={10}>Total invoiced after corrections</td>
+                  <td className="p-3" colSpan={9}>Total invoiced after corrections</td>
                   <td className="p-3 text-right tabular-nums whitespace-nowrap">
                     {invoicedTotalsAfterCorrectionsByCurrency.map(([currency, amount]) => (
                       <p key={currency} className="whitespace-nowrap">
@@ -1293,7 +1433,7 @@ export default function CommissionsPage() {
               )}
               {commissionBasesUsdByRate.map(({ rate, amount }) => (
                 <tr key={rate}>
-                  <td className="p-3" colSpan={8}>
+                  <td className="p-3" colSpan={7}>
                     Commission base at {(rate * 100).toFixed(0)} %
                   </td>
                   <td className="p-3 text-right tabular-nums">
@@ -1306,7 +1446,7 @@ export default function CommissionsPage() {
                 </tr>
               ))}
               <tr>
-                <td className="p-3" colSpan={10}>Commissions to invoice</td>
+                <td className="p-3" colSpan={9}>Commissions to invoice</td>
                 <td className="p-3 text-right tabular-nums whitespace-nowrap">
                   {commissionsToInvoiceTotalsByCurrency.map(([currency, amount]) => (
                     <p key={currency} className="whitespace-nowrap">{formatMoney(amount, currency)}</p>

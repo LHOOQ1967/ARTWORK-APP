@@ -31,6 +31,13 @@ the callback URL shown by the Supabase Google provider settings
 Both providers use the same application callback and access checks; Google
 sign-in does not grant application access automatically.
 
+If `/auth/callback` returns 404 during development, restart `npm run dev`:
+the callback route already exists and should redirect to the application or
+back to login, not render a page. Start a new sign-in after restarting rather
+than reusing a callback URL, since OAuth codes are single-use. If an invalid
+refresh-token error persists, clear this application's site cookies and sign
+in again.
+
 Start the development server:
 
 ```bash
@@ -47,6 +54,78 @@ npm run dev
 | `Administrator` | Editor permissions plus user invitations |
 
 Authorization is enforced in API route handlers. Supabase Row Level Security must remain enabled as a second layer of protection.
+
+## Commission invoice files
+
+On Commissions, choose an invoice date, select or drop **one file**, then click
+**Save**. This applies to artwork invoices and annual correction invoices.
+Selecting another file replaces the pending selection; multiple-file drops
+are rejected. Empty files and files larger than 100 MB are rejected.
+Dates and files are saved together rather than automatically on field blur.
+Add file invoice appears below the Invoiced on date; Save and Open invoice
+appear below Exceptional rate.
+Artwork rows with a saved exceptional rate of 0% hide Add file invoice and
+Save; existing invoice links remain accessible.
+Existing invoice links remain available, including when saving a date without
+selecting a replacement file.
+
+Files use the existing server-side SharePoint configuration, artwork folders
+and `documents` table; no new table or migration is required.
+Downloads use the existing authenticated document endpoint and document RLS.
+Editors and Administrators can upload. Files use **All artwork clients**
+visibility. Correction files are uploaded once and linked to each affected
+artwork. Replaced or removed invoice attachments remain in artwork documents.
+An unsuccessful invoice save cleans up its newly uploaded file.
+
+The expanded correction artwork tables show original 8% commissions above
+the new 7% commissions, in both the commission currency and USD. The
+**Correction -1% USD** column is on the far right; there is no correction
+column in the original currency. USD totals include original commissions,
+new commissions and corrections. Original currency columns are not combined
+across currencies.
+The Rate column before the commission amounts shows the original 8% struck
+through above the corrected 7% in bold green.
+Each company card has its own **Print Florac** or **Print Léopold Meyer**
+button. It prints only that company's correction details and USD totals
+for the selected year, even when the details are collapsed on screen.
+The printed document title includes **Correction commissions**, the company
+(**Florac Works** or **Léopold Meyer**) and the selected year.
+Invoice controls and the main commissions table are excluded. The general
+Print button prints the main commissions table in A4 landscape, including
+all columns (also FX, invoice dates and exceptional rates). Inputs are
+rendered as values; upload/save buttons and Open invoice links are omitted
+from the printout.
+Company-specific printing copies only the selected correction table into
+an isolated print document, rather than printing the whole page.
+Both companies' correction details include Purchase date as the leftmost column,
+both on screen and in the company-specific printout.
+
+The main commission table groups **Proposed by** above **Buyer** in one
+column. The Excel export keeps these as separate fields for data analysis
+and uses **Buyer** rather than **Company** as its column label.
+For corrected artworks, the commission cell shows the original amounts in
+the commission currency and USD struck through, above the corrected 7%
+amounts in bold green. This also applies when previewing correction details.
+The USD difference (original 8% commission minus corrected 7% commission)
+appears below the corrected USD amount in bold red.
+The Rate column shows the original 8% struck through above the new 7% in
+bold green, without parentheses. Invoice links appear only in the invoice
+controls, not below commission amounts.
+
+To copy existing commission and correction invoice links into the same
+artwork document storage, first run a read-only check:
+
+```bash
+node --env-file=.env.local scripts/migrate-documents-to-sharepoint.mjs --commissions --recover
+```
+
+Add `--apply` to copy the files and replace successfully verified invoice
+links. The script checks SHA-256 hashes before replacing links, preserves
+original URLs in `documents.legacy_url` and ignored CSV migration logs,
+and skips already migrated invoice links. Missing or ambiguous source files
+are reported without replacing their original links. Correction files are
+linked to every qualifying artwork, using the commission page's annual
+threshold and exceptional-rate rules.
 
 The home dashboard shows Proposals followed by a full-width horizontal
 Collection grid that wraps to fit the viewport. Below, Management and Tools

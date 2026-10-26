@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole, requireUser } from '@/lib/apiAuth'
 import { logAuditEvent } from '@/lib/audit'
+import { buildArtworkFolderPath, deleteDocument, uploadDocument } from '@/lib/sharepoint'
 
 const EDITOR_ROLES = ['Editor', 'Administrator'] as const
 
@@ -14,8 +15,23 @@ const THRESHOLD_USD = 5_000_000
 const STANDARD_RATE = 0.08
 const REDUCED_RATE = 0.07
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+type CorrectedCommission = { artworkId: string; commissionAmount: number }
+
+function isCorrectedCommission(value: unknown): value is CorrectedCommission {
+  return isRecord(value) &&
+    typeof value.artworkId === 'string' &&
+    typeof value.commissionAmount === 'number' &&
+    Number.isFinite(value.commissionAmount) &&
+    value.commissionAmount >= 0
+}
+
 function parseHttpUrl(value: unknown) {
   if (typeof value !== 'string' || value.trim() === '') return null
+  if (/^\/api\/documents\/[0-9a-f-]{36}\/open$/i.test(value)) return value
 
   try {
     const url = new URL(value)
@@ -296,65 +312,150 @@ export async function PATCH(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const authorization = await requireRole(EDITOR_ROLES, request)
   if (authorization.response) return authorization.response
+  const { supabase } = authorization
 
-  const body = await request.json()
+  const multipart = request.headers.get('content-type')?.includes('multipart/form-data')
+  let form: FormData | null = null
+  let parsed: unknown
+  try {
+    form = multipart ? await request.formData() : null
+    parsed = form ? JSON.parse(String(form.get('invoice'))) : await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid invoice payload.' }, { status: 400 })
+  }
+  if (!isRecord(parsed)) {
+    return NextResponse.json({ error: 'Invalid invoice payload.' }, { status: 400 })
+  }
+  const body = parsed
+  const files = form?.getAll('file') ?? []
+  const file = files[0]
+  if (form && (files.length !== 1 || !(file instanceof File) || file.size === 0)) {
+    return NextResponse.json({ error: 'Select exactly one non-empty invoice file.' }, { status: 400 })
+  }
+  if (file instanceof File && file.size > 100 * 1024 * 1024) {
+    return NextResponse.json({ error: 'File too large. Maximum size: 100 MB.' }, { status: 413 })
+  }
   const invoicedAt = body?.invoicedAt
   if (typeof invoicedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(invoicedAt)) {
-    return NextResponse.json({ error: 'Date de facture invalide.' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid invoice date.' }, { status: 400 })
   }
   const hasInvoiceUrl = body?.invoiceUrl !== undefined
-  const invoiceUrl = hasInvoiceUrl ? parseHttpUrl(body.invoiceUrl) : undefined
+  let invoiceUrl = hasInvoiceUrl ? parseHttpUrl(body.invoiceUrl) : undefined
   if (hasInvoiceUrl && body.invoiceUrl !== '' && invoiceUrl === null) {
-    return NextResponse.json({ error: 'Le lien de facture doit être une URL HTTP ou HTTPS valide.' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid invoice link.' }, { status: 400 })
   }
 
-  if (body?.kind === 'artwork' && typeof body.artworkId === 'string') {
-    const commissionAmount =
-      typeof body.commissionAmount === 'number' ? body.commissionAmount : Number(body.commissionAmount)
-    if (!Number.isFinite(commissionAmount) || commissionAmount < 0) {
-      return NextResponse.json({ error: 'Montant de commission invalide.' }, { status: 400 })
-    }
-
-    const { error } = await authorization.supabase.rpc('record_artwork_commission_invoice', {
-      p_artwork_id: body.artworkId,
-      p_invoiced_at: invoicedAt,
-      p_invoice_url: invoiceUrl,
-      p_commission_amount: commissionAmount,
-      p_created_by: authorization.userId,
-    })
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({
-      invoice: {
-        artwork_id: body.artworkId,
-        invoiced_at: invoicedAt,
-        invoice_url: invoiceUrl ?? null,
-      },
-    })
-  }
-
-  if (
-    body?.kind === 'correction' &&
-    Number.isInteger(body.calendarYear) &&
+  const isArtworkInvoice = body?.kind === 'artwork' && typeof body.artworkId === 'string'
+  const isCorrectionInvoice = body?.kind === 'correction' &&
+    typeof body.calendarYear === 'number' && Number.isInteger(body.calendarYear) &&
+    body.calendarYear >= 2000 && body.calendarYear <= 2100 &&
     (body.company === 'Florac' || body.company === 'Léopold Meyer')
-  ) {
-    const artworkCommissions = body.artworkCommissions
-    if (
-      !Array.isArray(artworkCommissions) ||
-      !artworkCommissions.every(
-        (item) =>
-          item &&
-          typeof item.artworkId === 'string' &&
-          typeof item.commissionAmount === 'number' &&
-          Number.isFinite(item.commissionAmount) &&
-          item.commissionAmount >= 0
-      )
-    ) {
-      return NextResponse.json({ error: 'Commissions corrigées invalides.' }, { status: 400 })
+  const commissionAmount = Number(body?.commissionAmount)
+  let artworkCommissions: CorrectedCommission[] = []
+  if (isArtworkInvoice) {
+    if (!Number.isFinite(commissionAmount) || commissionAmount < 0) {
+      return NextResponse.json({ error: 'Invalid commission amount.' }, { status: 400 })
     }
+  } else if (isCorrectionInvoice) {
+    const corrections: unknown = body.artworkCommissions
+    if (
+      !Array.isArray(corrections) ||
+      !corrections.every(isCorrectedCommission)
+    ) {
+      return NextResponse.json({ error: 'Invalid corrected commissions.' }, { status: 400 })
+    }
+    artworkCommissions = corrections
+  } else {
+    return NextResponse.json({ error: 'Invalid invoice.' }, { status: 400 })
+  }
 
-    const { error } = await authorization.supabase.rpc(
-      'record_artwork_commission_correction_invoice',
-      {
+  let uploaded: Awaited<ReturnType<typeof uploadDocument>> | undefined
+  const documentIds: string[] = []
+  async function cleanupUpload() {
+    if (!uploaded) return
+    try {
+      await deleteDocument(uploaded.driveId, uploaded.id)
+    } catch (error) {
+      console.error('COMMISSION INVOICE FILE CLEANUP ERROR:', error)
+    }
+    if (documentIds.length) {
+      const { error } = await supabase.from('documents').delete().in('id', documentIds)
+      if (error) console.error('COMMISSION INVOICE METADATA CLEANUP ERROR:', error)
+    }
+  }
+
+  if (file instanceof File) {
+    const artworkIds = isArtworkInvoice
+      ? [String(body.artworkId)]
+      : [...new Set(artworkCommissions.map(item => item.artworkId))]
+    if (!artworkIds.length) {
+      return NextResponse.json({ error: 'An invoice file must be attached to at least one artwork.' }, { status: 400 })
+    }
+    const { data: artworks, error: artworkError } = await supabase.from('artworks')
+      .select('id, title, artist:artists(first_name, last_name)').in('id', artworkIds)
+    if (artworkError) {
+      console.error('COMMISSION INVOICE ARTWORK LOAD ERROR:', artworkError)
+      return NextResponse.json({ error: 'Unable to load invoice artworks.' }, { status: 500 })
+    }
+    if (!artworks || artworks.length !== artworkIds.length) {
+      return NextResponse.json({ error: 'Invoice artwork not found.' }, { status: 404 })
+    }
+    const artwork = artworks[0]
+    const artist = Array.isArray(artwork.artist) ? artwork.artist[0] : artwork.artist
+    try {
+      uploaded = await uploadDocument({
+        folderPath: buildArtworkFolderPath({
+          artworkId: artwork.id,
+          artworkTitle: artwork.title,
+          artistName: artist ? [artist.last_name, artist.first_name].filter(Boolean).join(' ') : null,
+        }),
+        fileName: file.name,
+        content: await file.arrayBuffer(),
+        mimeType: file.type,
+      })
+    } catch (error) {
+      console.error('COMMISSION INVOICE UPLOAD ERROR:', error)
+      return NextResponse.json({ error: 'SharePoint upload failed.' }, { status: 502 })
+    }
+    const item = uploaded
+    const documents = artworkIds.map(artworkId => ({
+      id: crypto.randomUUID(),
+      artwork_id: artworkId,
+      document_type: 'link',
+      label: isArtworkInvoice ? 'Commission invoice' : `Commission correction invoice ${body.calendarYear}`,
+      visibility: 'all_clients',
+      recipient_contact_id: null,
+      link_category: 'general',
+      storage_provider: 'sharepoint',
+      legacy_url: hasInvoiceUrl ? body.invoiceUrl : null,
+      sharepoint_drive_id: item.driveId,
+      sharepoint_item_id: item.id,
+      sharepoint_web_url: item.webUrl,
+      file_name: item.name,
+      mime_type: item.mimeType || file.type || null,
+      size_bytes: item.size,
+    }))
+    documentIds.push(...documents.map(document => document.id))
+    const { error } = await supabase.from('documents').insert(
+      documents.map(document => ({ ...document, url: `/api/documents/${document.id}/open` }))
+    )
+    if (error) {
+      console.error('COMMISSION INVOICE FILE SAVE ERROR:', error)
+      await cleanupUpload()
+      return NextResponse.json({ error: 'Unable to save invoice file.' }, { status: 500 })
+    }
+    invoiceUrl = `/api/documents/${documentIds[0]}/open`
+  }
+
+  const { error } = isArtworkInvoice
+    ? await authorization.supabase.rpc('record_artwork_commission_invoice', {
+        p_artwork_id: body.artworkId,
+        p_invoiced_at: invoicedAt,
+        p_invoice_url: invoiceUrl,
+        p_commission_amount: commissionAmount,
+        p_created_by: authorization.userId,
+      })
+    : await authorization.supabase.rpc('record_artwork_commission_correction_invoice', {
         p_calendar_year: body.calendarYear,
         p_company: body.company,
         p_invoiced_at: invoicedAt,
@@ -364,10 +465,20 @@ export async function POST(request: NextRequest) {
           artwork_id: item.artworkId,
           commission_amount: item.commissionAmount,
         })),
-      }
-    )
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({
+      })
+  if (error) {
+    await cleanupUpload()
+    return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+  return NextResponse.json(isArtworkInvoice
+    ? {
+      invoice: {
+        artwork_id: body.artworkId,
+        invoiced_at: invoicedAt,
+        invoice_url: invoiceUrl ?? null,
+      },
+    }
+    : {
       correctionInvoice: {
         calendar_year: body.calendarYear,
         company: body.company,
@@ -375,9 +486,6 @@ export async function POST(request: NextRequest) {
         invoice_url: invoiceUrl ?? null,
       },
     })
-  }
-
-  return NextResponse.json({ error: 'Facture invalide.' }, { status: 400 })
 }
 
 export async function DELETE(request: NextRequest) {
