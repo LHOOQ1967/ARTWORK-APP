@@ -323,6 +323,14 @@ const links = [
 
 
 const { role } = useSessionProfile()
+const proposedTo = canEditArtworks(role)
+  ? [...new Set((artwork.proposals ?? artwork.artwork_proposals ?? []).map(proposal => {
+      const contact = proposal.contact ?? proposal.proposedTo
+      return proposal.contact_label?.trim() ||
+        contact?.company_name?.trim() ||
+        [contact?.first_name, contact?.last_name].filter(Boolean).join(' ').trim()
+    }).filter(Boolean))].join(', ')
+  : ''
 
 
 const isAuction = !!artwork.auctions
@@ -500,7 +508,7 @@ const displayTitle = (() => {
       fontSize: '1.3rem',
       textAlign: 'left',
       margin: 0,
-      whiteSpace: 'nowrap',
+      whiteSpace: proposedTo ? 'normal' : 'nowrap',
       overflow: 'hidden',
       textOverflow: 'ellipsis',
     }}
@@ -530,18 +538,21 @@ const displayTitle = (() => {
 
 
 
-  {/* RIGHT: Priority + Status + Edit */}
-  <div
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 10,
-      flexShrink: 0,         // ✅ ne se compresse pas
-      flexWrap: 'wrap',  // ✅ reste sur une ligne
-    }}
-  >
-  </div>
+  {proposedTo && (
+    <div
+      style={{
+        marginLeft: 'auto',
+        textAlign: 'right',
+        fontSize: '1.3rem',
+        minWidth: 0,
+        maxWidth: '50%',
+        overflowWrap: 'anywhere',
+      }}
+      title={`Proposed to: ${proposedTo}`}
+    >
+      Proposed to: {proposedTo}
+    </div>
+  )}
 </div>
 
 
@@ -607,7 +618,7 @@ const displayTitle = (() => {
 
       {/* ✅ Dimensions */}
       {artwork.edition && (
-        <div style={{ fontSize: '1.2rem' }}>Edition: {artwork.edition}</div>
+        <div style={{ fontSize: '1.2rem' }}>{artwork.edition}</div>
       )}
 
       {artwork.height_cm && (
@@ -917,7 +928,7 @@ const displayTitle = (() => {
     <div>
       <CertificateAddress addressId={artwork.certificate_location_address_id} />
     </div>
-      <CertificateLocationHistory artworkId={artwork.id} />
+      <CertificateLocationHistory artworkId={artwork.id} hideWhenEmpty />
     </>} />
 
 

@@ -65,7 +65,7 @@ function loadResponse(existingUrl?: string, withCorrection = false) {
       date_acquisition: '2026-02-01', cost_amount: 5000000,
     }] : [artwork],
     invoices: existingUrl ? [{
-      artwork_id: 'art-1', invoiced_at: '2026-10-25', invoice_url: existingUrl,
+      artwork_id: 'art-1', invoiced_at: withCorrection ? '2026-01-03' : '2026-10-25', invoice_url: existingUrl,
     }] : [],
     correctionInvoices: [], fxRates: [], commissionRates: [],
   })
@@ -122,17 +122,17 @@ describe('commission invoice file input', () => {
     expect(container.textContent).toContain('Artwork')
   })
 
-  it('renders a compact single-line Add file invoice button and a single-file picker', async () => {
+  it('renders a compact single-line Add Invoice button and a single-file picker', async () => {
     await act(async () => root.render(<FileInput />))
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
     expect(input.multiple).toBe(false)
     expect(input.hidden).toBe(true)
     const button = container.querySelector('button')!
-    expect(button.textContent).toBe('Add file invoice')
+    expect(button.textContent).toBe('Add Invoice')
     expect(button.className).toContain('whitespace-nowrap')
     expect(button.parentElement?.className).toContain('inline-flex')
     const click = vi.spyOn(input, 'click')
-    await clickButton('Add file invoice')
+    await clickButton('Add Invoice')
     expect(click).toHaveBeenCalledOnce()
   })
 
@@ -225,6 +225,31 @@ describe('commission invoice file input', () => {
     expect(container.querySelector(`a[href="${existingUrl}"]`)).not.toBeNull()
   })
 
+  it('shows the artwork invoice link below its date in bold, not beside the rate controls', async () => {
+    const invoiceUrl = 'https://example.com/artwork-invoice.pdf'
+    mocks.fetchWithAuth.mockResolvedValueOnce(loadResponse(invoiceUrl))
+    await act(async () => root.render(<CommissionsPage />))
+    const invoiceDate = container.querySelector<HTMLInputElement>('[aria-label^="Invoice date for"]')!
+    const link = container.querySelector<HTMLAnchorElement>(`a[href="${invoiceUrl}"]`)!
+    const actions = invoiceDate.nextElementSibling!
+    expect(link.parentElement).toBe(actions)
+    expect(actions.classList.contains('flex')).toBe(true)
+    expect(actions.classList.contains('min-w-max')).toBe(true)
+    expect(actions.classList.contains('flex-wrap')).toBe(false)
+    const rateInput = container.querySelector<HTMLInputElement>('[aria-label^="Exceptional rate"]')!
+    const buttons = rateInput.parentElement!.nextElementSibling!
+    expect(buttons.classList.contains('flex')).toBe(true)
+    expect(Array.from(buttons.querySelectorAll('button')).map(button => button.textContent))
+      .toEqual(['Add Invoice', 'Save'])
+    expect(buttons.closest('td')).toBe(rateInput.closest('td'))
+    expect(link.closest('td')?.querySelector('button')).toBeNull()
+    expect(link.classList.contains('font-bold')).toBe(true)
+    expect(link.closest('td')).toBe(invoiceDate.closest('td'))
+    expect(link.closest('td')?.querySelector('[aria-label^="Exceptional rate"]')).toBeNull()
+    expect(link.target).toBe('_blank')
+    expect(link.hasAttribute('data-print-exclude')).toBe(true)
+  })
+
   it('preserves the selected file after a failed save so it can be retried', async () => {
     mocks.fetchWithAuth.mockResolvedValueOnce(loadResponse()).mockResolvedValueOnce(Response.json(
       { error: 'SharePoint upload failed.' }, { status: 502 }
@@ -235,6 +260,24 @@ describe('commission invoice file input', () => {
     await clickButton('Save')
     expect(container.textContent).toContain('SharePoint upload failed.')
     expect(container.querySelector('[title="Invoice.pdf"]')).not.toBeNull()
+  })
+
+  it('keeps the reduced 7% amount after saving an earlier uninvoiced purchase', async () => {
+    mocks.fetchWithAuth.mockResolvedValueOnce(loadResponse(undefined, true))
+      .mockResolvedValueOnce(Response.json({
+        invoice: { artwork_id: 'art-1', invoiced_at: '2026-10-26', invoice_url: null },
+      }))
+    await act(async () => root.render(<CommissionsPage />))
+    const selector = '[aria-label^="Invoice date for"]'
+    await date('2026-10-26', selector)
+    const invoiceDate = container.querySelector<HTMLInputElement>(selector)!
+    const row = invoiceDate.closest('tr')!
+    const save = Array.from(row.querySelectorAll('button')).find(button => button.textContent === 'Save')!
+    await act(async () => save.click())
+    expect(JSON.parse(mocks.fetchWithAuth.mock.calls[1][1].body).commissionAmount).toBeCloseTo(700)
+    expect(row.textContent).toContain('7.00 %')
+    expect(row.textContent).not.toContain('8.00 %')
+    expect(invoiceDate.value).toBe('2026-10-26')
   })
 
   it('uses the same single-file control for annual corrections', async () => {
@@ -256,5 +299,16 @@ describe('commission invoice file input', () => {
       invoicedAt: '2026-10-26', invoiceUrl: '',
       artworkCommissions: [{ artworkId: 'art-1', commissionAmount: 700.0000000000001 }],
     })
+    const link = container.querySelector<HTMLAnchorElement>('a[href="/api/documents/correction-1/open"]')!
+    const actions = link.parentElement!
+    expect(actions.previousElementSibling?.tagName).toBe('LABEL')
+    expect(actions.previousElementSibling?.querySelector('input[type="date"]')?.getAttribute('value')).toBe('2026-10-26')
+    expect(actions.classList.contains('flex')).toBe(true)
+    expect(actions.classList.contains('min-w-max')).toBe(true)
+    const buttons = link.nextElementSibling!
+    expect(buttons.classList.contains('ml-auto')).toBe(true)
+    expect(Array.from(buttons.querySelectorAll('button')).map(button => button.textContent))
+      .toEqual(['Add Invoice', 'Save'])
+    expect(link.classList.contains('font-bold')).toBe(true)
   })
 })

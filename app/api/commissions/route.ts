@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole, requireUser } from '@/lib/apiAuth'
 import { logAuditEvent } from '@/lib/audit'
 import { buildArtworkFolderPath, deleteDocument, uploadDocument } from '@/lib/sharepoint'
+import { annualStandardCommissionRates, STANDARD_RATE, REDUCED_RATE } from '@/lib/commissionRates'
 
 const EDITOR_ROLES = ['Editor', 'Administrator'] as const
 
@@ -10,10 +11,6 @@ type BuyerContact = {
   first_name: string | null
   last_name: string | null
 }
-
-const THRESHOLD_USD = 5_000_000
-const STANDARD_RATE = 0.08
-const REDUCED_RATE = 0.07
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -131,7 +128,7 @@ export async function GET(request: NextRequest) {
       Number(fxRate.rate),
     ])
   )
-  const invoicesByArtworkId = new Set(invoices.map((invoice) => invoice.artwork_id))
+  const invoicesByArtworkId = new Map(invoices.map((invoice) => [invoice.artwork_id, invoice.invoiced_at]))
   const correctionInvoicesByKey = new Map(
     correctionInvoices.map((invoice) => [
       `${invoice.calendar_year}:${invoice.company}`,
@@ -146,22 +143,25 @@ export async function GET(request: NextRequest) {
     const annualArtworks = artworks
       .filter((artwork) => artwork.date_acquisition.slice(0, 4) === year)
       .sort((first, second) => first.date_acquisition.localeCompare(second.date_acquisition))
-    let qualifyingPurchaseTotal = 0
-
-    for (const artwork of annualArtworks) {
-      const exceptionalRate = ratesByArtworkId.get(artwork.id)
+    const standardRates = annualStandardCommissionRates(annualArtworks.map(artwork => {
       const conversionRate =
         artwork.cost_currency === 'USD'
           ? 1
           : fxRatesByKey.get(
               `${artwork.date_acquisition.slice(0, 10)}:${artwork.cost_currency}:USD`
             ) ?? null
-      if (exceptionalRate === undefined && conversionRate !== null) {
-        qualifyingPurchaseTotal += Number(artwork.cost_amount) * conversionRate
+      return {
+        id: artwork.id,
+        acquisitionDate: artwork.date_acquisition,
+        purchaseUsd: conversionRate === null ? null : Number(artwork.cost_amount) * conversionRate,
+        exceptionalRate: ratesByArtworkId.get(artwork.id) ?? null,
+        invoicedAt: invoicesByArtworkId.get(artwork.id) ?? null,
       }
+    }))
 
-      const standardRate =
-        qualifyingPurchaseTotal >= THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
+    for (const artwork of annualArtworks) {
+      const exceptionalRate = ratesByArtworkId.get(artwork.id)
+      const standardRate = standardRates.get(artwork.id)!
       const appliedRate = exceptionalRate ?? standardRate
       const commissionBase = artwork.auctions ? artwork.sold_hammer : artwork.cost_amount
       const buyer = Array.isArray(artwork.buyer) ? artwork.buyer[0] : artwork.buyer
@@ -170,7 +170,7 @@ export async function GET(request: NextRequest) {
         company !== null &&
         exceptionalRate === undefined &&
         appliedRate === STANDARD_RATE &&
-        invoicesByArtworkId.has(artwork.id) &&
+        invoicesByArtworkId.get(artwork.id) &&
         correctionInvoicesByKey.get(`${year}:${company}`)
 
       if (correctionInvoice) {

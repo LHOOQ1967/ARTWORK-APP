@@ -24,6 +24,32 @@ controle en defense supplementaire; RLS reste obligatoire.
 
 ## Schema applicatif
 
+Transport final invoices use a single-file `Add Invoice` picker and the transport
+`Save` action instead of URL entry. Editor/Admin uploads (up to 100 MB) go through
+the same SharePoint drive and `buildArtworkFolderPath` as artwork files. They
+create a `documents` entry labelled `Transport final invoice` in General with
+`all_clients` visibility and an authenticated `/api/documents/<id>/open` URL.
+Document RLS and the normal file download/viewer routes still apply.
+
+Existing external invoice URLs remain readable and are unchanged when saving
+without a file. Replacing an invoice points the transport to the new upload;
+previous files remain in the artwork document history, rather than being deleted.
+Upload failures retain the selected file for retry. A failed database save removes
+the newly uploaded document/file and reports cleanup errors explicitly.
+No schema migration or automatic migration of old external links is required.
+
+Print/factsheet headers show right-aligned `Proposed to` recipient names on the
+same row as the proposer
+only for Editor and Administrator sessions, including printed output. Viewer
+sessions omit both the names and their tooltip even if proposal data is supplied.
+Individual factsheets and bulk printing use the same component and existing
+role-scoped views; no additional contact query is needed.
+Factsheets show the certificate-location `History` button only after an
+RLS-scoped existence check confirms a history entry. Empty history hides the
+button; lookup failures are reported rather than treated as empty history.
+Factsheets display the edition value after the signature without an `Edition:`
+prefix; creation/editing field labels are unchanged.
+
 Lors de la creation d'une oeuvre (y compris depuis un import) et lors de sa
 modification, choisir une Auction House renseigne aussi `proposed_by_id`
 avec le meme contact. Effacer la maison ne vide pas le proposeur. Le proposeur
@@ -612,6 +638,29 @@ correspondant exactement au domaine public de production, notamment
 nouvelles variables, verifier la connexion et les routes admin, puis
 revoquer l'ancienne cle.
 
+## Commission threshold and invoice dates
+
+Commission print buttons (main table and per-company corrections) use an isolated
+print document with a named A4 landscape page and 8mm margins. This overrides the
+application's default portrait page without changing other pages. The browser
+may hide its orientation selector when CSS specifies the page size; the intended
+commission output is always landscape, subject to printer/driver capabilities.
+
+Commission calculations use the combined qualifying annual purchases for Florac
+and Leopold Meyer, converted to USD at each acquisition date. Purchases with an
+exceptional rate (including 0%) remain excluded from the USD 5,000,000 threshold
+and retain that rate. Missing FX conversions do not count toward the threshold.
+
+Once the threshold is reached (including exactly USD 5,000,000), all purchases
+without an invoice date use 7%, including earlier purchases in that year.
+Earlier purchases invoiced on or after the threshold-crossing date also use 7%,
+so saving a new invoice after crossing preserves its reduced calculation.
+Invoices dated before crossing retain the historical chronological calculation
+and remain eligible for the existing separate 1% correction. Uninvoiced purchases
+are reduced directly, not included in correction invoices. Each year resets the
+threshold. UI calculations, totals, exports and API calculated commissions share
+the same standard-rate helper.
+
 ## Courriels d'acquisition
 
 Pour envoyer un courriel quand une oeuvre passe a `Acquired = YES`:
@@ -622,3 +671,50 @@ Pour envoyer un courriel quand une oeuvre passe a `Acquired = YES`:
 4. Definir en SQL la fonction `public.notify_acquisition_email()` (trigger `trg_notify_acquisition_email` sur `public.artwork_acquisition_events`) qui appelle `net.http_post` vers `https://<project-ref>.supabase.co/functions/v1/acquisition-email` avec l'en-tete `x-artmuse-webhook-secret` egal a `ACQUISITION_WEBHOOK_SECRET`. Ne jamais versionner la vraie valeur du secret.
 5. Verifier qu'un evenement traite renseigne `email_sent_at` et consulter `net._http_response` en cas d'echec.
 Les destinataires configures dans l'application sont `sandrine@blondeau.ch` et `anouk@blondeau.ch`. La cle d'idempotence Resend et `email_sent_at` evitent le renvoi lors d'une nouvelle livraison du webhook.
+
+### Buyer assignment emails
+
+Every saved assignment or replacement of `artworks.buyer_contact_id` sends an
+email to `sandrine@blondeau.ch` only. Creation with a Buyer also sends an email;
+clearing Buyer, saving the same Buyer, and unrelated edits do not. The trigger
+covers all database writes, including imports, without depending on the web host.
+Existing Buyers are not backfilled or notified when the migration is applied.
+
+The email contains the artist, artwork title, Buyer, Zurich-local event date and
+artwork link. `artwork_buyer_events` records the Buyer's label at assignment time,
+so a later change or deletion does not alter a pending notification. Only the
+service role can access these events; they are not acquisition activity in the UI.
+Existing acquisition notifications to Sandrine and Anouk remain unchanged.
+
+Deploy the updated `acquisition-email` Edge function **before** applying
+`20261101150000_add_artwork_buyer_email_events.sql`. Both event types use the
+existing Resend configuration and webhook secret; no Node.js release is needed.
+The migration copies the configured acquisition dispatcher into
+`notify_buyer_email()` with only the event-table name changed, preserving its
+private endpoint/authentication without putting either in source control.
+It fails explicitly if that dispatcher's expected table literal has changed.
+On a fresh project without `notify_acquisition_email()`, it emits a warning:
+configure `notify_buyer_email()` like the acquisition dispatcher above, using
+`artwork_buyer_events` as the payload table, and attach
+`trg_notify_buyer_email` as an AFTER INSERT trigger on that table.
+
+Run `npx supabase db query --linked --file tests\db\artwork-buyer-email.sql` after
+application. This rollback-only suite disables the Buyer dispatch trigger inside
+the transaction, so it does not send real emails. Handler regression tests are
+in `tests/lib/artworkEmail.test.ts`.
+
+Check `email_sent_at` on `artwork_buyer_events` and `net._http_response` to verify
+delivery. Failed deliveries remain pending; pg_net does not automatically retry.
+Retry by delivering the same INSERT webhook with the existing event ID, table
+name and secret, not by inserting a new event. Resend deduplicates concurrent
+requests/retries with an event-specific key for its 24-hour idempotency window;
+the saved delivery timestamp prevents later resends once recorded.
+
+Activated on the linked production project on 2026-11-01 with approval: the
+Edge function was deployed first, then only this migration was applied and
+recorded atomically in Supabase migration history. The rollback SQL suite
+passed before and after application. Both webhook triggers are enabled; no
+existing Buyer was backfilled and no test email was sent.
+An authenticated pg_net probe using a nonexistent Buyer event reached the deployed
+handler and returned `404 Buyer event not found`, verifying the dispatcher,
+secret and event-table routing without delivering a message.

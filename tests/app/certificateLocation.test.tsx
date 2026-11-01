@@ -4,11 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CertificateAddress, CertificateLocationHistory } from '@/components/artwork/CertificateLocation'
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), single: vi.fn(), range: vi.fn() }))
+const mocks = vi.hoisted(() => ({ from: vi.fn(), single: vi.fn(), range: vi.fn(), limit: vi.fn() }))
 vi.mock('@/lib/supabaseBrowser', () => ({ supabase: { from: mocks.from } }))
 let container: HTMLDivElement
 let root: Root
-let chain: { select: ReturnType<typeof vi.fn>; eq: ReturnType<typeof vi.fn>; order: ReturnType<typeof vi.fn>; single: typeof mocks.single; range: typeof mocks.range }
+let chain: { select: ReturnType<typeof vi.fn>; eq: ReturnType<typeof vi.fn>; order: ReturnType<typeof vi.fn>; single: typeof mocks.single; range: typeof mocks.range; limit: typeof mocks.limit }
 async function history() {
   await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" />))
   await act(async () => container.querySelector('button')!.click())
@@ -23,7 +23,7 @@ describe('certificate location and history', () => {
       this.open = false
       this.dispatchEvent(new Event('close'))
     } })
-    chain = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), single: mocks.single, range: mocks.range }
+    chain = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), single: mocks.single, range: mocks.range, limit: mocks.limit }
     chain.select.mockReturnValue(chain)
     chain.eq.mockReturnValue(chain)
     chain.order.mockReturnValue(chain)
@@ -91,5 +91,40 @@ describe('certificate location and history', () => {
     mocks.single.mockResolvedValue({ data: null, error: { message: 'Missing address' } })
     await act(async () => root.render(<CertificateAddress addressId="missing" />))
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Unable to load certificate address.')
+  })
+
+  it('hides the factsheet history button when no history exists', async () => {
+    mocks.limit.mockResolvedValue({ data: [], error: null })
+    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" hideWhenEmpty />))
+    expect(container.querySelector('button')).toBeNull()
+    expect(chain.select).toHaveBeenCalledWith('id')
+    expect(mocks.limit).toHaveBeenCalledWith(1)
+  })
+
+  it('shows the factsheet button when history exists and still loads the full dialog', async () => {
+    mocks.limit.mockResolvedValue({ data: [{ id: 'change-1' }], error: null })
+    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" hideWhenEmpty />))
+    expect(container.querySelector('button')?.textContent).toBe('History')
+    await act(async () => container.querySelector('button')!.click())
+    expect(document.querySelector('dialog')).not.toBeNull()
+    expect(mocks.range).toHaveBeenCalledWith(0, 199)
+  })
+
+  it('does not reuse another artwork history availability while loading', async () => {
+    mocks.limit.mockResolvedValueOnce({ data: [{ id: 'change-1' }], error: null })
+      .mockReturnValueOnce(new Promise(() => {}))
+    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" hideWhenEmpty />))
+    expect(container.querySelector('button')).not.toBeNull()
+    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-2" hideWhenEmpty />))
+    expect(container.querySelector('button')).toBeNull()
+  })
+
+  it('reports availability errors instead of treating them as empty history', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.limit.mockResolvedValue({ data: null, error: { message: 'Database unavailable' } })
+    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" hideWhenEmpty />))
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Unable to check')
+    expect(log).toHaveBeenCalled()
   })
 })

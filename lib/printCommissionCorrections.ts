@@ -1,7 +1,7 @@
 export async function printCommissionCorrections(
   table: HTMLTableElement,
   title: string,
-  landscape = false
+  compactTable = false
 ) {
   const frame = document.createElement('iframe')
   frame.title = title
@@ -30,8 +30,9 @@ export async function printCommissionCorrections(
     ))
     const style = printDocument.createElement('style')
     style.textContent = `
-      ${landscape ? '@page { size: A4 landscape; margin: 8mm; }' : ''}
-      body { margin: 16px; font-family: Arial, sans-serif; }
+      @page { size: A4 landscape; margin: 8mm; }
+      @page artmuse-commissions { size: A4 landscape; margin: 8mm; }
+      body { page: artmuse-commissions; margin: 16px; font-family: Arial, sans-serif; }
       h1 { font-size: 16px; margin: 0 0 16px; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { padding: 6px 8px; }
@@ -40,7 +41,7 @@ export async function printCommissionCorrections(
       tfoot { display: table-row-group; }
       a { color: inherit; }
       * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
-      ${landscape ? `
+      ${compactTable ? `
         table { table-layout: fixed; font-size: 9px !important; }
         th, td { padding: 4px 3px !important; overflow-wrap: anywhere; }
         table .no-print { display: table-cell !important; }
@@ -53,7 +54,7 @@ export async function printCommissionCorrections(
     const heading = printDocument.createElement('h1')
     heading.textContent = title
     const copy = table.cloneNode(true) as HTMLTableElement
-    if (landscape) {
+    if (compactTable) {
       copy.querySelectorAll('button, input[type="file"], [role="alert"], [data-print-exclude]').forEach(element => element.remove())
       const originalInputs = table.querySelectorAll<HTMLInputElement>('input:not([type="file"])')
       copy.querySelectorAll<HTMLInputElement>('input:not([type="file"])').forEach((input, index) => {

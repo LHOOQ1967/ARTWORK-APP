@@ -92,6 +92,22 @@ describe('commission correction USD totals', () => {
     expect(html).toContain('Print Léopold Meyer</button>')
   })
 
+  it('reduces earlier uninvoiced purchases to 7% without adding them to corrections', () => {
+    mocks.states[3] = { 'usd-artwork': { invoiced_at: '2026-01-02' } }
+    const html = renderToStaticMarkup(<CommissionsPage />)
+    const table = html.match(/<table class="w-full border-collapse text-sm">([\s\S]*?)<\/table>/)![1]
+    const body = table.match(/<tbody>([\s\S]*?)<\/tbody>/)![1]
+    const euroRow = [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)]
+      .find(([, row]) => row.includes('eur-artwork'))![1]
+    expect(euroRow).toContain('7.00 %')
+    expect(euroRow).toContain("EUR 1&#x27;400")
+    expect(euroRow).toContain("USD 2&#x27;100")
+    expect(euroRow).not.toContain('<del>')
+    const detailTable = html.match(/<table class="w-full text-sm">([\s\S]*?)<\/table>/)![1]
+    expect(detailTable).not.toContain('eur-artwork')
+    expect(detailTable).toContain('usd-artwork')
+  })
+
   it('hides invoice upload and save for a zero exceptional rate but retains existing invoice access', () => {
     mocks.states[2] = { 'usd-artwork': 0 }
     mocks.states[3] = {
@@ -103,12 +119,12 @@ describe('commission correction USD totals', () => {
     const body = table.match(/<tbody>([\s\S]*?)<\/tbody>/)![1]
     const rows = [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)]
     const zeroRow = rows.find(([, row]) => row.includes('usd-artwork'))![1]
-    expect(zeroRow).not.toContain('Add file invoice')
+    expect(zeroRow).not.toContain('Add Invoice')
     expect(zeroRow).not.toContain('>Save</button>')
     expect(zeroRow).toContain('Open invoice')
     expect(zeroRow).toContain('Exceptional rate for')
     const normalRow = rows.find(([, row]) => row.includes('eur-artwork'))![1]
-    expect(normalRow).toContain('Add file invoice')
+    expect(normalRow).toContain('Add Invoice')
     expect(normalRow).toContain('>Save</button>')
   })
 
@@ -136,17 +152,18 @@ describe('commission correction USD totals', () => {
     for (const [, row] of rows) {
       expect(row).toContain('<p>Proposing gallery</p><p class="italic font-bold">Florac</p>')
       expect(row.match(/<td /g)).toHaveLength(12)
-      expect(row).toContain('<div class="mt-2 flex items-center justify-end gap-2">')
+      expect(row).toContain('<div class="mt-2 flex min-w-max items-center gap-2">')
       const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
       expect(cells[10][1]).toContain('Invoice date for')
-      expect(cells[10][1]).toContain('Add file invoice')
+      expect(cells[10][1]).not.toContain('Add Invoice')
       expect(cells[10][1]).not.toContain('>Save</button>')
       expect(cells[11][1]).toContain('Exceptional rate for')
       expect(cells[11][1]).toContain('>Save</button>')
-      expect(cells[11][1]).toContain('class="mt-2 flex items-center justify-start gap-2"')
-      expect(cells[11][1]).not.toContain('Add file invoice')
-      expect(cells[10][1].indexOf('Invoice date for')).toBeLessThan(
-        cells[10][1].indexOf('Add file invoice')
+      expect(cells[11][1]).toContain('class="mt-2 flex min-w-max items-center gap-2"')
+      expect(cells[11][1]).toContain('Add Invoice')
+      expect(cells[11][1]).toContain('>OK %</button>')
+      expect(cells[11][1].indexOf('>OK %</button>')).toBeLessThan(
+        cells[11][1].indexOf('Add Invoice')
       )
     }
     const footer = table.match(/<tfoot[\s\S]*?<\/tfoot>/)![0]

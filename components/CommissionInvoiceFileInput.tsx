@@ -47,7 +47,7 @@ export default function CommissionInvoiceFileInput({
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
         >
-          Add file invoice
+          Add Invoice
         </button>
         <input
           ref={inputRef}

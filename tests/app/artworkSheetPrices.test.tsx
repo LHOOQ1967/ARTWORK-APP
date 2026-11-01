@@ -3,15 +3,19 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ArtworkSheet from '@/components/artwork/ArtworkSheet'
 import type { ArtworkPrint } from '@/app/(protected)/types/artwork'
 
+const session = vi.hoisted(() => ({ role: 'Editor' as string | undefined }))
 vi.mock('@/contexts/SessionContext', () => ({
-  useSessionProfile: () => ({ role: 'Editor' }),
+  useSessionProfile: () => ({ role: session.role }),
 }))
 vi.mock('@/components/artwork/ArtworkViewerComment', () => ({
   default: () => null,
 }))
 vi.mock('@/lib/supabaseBrowser', () => ({ supabase: {} }))
 
-beforeEach(() => vi.spyOn(console, 'log').mockImplementation(() => {}))
+beforeEach(() => {
+  session.role = 'Editor'
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+})
 afterEach(() => vi.restoreAllMocks())
 
 function render(prices: Partial<ArtworkPrint>) {
@@ -21,6 +25,45 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it.each(['Editor', 'Administrator'])('shows proposal recipients alongside the proposer for %s', role => {
+    session.role = role
+    const html = render({
+      proposedBy: { id: 'gallery', company_name: 'Proposing Gallery' },
+      proposals: [
+        { id: 'p1', contact_label: 'Florac' },
+        { id: 'p2', contact_label: 'Florac' },
+        { id: 'p3', contact: { id: 'client', first_name: 'Léopold', last_name: 'Meyer' } },
+      ],
+    })
+    const header = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/)![1]
+    expect(header).toContain('Proposing Gallery')
+    expect(header).not.toContain('Proposed to:')
+    expect(html).toContain('text-align:right')
+    expect(html).toContain('margin-left:auto')
+    expect(html).toContain('Proposed to: Florac, Léopold Meyer')
+    expect(header).not.toContain('no-print')
+  })
+
+  it.each(['Viewer', undefined, 'Unknown'])('hides recipients for role %s even if data and canEdit are supplied', role => {
+    session.role = role
+    const html = render({ proposals: [{ id: 'p1', contact_label: 'Private Buyer' }] })
+    expect(html).not.toContain('Proposed to:')
+    expect(html).not.toContain('Private Buyer')
+  })
+
+  it('supports artwork_proposals and proposedTo contacts without a proposer', () => {
+    const html = render({
+      artwork_proposals: [{ id: 'p1', proposedTo: { id: 'contact', company_name: 'Buyer Company' } }],
+    })
+    expect(html).toContain('Proposed to: ')
+    expect(html).toContain('Buyer Company')
+  })
+
+  it('omits the recipient label when proposals are empty or lack a contact name', () => {
+    expect(render({ proposals: [{ id: 'p1' }] })).not.toContain('Proposed to:')
+    expect(render({ proposals: [] })).not.toContain('Proposed to:')
+  })
+
   it('shows collapsible link categories and keeps gallery images separate', () => {
     const html = render({ documents: [
       { id: 'general', artwork_id: 'work', document_type: 'link', label: 'Certificate', url: '/certificate' },
@@ -79,8 +122,9 @@ describe('factsheet auction prices', () => {
 
   it('shows edition after signature', () => {
     const html = render({ signature: 'Signed lower right', edition: '3/10' })
-    expect(html).toContain('Edition: 3/10')
-    expect(html.indexOf('Signed lower right')).toBeLessThan(html.indexOf('Edition: 3/10'))
+    expect(html).toContain('>3/10</div>')
+    expect(html).not.toContain('Edition:')
+    expect(html.indexOf('Signed lower right')).toBeLessThan(html.indexOf('>3/10</div>'))
   })
 
   it('hides edition when it is not provided', () => {

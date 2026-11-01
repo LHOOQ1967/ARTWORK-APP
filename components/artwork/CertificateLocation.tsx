@@ -38,12 +38,34 @@ export function CertificateAddress({ addressId }: { addressId?: string | null })
   return <span role={result.error ? 'alert' : undefined}>{result.error ?? result.label}</span>
 }
 
-export function CertificateLocationHistory({ artworkId }: { artworkId?: string | null }) {
+export function CertificateLocationHistory({ artworkId, hideWhenEmpty = false }: {
+  artworkId?: string | null
+  hideWhenEmpty?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [changes, setChanges] = useState<LocationChange[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [availability, setAvailability] = useState<{ artworkId: string; exists: boolean; error?: string } | null>(null)
+  useEffect(() => {
+    if (!hideWhenEmpty || !artworkId) return
+    let active = true
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from('artwork_certificate_location_history')
+          .select('id').eq('artwork_id', artworkId).limit(1)
+        if (error) throw error
+        if (active) setAvailability({ artworkId, exists: Boolean(data?.length) })
+      } catch (cause) {
+        console.error('CHECK CERTIFICATE LOCATION HISTORY FAILED:', cause)
+        if (active) setAvailability({
+          artworkId, exists: false, error: 'Unable to check certificate location history.',
+        })
+      }
+    })()
+    return () => { active = false }
+  }, [artworkId, hideWhenEmpty])
   useEffect(() => {
     if (!open || !artworkId) return
     dialogRef.current?.showModal()
@@ -73,6 +95,11 @@ export function CertificateLocationHistory({ artworkId }: { artworkId?: string |
     return () => { active = false }
   }, [open, artworkId])
   if (!artworkId) return null
+  if (hideWhenEmpty && (availability?.artworkId !== artworkId || !availability.exists)) {
+    return availability?.artworkId === artworkId && availability.error
+      ? <span role="alert">{availability.error}</span>
+      : null
+  }
   return <>
     <button type="button" className="no-print" aria-label="View certificate location history"
       aria-haspopup="dialog" style={{ marginLeft: 8, textDecoration: 'underline', fontSize: 12 }}

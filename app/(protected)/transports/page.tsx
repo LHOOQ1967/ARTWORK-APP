@@ -9,6 +9,7 @@ import { fetchWithAuth } from '@/lib/fetchWithAuth'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { addressLabel, type ContactAddress } from '@/components/contacts/ContactAddressSelect'
+import CommissionInvoiceFileInput from '@/components/CommissionInvoiceFileInput'
 
 const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP', 'HKD'] as const
 
@@ -140,14 +141,15 @@ const STATUSES = [
 ]
 
 async function send(url: string, method: string, body?: unknown) {
+  const isForm = body instanceof FormData
   const response = await fetchWithAuth(url, {
     method,
-    headers: { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: isForm ? undefined : { 'Content-Type': 'application/json' },
+    body: isForm ? body : body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as { error?: string }
-    throw new Error(payload.error ?? 'Opération impossible.')
+    throw new Error(payload.error ?? `Unable to save transport (HTTP ${response.status}).`)
   }
 }
 
@@ -342,9 +344,8 @@ function TransportCard({
     transport.instruction_contact_id ?? 'all'
   )
   const [notes, setNotes] = useState(transport.notes ?? '')
-  const [finalInvoicePdfUrl, setFinalInvoicePdfUrl] = useState(
-    transport.final_invoice_pdf_url ?? ''
-  )
+  const [finalInvoiceFile, setFinalInvoiceFile] = useState<File>()
+  const [saving, setSaving] = useState(false)
   const [history, setHistory] = useState<HistoryRow[] | null>(null)
 
   async function toggleHistory() {
@@ -363,7 +364,7 @@ function TransportCard({
       <input
         type="date"
         className="rounded border bg-white px-3 py-2"
-        disabled={!canEdit}
+        disabled={!canEdit || saving}
         value={dates[key]}
         onChange={(event) => setDates((prev) => ({ ...prev, [key]: event.target.value }))}
       />
@@ -465,17 +466,17 @@ function TransportCard({
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Lien PDF de la facture finale
-          <input
-            type="url"
-            className="w-80 rounded border bg-white px-3 py-2"
-            disabled={!canEdit}
-            placeholder="https://..."
-            value={finalInvoicePdfUrl}
-            onChange={(event) => setFinalInvoicePdfUrl(event.target.value)}
-          />
-        </label>
+        {canEdit && (
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Final invoice</p>
+            <CommissionInvoiceFileInput
+              label={`Final invoice file for ${artworkLabel(transport.artwork)}`}
+              file={finalInvoiceFile}
+              disabled={saving}
+              onChange={setFinalInvoiceFile}
+            />
+          </div>
+        )}
         {transport.final_invoice_pdf_url && (
           <a
             className="pb-2 text-sm font-medium text-blue-700 underline"
@@ -483,7 +484,7 @@ function TransportCard({
             target="_blank"
             rel="noreferrer"
           >
-            PDF de la facture finale
+            Open final invoice
           </a>
         )}
       </div>
@@ -514,7 +515,7 @@ function TransportCard({
           Notes
           <input
             className="rounded border bg-white px-3 py-2"
-            disabled={!canEdit}
+            disabled={!canEdit || saving}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
           />
@@ -527,25 +528,39 @@ function TransportCard({
             <button
               className="edit-button"
               type="button"
+              disabled={saving}
               onClick={() =>
-                void run(() =>
-                  send(`/api/transports/${transport.id}`, 'PATCH', {
-                    instruction_date: dates.instruction_date || null,
-                    instruction_contact_id:
-                      instructionContactId === 'all' ? null : instructionContactId,
-                    transport_date: dates.transport_date || null,
-                    arrival_date: dates.arrival_date || null,
-                    notes,
-                    final_invoice_pdf_url: finalInvoicePdfUrl || null,
-                  })
-                )
+                void run(async () => {
+                  setSaving(true)
+                  try {
+                    const changes = {
+                      instruction_date: dates.instruction_date || null,
+                      instruction_contact_id:
+                        instructionContactId === 'all' ? null : instructionContactId,
+                      transport_date: dates.transport_date || null,
+                      arrival_date: dates.arrival_date || null,
+                      notes,
+                    }
+                    let body: typeof changes | FormData = changes
+                    if (finalInvoiceFile) {
+                      body = new FormData()
+                      body.set('transport', JSON.stringify(changes))
+                      body.set('file', finalInvoiceFile)
+                    }
+                    await send(`/api/transports/${transport.id}`, 'PATCH', body)
+                    setFinalInvoiceFile(undefined)
+                  } finally {
+                    setSaving(false)
+                  }
+                })
               }
             >
-              Enregistrer
+              {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               className="edit-button"
               type="button"
+              disabled={saving}
               onClick={() => {
                 if (!window.confirm('Supprimer ce transport et ses devis ?')) return
                 void run(() => send(`/api/transports/${transport.id}`, 'DELETE'))

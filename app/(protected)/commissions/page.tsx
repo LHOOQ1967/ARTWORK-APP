@@ -10,10 +10,7 @@ import * as XLSX from 'xlsx-js-style'
 import { fetchWithAuth } from '@/lib/fetchWithAuth'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 import CommissionInvoiceFileInput from '@/components/CommissionInvoiceFileInput'
-
-const THRESHOLD_USD = 5_000_000
-const STANDARD_RATE = 0.08
-const REDUCED_RATE = 0.07
+import { annualStandardCommissionRates, THRESHOLD_USD, STANDARD_RATE, REDUCED_RATE } from '@/lib/commissionRates'
 
 type Company = 'Florac' | 'Léopold Meyer'
 
@@ -463,16 +460,15 @@ export default function CommissionsPage() {
 
     const orderedArtworks = annualArtworks
       .sort((first, second) => first.date_acquisition.localeCompare(second.date_acquisition))
-    return orderedArtworks.map((artwork, index) => {
-        const qualifyingPurchaseTotal = orderedArtworks
-          .slice(0, index + 1)
-          .reduce(
-            (sum, item) =>
-              sum + (item.exceptionalRate === null ? item.purchaseUsd ?? 0 : 0),
-            0
-          )
-        const standardRate =
-          qualifyingPurchaseTotal >= THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
+    const standardRates = annualStandardCommissionRates(orderedArtworks.map(artwork => ({
+      id: artwork.id,
+      acquisitionDate: artwork.date_acquisition,
+      purchaseUsd: artwork.purchaseUsd,
+      exceptionalRate: artwork.exceptionalRate,
+      invoicedAt: invoices[artwork.id]?.invoiced_at ?? null,
+    })))
+    return orderedArtworks.map((artwork) => {
+        const standardRate = standardRates.get(artwork.id)!
         const appliedRate = artwork.exceptionalRate ?? standardRate
         const isAuction = artwork.auctions === true
         const commissionBase =
@@ -539,7 +535,7 @@ export default function CommissionsPage() {
     }, 0)
   }, [artworks, exceptionalRates, fxRates, selectedYear])
 
-  const standardRate = annualQualifyingUsd > THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
+  const standardRate = annualQualifyingUsd >= THRESHOLD_USD ? REDUCED_RATE : STANDARD_RATE
 
   const invoicedRows = useMemo(
     () => rows.filter((row) => row.invoicedAt !== null),
@@ -1065,54 +1061,60 @@ export default function CommissionsPage() {
                       <p className="font-medium">{correction.company}</p>
                       <p className="text-lg font-semibold">{formatMoney(correction.amount, 'USD')}</p>
                     </div>
-                    <label className="flex items-center gap-2 text-sm">
-                      Invoiced on
-                      <input
-                        className="rounded border px-2 py-1"
-                        type="date"
-                        disabled={savingInvoiceId !== null}
-                        value={dateValue}
-                        onChange={(event) =>
-                          setDraftCorrectionDates((previous) => ({
-                            ...previous,
-                            [correction.key]: event.target.value,
-                          }))
-                        }
-                      />
-                    </label>
-                    <CommissionInvoiceFileInput
-                      label={`Correction invoice file for ${correction.company}`}
-                      file={draftCorrectionFiles[correction.key]}
-                      disabled={savingInvoiceId !== null}
-                      onChange={file => setDraftCorrectionFiles(previous => ({
-                        ...previous, [correction.key]: file,
-                      }))}
-                    />
-                    {correction.invoiceUrl && (
-                      <a
-                        className="text-sm font-medium text-blue-700 underline"
-                        data-print-exclude
-                        href={correction.invoiceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open invoice
-                      </a>
-                    )}
-                    <button
-                      className="edit-button"
-                      type="button"
-                      disabled={!dateValue || savingInvoiceId !== null}
-                      onClick={() =>
-                        void saveCorrectionInvoice(
-                          correction.company,
-                          correction.key,
-                          correctionRows
-                        )
-                      }
-                    >
-                      {savingInvoiceId === correction.key ? 'Saving...' : 'Save'}
-                    </button>
+                    <div>
+                      <label className="flex items-center gap-2 text-sm">
+                        Invoiced on
+                        <input
+                          className="rounded border px-2 py-1"
+                          type="date"
+                          disabled={savingInvoiceId !== null}
+                          value={dateValue}
+                          onChange={(event) =>
+                            setDraftCorrectionDates((previous) => ({
+                              ...previous,
+                              [correction.key]: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <div className="mt-2 flex min-w-max items-center gap-3">
+                        {correction.invoiceUrl && (
+                          <a
+                            className="whitespace-nowrap text-sm font-bold text-blue-700 underline"
+                            data-print-exclude
+                            href={correction.invoiceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open invoice
+                          </a>
+                        )}
+                        <div className="ml-auto flex shrink-0 items-center gap-2">
+                          <CommissionInvoiceFileInput
+                            label={`Correction invoice file for ${correction.company}`}
+                            file={draftCorrectionFiles[correction.key]}
+                            disabled={savingInvoiceId !== null}
+                            onChange={file => setDraftCorrectionFiles(previous => ({
+                              ...previous, [correction.key]: file,
+                            }))}
+                          />
+                          <button
+                            className="edit-button whitespace-nowrap"
+                            type="button"
+                            disabled={!dateValue || savingInvoiceId !== null}
+                            onClick={() =>
+                              void saveCorrectionInvoice(
+                                correction.company,
+                                correction.key,
+                                correctionRows
+                              )
+                            }
+                          >
+                            {savingInvoiceId === correction.key ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     <button
                       className="edit-button"
                       type="button"
@@ -1368,18 +1370,17 @@ export default function CommissionsPage() {
                           }))
                         }
                       />
-                      <div className="mt-2 flex items-center justify-end gap-2">
-                        {row.exceptionalRate !== 0 && (
-                          <>
-                            <CommissionInvoiceFileInput
-                              label={`Invoice file for ${titleLabel(row)}`}
-                              file={draftInvoiceFiles[row.id]}
-                              disabled={savingInvoiceId !== null}
-                              onChange={file => setDraftInvoiceFiles(previous => ({
-                                ...previous, [row.id]: file,
-                              }))}
-                            />
-                          </>
+                      <div className="mt-2 flex min-w-max items-center gap-3">
+                        {row.invoiceUrl && (
+                          <a
+                            className="whitespace-nowrap text-sm font-bold text-blue-700 underline"
+                            data-print-exclude
+                            href={row.invoiceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open invoice
+                          </a>
                         )}
                       </div>
                     </td>
@@ -1408,33 +1409,29 @@ export default function CommissionsPage() {
                           disabled={savingId === row.id}
                           onClick={() => void saveExceptionalRate(row.id)}
                         >
-                          {savingId === row.id ? '…' : 'OK'}
+                          {savingId === row.id ? '…' : 'OK %'}
                         </button>
                       </div>
-                      <div className="mt-2 flex items-center justify-start gap-2">
-                        {row.exceptionalRate !== 0 && (
+                      {row.exceptionalRate !== 0 && (
+                        <div className="mt-2 flex min-w-max items-center gap-2">
+                          <CommissionInvoiceFileInput
+                            label={`Invoice file for ${titleLabel(row)}`}
+                            file={draftInvoiceFiles[row.id]}
+                            disabled={savingInvoiceId !== null}
+                            onChange={file => setDraftInvoiceFiles(previous => ({
+                              ...previous, [row.id]: file,
+                            }))}
+                          />
                           <button
-                            className="edit-button"
+                            className="edit-button whitespace-nowrap"
                             type="button"
                             disabled={savingInvoiceId !== null}
                             onClick={() => void saveArtworkInvoice(row.id, invoicedCommissionAmount)}
                           >
                             {savingInvoiceId === row.id ? 'Saving...' : 'Save'}
                           </button>
-                        )}
-                        {row.invoiceUrl && (
-                          <a
-                            className="text-sm font-medium text-blue-700 underline"
-                            data-print-exclude
-                            href={row.invoiceUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Open invoice
-                          </a>
-                        )}
-                      </div>
-                      {savingInvoiceId === row.id && <span className="ml-1">…</span>}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )
