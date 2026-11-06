@@ -217,6 +217,9 @@ describe('critical artwork workflows', () => {
       expect(createResponse.status).toBe(200)
       expect(insertQuery.insert).toHaveBeenCalledWith({
         artwork_id: 'artwork-1',
+        visibility: 'all_clients',
+        recipient_contact_id: null,
+        link_category: 'general',
         document_type: 'provenance',
         label: 'Certificate',
         url: 'https://example.com/certificate.pdf',

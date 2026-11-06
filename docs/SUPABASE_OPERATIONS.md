@@ -566,6 +566,323 @@ ou supprimer dans `artwork-images`; seul le serveur `service_role` ecrit dans
 
 ### Sauvegarde
 
+#### Recurring backup deployment decisions (29 October 2026)
+
+The selected execution host is Windows Server `SERVEUR`, administered
+through Remote Desktop or a local session, not the user's workstation.
+The requested schedule is daily at 22:00 Swiss local time (including
+daylight-saving changes). Initial failure monitoring will use logs and
+Task Scheduler status; email alerts have not been configured or requested
+for this first deployment. No scheduled task has been installed yet.
+
+Before deployment, check the server's timezone, installed Node/PostgreSQL
+tools, local `Company` share path and free space. Task credentials must
+work without an interactive login, and the intended task account must
+have the required local backup-folder permissions and outbound access.
+Do not use mapped workstation drive letters or assume workstation
+dependencies/secrets exist on the server. Unattended PostgreSQL password
+handling and Storage credentials still need a protected server-side setup;
+the existing interactive password prompts cannot be scheduled as-is.
+
+Server-side preparation confirmed by the operator on 29 October:
+
+- Host: Windows Server 2022 Standard x64, domain controller for
+  `blondeau.local`; timezone `W. Europe Standard Time`.
+- Node 24.22.2 runs from
+  `C:\Program Files\ArtMuseTools\node-v24.22.2-win-x64\node.exe`.
+  The official ZIP SHA-256 matched; MSI installation failed with no
+  confirmed root cause. PostgreSQL command-line tools report 18.6 under
+  `C:\Program Files\PostgreSQL\18\bin`.
+- The `Company` share maps to `D:\Company`; approximately 211.6 GiB was
+  free on D: at the initial check. Use local paths for server execution.
+- The backup root's inherited broad Users access was removed after an
+  ACL export processed 39,764 entries without errors. SYSTEM,
+  Administrators and `BLONDEAU\philippe` retain inheritable Full Control;
+  descendant checks found no unexpected identities/protected inheritance.
+  The operator's workstation still accessed the existing database archive.
+  The new `automated` child grants only `BLONDEAU\svc_artmuse_backup`
+  additional Modify access; this includes deletion within that child.
+- `svc_artmuse_backup` belongs only to Domain Users and remains disabled.
+  The operator chose a non-expiring password for this account alone,
+  instead of the domain's 42-day expiration. Keep the unique random
+  password in the professional vault and rotate on compromise/personnel
+  changes; no domain-wide password policy was changed.
+- A separate GPO, `ArtMuse - SERVEUR - Backup batch logon`, is linked to
+  Domain Controllers with link order 1, not enforced, and security
+  filtering restricted to computer `BLONDEAU\SERVEUR$`. The default GPO
+  was not edited. The effective batch-logon right includes the service
+  account SID and preserves Administrators, Backup Operators and
+  Performance Log Users. No batch-logon deny entry appeared in the
+  supplied export. This does not yet prove successful task execution.
+
+Scripts deployment, protected secrets, runtime permissions and a tested
+scheduled task remain outstanding. Do not copy production application
+environment files wholesale or activate the service account prematurely.
+
+The operator selected LocalMachine DPAPI for unattended production
+credentials. `scripts/initialize-backup-secrets.ps1` must run on SERVEUR
+only; it checks the protected `BackupSecrets` directory ACL and prompts
+for the production database password and Storage server key with masked
+input. It writes only a DPAPI-encrypted envelope with create-new semantics,
+never overwriting existing credentials. `-VerifyOnly` checks local
+decryption without showing values or contacting Supabase. Legacy JWT keys
+are checked for production reference/service_role, not cryptographically
+authenticated; opaque secret keys cannot be project-checked offline.
+Remote authentication still needs validation. No task/account is enabled.
+The ACL check permits Windows' standard `ReadAndExecute, Synchronize`
+combination for the service account, while rejecting write, delete and
+permission/ownership changes. The first provisioning attempt rejected
+`Synchronize` before prompting for credentials; the validator was corrected
+without changing directory permissions.
+Machine DPAPI is not account-bound: any principal obtaining the file on
+SERVEUR could decrypt it. Keep directory/file access limited to SYSTEM,
+Administrators and service-account read/execute; never copy secrets into
+the scripts folder, chat or application environment files. Plaintext is
+necessarily present briefly in process memory; managed strings cannot be
+reliably wiped. Preserve original credentials in the vault for recovery
+on a replacement machine. Runtime integration is not yet implemented.
+
+The operator confirmed successful secret provisioning and local decryption
+on SERVEUR on 29 October. This does not yet verify remote authentication.
+Deploy `test-backup-connectivity.ps1` beside the provisioning script, then
+run it on SERVEUR as administrator. It reuses the provisioning ACL checks,
+decrypts only in memory and temporarily supplies the database password via
+the child process environment, never command arguments. Existing
+PGPASSWORD/PGOPTIONS values are restored in finally blocks.
+The PostgreSQL probe uses a read-only metadata query with a 30-second
+statement timeout and expects 39 public tables and three named buckets.
+The Storage probe uses GET bucket metadata only, disables redirects, accepts
+legacy service_role or secret-key authentication and verifies the three
+bucket IDs without printing response bodies. No Storage object is listed,
+downloaded or modified. A dated connectivity JSON report is saved under
+`automated`; failures remain explicit with sanitized diagnostics.
+Passing this administrator-run probe does not test the service account,
+actual backups or Task Scheduler. Keep the account disabled until those
+separate preparation steps are ready.
+The first remote probe returned an unexpected-state result after a
+successful psql exit, before the Storage HTTP check. The diagnostic now
+records/displays only database/user identity, read-only status, public table
+count and required bucket count separately. Expected values are unchanged;
+do not infer the cause or relax checks until these metadata are reviewed.
+The detailed retry confirmed the expected postgres identity, 39 public
+tables and three buckets, but `transaction_read_only` was `off` despite
+the PGOPTIONS setting. The probe now explicitly starts a `READ ONLY`
+transaction and sets statement/lock timeouts inside it, rather than relying
+on connection-startup options. The read-only assertion is retained.
+The exact cause of the ineffective startup setting is not established.
+The failed probes executed only metadata SELECTs; the HTTP Storage check
+was not reached. The corrected probe passed on SERVEUR on 29 October at
+12:41 local time: postgres identity, read-only transaction, 39 public
+tables and three buckets matched, and the Storage metadata request passed.
+The persisted report confirmed both connection checks. This was an
+administrator-session test only; no backup was performed and service
+account execution/scheduling remain untested.
+The manual Task Scheduler diagnostic subsequently returned exit 0 with
+both connection checks true. Its initial report did not record Windows
+identity and retained a constant `taskIdentityTested: false`; the supplied
+report/task timestamps also did not match exactly. Do not treat this as
+conclusive service-account execution evidence yet. The probe now records
+the actual Windows token name/SID, computer and process ID, and marks
+`taskIdentityTested` true only after both checks pass under the dedicated
+account's SID. Rerun the manual task and correlate its fresh report before
+proceeding. No daily trigger or actual backup is configured by this probe.
+The subsequent supplied report records the actual account
+`BLONDEAU\svc_artmuse_backup` on SERVEUR, both read checks true and
+`taskIdentityTested: true`; Task Scheduler returned 0. Dedicated-account
+read connectivity is now evidenced, not just administrator connectivity.
+
+The next manual task can use `run-server-database-backup.ps1` alongside
+`backup-supabase-database.ps1` and the provisioning script in BackupScripts.
+The wrapper enforces SERVEUR and the dedicated account SID, holds an
+exclusive file lock against overlapping database runs, decrypts credentials
+in memory and restores the previous PGPASSWORD environment in finally.
+The exporter retains its interactive default; `-Unattended` requires
+PGPASSWORD and uses `--no-password` to prevent a hung prompt. Each run
+creates new directories under `automated`, checks archive listing and
+decompression, and records size/SHA-256. The wrapper rechecks the new
+manifest/hash and writes `database-run-<run>.json`; failures are explicit,
+with credential strings redacted. No previous archive is replaced/pruned.
+This tests database backup only, not Storage or a restored new archive.
+Deploy the scripts first; use a separate manually triggered task with the
+same limited/password principal as the connectivity task and change only
+its name/action script to the database wrapper. Do not add a daily trigger
+until an actual run and report have been verified.
+The first manual database task passed on 29 October, with archive creation
+at 13:05 local time under `BLONDEAU\svc_artmuse_backup`. The new archive
+was 8,304,021 bytes. An independent read from the share confirmed the
+complete manifest and matching report/manifest/file SHA-256
+`ab11faa4a8a138e86b33895f5cf4c214c850c3a7144b4f591136803978786da4`.
+Task Scheduler returned 0. This archive has not been restore-tested;
+Storage was not backed up by this task and no daily trigger is configured.
+
+Current archived payloads total approximately 1.74 GiB (database plus
+Storage). Thirty full copies would consume about 52.26 GiB, and ninety
+about 156.78 GiB, excluding growth, metadata, logs, partial runs and other
+backups. These are capacity estimates, not an approved retention policy.
+Versioned incremental Storage backups should avoid recursive API scans
+and unnecessary re-downloads without overwriting prior recovery points.
+Incremental scheduling, retention and automatic deletion are not yet
+implemented. Preserve all existing independent backups and restore reports.
+
+#### Independent Windows database archive
+
+With the PostgreSQL command-line tools installed (no local database server
+required), run this from the local project directory in an interactive
+PowerShell terminal:
+
+```powershell
+& .\scripts\backup-supabase-database.ps1
+```
+
+The script uses the ArtMuse Session pooler on port 5432 with required TLS
+and prompts for the PostgreSQL password locally. Never paste the password
+into chat, arguments or scripts. The default destination is the private,
+encrypted `C:\DEV\artmuse` directory; each run creates a dated subdirectory.
+The default tools are PostgreSQL 18, compatible with the observed server 17.6.
+
+For the restricted company backup share (mapped as `P:` on this PC), use
+the UNC path rather than relying on a mapped drive in scheduled processes:
+
+```powershell
+& .\scripts\backup-supabase-database.ps1 -OutputDirectory '\\SERVEUR\Company\9010 BASES\artmuse\sauvegarde'
+```
+
+The share is reported to have an off-site/offline backup. Confirm its
+capacity, retention, encryption and inclusion in that backup with the
+administrator. Writing to a server share from this PC does not make the
+backup job server-hosted: the PC and network must remain available.
+
+The script produces a custom-format `database.dump`, a private error log,
+an archive index, and a manifest recording byte size and SHA-256. It checks
+native command exit codes, reads the index and decompresses the archive
+to the Windows null device without executing SQL. Interrupted or failed
+exports must not be used; only a successful run sets `complete: true`.
+This verifies archive readability, not restore compatibility or application
+correctness. A separate disposable Supabase project is required for a restore
+test; do not restore this archive onto the running production project.
+
+This is a full database dump of objects accessible to the PostgreSQL user,
+not the filtered Supabase CLI roles/schema/data export described below.
+Managed schemas, owners, privileges and extensions may require special
+handling when restoring into Supabase. Cluster roles/passwords, Storage file
+contents, platform/OAuth configuration and encryption root keys are not
+included. Treat the archive as confidential: it can contain personal data,
+authentication records and secrets embedded in database functions.
+
+#### Verified Windows Storage copy
+
+For diagnosing differences without recursively listing thousands of folders,
+export Storage metadata with the locally installed PostgreSQL tools:
+
+```powershell
+& .\scripts\export-storage-inventory.ps1
+```
+
+Enter the database password only at the local PostgreSQL prompt. This makes
+a single read-only, repeatable-read transaction against `storage.objects`
+and `storage.buckets`, with query and lock timeouts. It creates a dated JSON
+inventory in the restricted company backup share, without modifying remote
+objects or the existing backup. The JSON includes private object names and
+metadata: do not paste it in chat or commit it to Git. Metadata export alone
+does not download files or make an incomplete backup complete. Compare it
+with the saved file manifest before deciding which objects need copying.
+
+For an unchanged/additions-only inventory, reconcile and verify the backup:
+
+```powershell
+node --env-file=.env.local scripts\backup-supabase-storage.mjs --finalize-inventory '<absolute-backup-directory>' '<absolute-exported-inventory.json>'
+```
+
+This rechecks saved file hashes, downloads additions, preserves the supplied
+inventory as `source-inventory.json`, and verifies all file hashes before
+success. It refuses to overwrite a valid saved version that has changed
+or to drop deleted objects from the manifest. Those cases require a
+version-preserving incremental workflow. Completion records the SQL
+inventory timestamp and validation basis: matching that dated inventory
+is not an atomic Storage snapshot or a tested restoration. No slow
+recursive remote scan is performed in this mode.
+
+The database backups shown in Supabase **Database > Backups** do not include
+Storage object contents. Back up all three ArtMuse buckets: `artwork-images`,
+`artwork-imports` and `artwork-thumbnails`.
+
+From the local project directory on Windows, with Node.js 20.20.2 or later
+and the existing server-only credentials in `.env.local`, run:
+
+```powershell
+node --env-file=.env.local scripts\backup-supabase-storage.mjs --output "C:\DEV\artmuse"
+```
+
+This requires no package installation, Docker, SSH, or changes on Infomaniak.
+The destination must be private, outside Git, and on an encrypted disk.
+Each run creates a new dated directory without overwriting previous copies.
+The script only reads Supabase: listing requests use POST, downloads use GET.
+It waits one second before each request, downloads sequentially, paginates folders, checks byte counts and local
+SHA-256 hashes, and repeats the inventory to detect changes during the copy.
+HTTP 429 responses are retried up to four times, respecting Retry-After
+delays of at most one minute, or using bounded exponential backoff.
+Transient network failures/timeouts also receive up to four bounded retries.
+Avoid uploads, edits and deletions during the backup; this is not an atomic
+Storage snapshot. Hashes verify local integrity, not an independent remote
+cryptographic checksum.
+
+Objects have hash-based `.bin` filenames for Windows compatibility.
+`manifest.json` maps them to their original bucket/path and records bucket
+settings, object metadata, sizes and checksums, but never credentials.
+A successful run prints `COMPLETE`; failed runs exit nonzero and leave
+`complete: false`. Preserve the manifest with the objects. Recheck a copy with:
+
+```powershell
+node scripts\backup-supabase-storage.mjs --verify "C:\DEV\artmuse\<dated-backup-directory>"
+```
+
+The script saves `inventory.json` after each listing page and `manifest.json`
+after every verified download. A timestamped `backup.log` records progress
+and handled errors without credentials. A forced process termination may
+leave no failure message; `complete: false` always means incomplete.
+On Windows shares, replacing checkpoints or downloaded files retries
+`EPERM`, `EACCES` and `EBUSY` up to five times (1, 2, 4, 8 and 16 seconds).
+The previous checkpoint is never deleted to bypass a replacement error.
+Persistent permission/locking errors still stop the backup explicitly;
+check share permissions and locks with the administrator rather than
+disabling server security or assuming the backup completed.
+Storage HTTP 429 and transient server/gateway responses (including 544)
+are retried up to four times with bounded backoff. Failed responses log
+request IDs, relevant headers and a short redacted body excerpt; object paths,
+credentials and tokens are not logged.
+Resume an interrupted run created by this version with:
+
+```powershell
+node --env-file=.env.local scripts\backup-supabase-storage.mjs --resume "C:\DEV\artmuse\<dated-backup-directory>"
+```
+
+Resume reuses the saved inventory and checks local file hashes before
+skipping downloads. Missing/corrupt files are downloaded again. A fresh
+remote inventory is still required before completion; its progress is saved
+page by page and resumes after interruption. Remote changes invalidate the
+affected inventory and verification checkpoint for the next resume. Do not run two
+processes against the same backup directory. Earlier backups without
+`inventory.json` cannot be resumed; start a new backup instead.
+
+To relocate a resumable backup, stop its process first, copy the complete
+directory (including inventory and manifest), compare SHA-256 hashes of
+all copied files, then resume only the destination copy:
+
+```powershell
+node --env-file=.env.local scripts\backup-supabase-storage.mjs --resume '\\SERVEUR\Company\9010 BASES\artmuse\sauvegarde\<dated-backup-directory>'
+```
+
+Keep the original until the destination is verified. It becomes a frozen
+checkpoint, not a second actively updated backup. Never run both copies
+concurrently.
+
+This is a manual Storage backup, not an automated schedule or a tested
+restoration. It does not back up the database, RLS policies, authentication
+configuration, Infomaniak, or SharePoint documents. The isolated sample
+restore below tests nine objects, not a full Storage restoration.
+A separate database export, protected
+configuration inventory and restore test are still required.
+
 La sauvegarde doit etre quotidienne, chiffree au repos, stockee hors du projet
 Supabase et retenue selon la politique de l'entreprise. Faire aussi un test de
 restauration au moins chaque trimestre.
@@ -594,6 +911,260 @@ Ne jamais archiver `SUPABASE_DB_URL`, les cles API ou les fichiers `.env` avec
 la sauvegarde.
 
 ### Restauration
+
+#### Isolated table-data restore test
+
+The test project `artmuse-restore-test` has reference
+`sontvcvvtftvivysiccg`, distinct from production. Keep its Data API disabled
+and do not connect the application, OAuth providers or outbound automation.
+The first stage intentionally tests only the 39 public tables, sequences
+and archived data:
+
+```powershell
+& .\scripts\test-restore-database.ps1
+& .\scripts\test-restore-database.ps1 -Execute
+```
+
+The first command prepares private SQL and counts without connecting.
+The second connects only to the hard-coded test Session pooler and prompts
+locally for its unique password. Each run creates a separate report folder
+on the private company backup share. The source archive hash is checked;
+the target public schema must be empty. No clean/drop operation is used.
+Tables, data and count assertions run in one transaction with stop-on-error,
+so any SQL failure rolls back the restore. Existing managed schemas are
+not restored. Only pg_dump table/sequence/data entries are selected, not
+triggers, policies, grants, indexes or foreign keys. The sole restored
+function is the archived `public.immutable_unaccent(text)` dependency of
+the generated library search column. The test installs `unaccent` if needed
+and pins this function's search path to `public, extensions, pg_catalog`
+because pg_dump clears the session search path. Execute access is revoked
+from PUBLIC, anon and authenticated. Anonymous,
+authenticated and PUBLIC access to restored tables/sequences is revoked.
+
+A passing `result.json` confirms table-data recovery and exact row counts
+from the archive, not referential integrity, RLS correctness, login,
+Storage restoration, encryption secrets or application behavior. It never
+marks the original archive as fully restore-tested. Preserve private SQL,
+counts and logs; they contain application data and must not enter Git.
+Subsequent stages must explicitly validate dependencies and permissions
+before enabling the Data API or running application workflows.
+
+#### Isolated internal-integrity restore test
+
+After the table-data test, prepare then execute the next stage:
+
+```powershell
+& .\scripts\test-restore-integrity.ps1
+& .\scripts\test-restore-integrity.ps1 -Execute
+```
+
+The script checks the archive SHA-256 and previous passing data report.
+It targets only `sontvcvvtftvivysiccg`, prompting locally for its database
+password. It restores 47 primary/unique constraints, 84 standalone indexes
+and 67 public-to-public foreign keys from the archive. Seven foreign keys
+to `auth.users` are explicitly deferred and listed in a private report:
+Auth accounts were not restored. No dummy users, managed schema changes,
+application triggers, RLS policies or outbound automation are introduced.
+The `pg_trgm` extension is required in archived schema `public`; if already
+installed elsewhere, the script stops rather than relocating it.
+
+Guards require the 39 restored tables, unchanged archived row counts,
+no existing public table indexes or key constraints and no application
+triggers. It is intentionally not rerunnable after success. All additions
+and validations execute in one transaction, with stop-on-error and
+10-minute per-statement/5-second lock timeouts retained in the dump header.
+Each selected constraint/index is checked by name for validated/valid
+status; final totals include 131 indexes (84 standalone plus 47 backing
+key constraints). Table row counts are checked again after restoration.
+Foreign-key creation validates existing data; a violation or missing
+dependency aborts and rolls back all additions.
+
+The private `integrity-restore-test-<run>` directory contains SQL, logs,
+the exact archive selection, deferred Auth relation list and `result.json`.
+A passing `internalIntegrityTestPassed` does not validate the deferred
+Auth relations, login, permissions, RLS or application behavior.
+Keep the Data API disabled; `fullRestoreTested` remains false.
+
+This stage passed on 29 October 2026 at 09:38 UTC. The persisted report
+confirmed `internalIntegrityTestPassed: true`; the error log was empty.
+All 47 key constraints, 84 standalone indexes and 67 internal foreign keys
+passed validation, with archived counts preserved for all 39 tables.
+The seven Auth foreign keys remain deferred. Do not rerun this stage on
+the now-populated target structure.
+
+#### Offline Auth and access-dependency inventory
+
+On 29 October 2026, the source archive checksum was verified again and
+schema-only SQL was extracted to the restricted backup share under
+`access-review-20261029-104058`. No database connection or access change
+was made. `schema-private.sql` must remain private: schema definitions
+can contain sensitive literals. `inventory-summary.json` records object
+counts and dependency names, not a successful access test.
+
+The archive contains RLS-enable entries for all 39 public tables,
+115 public policies, seven Storage policies, 14 public views (all with
+`security_invoker` in their definitions), 32 public functions and nine
+functions in the custom `security` schema. The nine security functions
+include eight access helpers and one document-change trigger function.
+Public/Storage policies call `auth.uid()`, `auth.role()` and security
+helpers for administrator/editor status, contact access, artwork access
+and document/comment visibility. Restoring only public tables therefore
+does not recreate application permissions.
+
+The archive also contains Auth table-data entries, including users,
+identities, sessions, tokens and MFA records. These entries have not been
+restored or validated for a new project's Auth configuration. Do not copy
+them wholesale merely to resolve the seven deferred foreign keys.
+The `auth.users` creation trigger and 29 public application triggers are
+also still excluded. In particular, keep the acquisition email function
+and its trigger disabled; do not activate outbound automation for a test.
+
+The next access stage should explicitly select reviewed helper functions
+and policies, maintain the disabled Data API, and test role/row visibility
+through PostgreSQL transactions. Simulated JWT claims can exercise RLS
+without sending invitations or restoring production sessions, but do not
+prove real Auth login. Restore owners, schema usage and function/table
+privileges must be considered alongside policies, especially for
+`SECURITY DEFINER` helpers. Restoring views, real test login and the seven
+Auth relations require separate scoped validation. None of these access
+checks has passed yet.
+
+#### Isolated access-rule sample test
+
+Prepare, then execute with the test project's PostgreSQL password:
+
+```powershell
+& .\scripts\test-restore-access.ps1
+& .\scripts\test-restore-access.ps1 -Execute
+```
+
+The script requires matching passing table-data and integrity reports
+and rechecks the archive hash. Only the hard-coded test pooler is used.
+The target must have no `security` schema or public policies/RLS yet and
+must retain the 39 restored tables and 67 validated internal foreign keys.
+This stage is not rerunnable after success.
+
+The archive selection contains the `security` schema, eight reviewed
+read-only access helpers, 115 public policies and 39 RLS-enable entries.
+No archive ACLs, public functions, views, Storage policies, Auth records,
+application triggers or outbound automation are restored. Helpers are
+owned by the restoring postgres role; default PUBLIC execution is revoked.
+
+Inside a savepoint, the test grants temporary SELECT access, helper usage
+and UPDATE on only the `id` columns of artworks/documents. Three temporary
+profile rows represent Administrator, Editor and Viewer. A fourth UUID
+represents an authenticated identity without a profile or contact link.
+The Viewer receives one temporary invited contact link chosen from an
+archived proposal with an accessible document. All fixtures and temporary
+grants are rolled back to the savepoint before the outer restore commits.
+No Auth account, invitation, login session or email is created.
+
+The probes switch to the non-bypassing `authenticated` database role and
+set transaction-local JWT claims. They compare 16 exact sorted UUID sets
+(four identities across artworks, proposals, contact links and documents)
+with expectations computed independently as postgres from table relations,
+without invoking the access helpers. Positive and negative artwork access
+are required for the Viewer fixture, preventing an empty-result false pass.
+Eight additional no-op `id = id` update probes require one affected row
+for Administrator/Editor and zero for Viewer/unlinked identities on
+artworks/documents. Real SQL UPDATE is exercised, but its effects are
+rolled back with the fixtures.
+
+These are fidelity checks of selected archived rules, not a security
+certification. In particular, archived document rules allow authenticated
+identities to read market-section documents marked `all_clients`, even
+without a contact link; the expected sets preserve that behavior rather
+than asserting zero access everywhere. The archived profiles SELECT policy
+also permits authenticated reads; profile visibility/writes are not tested
+by this sample. INSERT, DELETE, other column updates, other tables,
+anonymous RLS behavior, Storage policies, views and real login remain
+untested.
+
+Final checks require every restored policy/helper, RLS on all 39 tables,
+unchanged archived row counts and no effective table/column access or
+security-helper execution for anon/authenticated after temporary grants
+are removed. Keep the Data API disabled and do not connect the application.
+Private SQL/logs and `result.json` are saved in `access-restore-test-<run>`
+on the company share. Only `accessSampleTestPassed` can become true;
+`fullRestoreTested` remains false. SQL/assertion failures roll back the
+entire stage; inspect the saved error log before retrying.
+
+The first execution on 29 October reached and completed the simulated
+read/update probes, then failed a final policy-name assertion: the
+validator truncated the quoted name `fx admin/editor write` to `fx`.
+The outer transaction did not commit. The validator now preserves the
+entire archived policy name (including spaces/punctuation) and escapes
+SQL string literals. This failed run is not recorded as a passing stage;
+a new successful execution was required.
+
+The corrected execution passed on 29 October 2026 at 09:48 UTC.
+The persisted report confirmed `accessSampleTestPassed: true` and the
+error log was empty. All 16 exact read sets and eight update probes
+matched, all 115 policies and eight helpers were checked, RLS was enabled
+on 39 tables, archived row counts were preserved and temporary fixture
+data/grants were removed. The scope exclusions above still apply;
+`fullRestoreTested` remains false. Do not rerun this stage on this target.
+
+#### Isolated Storage sample restore test
+
+The table-data test passed on 29 October 2026: 39 public tables and 98,803
+rows matched the archive; the saved error log was empty. This remains a
+partial recovery test, not a full application restoration.
+
+The Storage sample script is locked to the same test project
+`sontvcvvtftvivysiccg`. It reads only the local complete production backup,
+never connects to production and does not change restored database rows.
+It selects the three smallest non-empty objects in each of the three buckets
+(nine objects). Local sizes and SHA-256 hashes must match before any request.
+This intentionally small sample does not cover large files or all formats.
+
+The sample test passed on 29 October 2026 at 09:34 UTC: all nine files
+(12,188 bytes) were restored and re-downloaded with matching sizes and
+SHA-256 hashes, and all three test buckets were verified private.
+The persisted report confirmed success without errors. This verifies
+sample object recovery only, not a full Storage or application restoration.
+
+Prepare the sample without credentials or network requests:
+
+```powershell
+node scripts\test-restore-storage.mjs
+```
+
+In the **test project's** Dashboard, open **Settings > API Keys**, then
+find or create a **Secret key** (`sb_secret_...`). If creating one, name it
+`storage-restore-test`. Do not use a publishable key, a production key,
+the database password or a personal access token. This script uses the new
+secret-key format via the `apikey` header, not a legacy JWT bearer token.
+
+Paste the test secret locally after `=` in `.env.restore-test.local`:
+`ARTMUSE_RESTORE_TEST_SECRET_KEY=...`. This file matches the repository's
+`.env*` ignore rule. Never send its contents through chat, screenshots,
+logs or Git. Keep the PC encrypted and restrict access to the file.
+Do not load `.env.local` (production) for this command.
+
+```powershell
+node --env-file=.env.restore-test.local scripts\test-restore-storage.mjs --execute
+```
+
+Each execution creates three uniquely named **private** test buckets
+(`restore-sample-<run>-1`, `-2`, `-3`), preserving original object paths
+inside them. It checks bucket privacy before uploads and again before
+success. Uploads do not overwrite existing objects. Each uploaded object
+is re-downloaded through the authenticated endpoint and its size and
+SHA-256 compared with the backup. No public URL, application connection
+or Data API activation is needed.
+
+Private `result.json` reports are saved under `storage-restore-test-<run>`
+on the company backup share, including original-to-test mappings and
+per-object verification. They contain private object names and must not
+enter Git. `sampleRestorePassed: true` means all nine downloads matched;
+`fullRestoreTested` remains false. On request/verification failure, the
+script stops, records failure and leaves partial test objects in place.
+It does not retry ambiguous writes, overwrite, delete or clean buckets.
+If a request times out, a write may have completed remotely. Inspect the
+report and test project's Storage before starting a new run (which creates
+new buckets). Retain successful samples for inspection; later cleanup must
+target only their exact test bucket IDs. Do not remove the original backup.
 
 Une restauration se fait vers un projet de secours ou un projet de test, pas
 directement sur la production en fonctionnement.

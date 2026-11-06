@@ -12,6 +12,7 @@ vi.mock('@/contexts/SessionContext', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
+vi.mock('@/lib/supabaseBrowser', () => ({ supabase: {} }))
 
 const artwork: ArtworkListItem = {
   id: 'work',
@@ -49,7 +50,7 @@ describe('active proposal list layout', () => {
     expect(cells[1]).toContain('Seller Gallery')
     expect(cells[1].indexOf('Storage Geneva')).toBeGreaterThan(cells[1].indexOf('Seller Gallery'))
     expect(cells[1]).not.toContain('Private Client')
-    expect(cells[3]).toMatch(/display:flex;flex-direction:row;gap:4px;align-items:flex-end/)
+    expect(cells[3]).toMatch(/display:flex;flex-direction:row;gap:4px;align-items:center/)
     expect(cells[3]).toContain('aria-label="Status"')
     expect(cells[3]).toContain('aria-label="Priority"')
     expect(cells[3].indexOf('Private Client')).toBeGreaterThan(cells[3].lastIndexOf('</select>'))
@@ -62,7 +63,9 @@ describe('active proposal list layout', () => {
     expect(html).not.toContain('Private Client')
     expect(cells[1]).toContain('Seller Gallery')
     expect(cells[1]).toContain('Storage Geneva')
-    expect(cells[3]).toContain('Negotiation • High')
+    expect(cells[3]).toContain('<span>Negotiation</span>')
+    expect(cells[3]).toContain('<span>Not rated</span>')
+    expect(cells[3]).toContain('<span>High</span>')
   })
 
   it('shows Proposed to to administrators', () => {

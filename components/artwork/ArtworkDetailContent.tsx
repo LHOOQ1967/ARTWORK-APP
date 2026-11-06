@@ -4,7 +4,7 @@
 import { artworkYearError, formatArtworkYears } from '@/lib/artworkYears'
 import { artworkStatusChange } from '@/lib/artworkStatus'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEditMode } from '@/contexts/EditModeContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
@@ -14,6 +14,7 @@ import { QualityHistory, QualitySelect } from './ArtworkQuality'
 import type { PremiumPair } from './AuctionPremiumFields'
 import ImageUploader from '@/components/ImageUploader'
 import ArtworkDocumentUploader from './ArtworkDocumentUploader'
+import BlondeauSheetImporter from './BlondeauSheetImporter'
 import DocumentVisibilityFields from './DocumentVisibilityFields'
 import DocumentCategorySelect from './DocumentCategorySelect'
 import { groupDocumentLinks, isDocumentCategory, saveDocumentLinkCategory, type DocumentCategory } from '@/lib/documentCategory'
@@ -164,6 +165,25 @@ function logSupabaseError(context: string, error: any) {
     status: error?.status ?? null,
     name: error?.name ?? null,
   })
+}
+
+function updateArtworkAfterBlondeauImport(
+  fields: Partial<ArtworkWithRelations>,
+  documents: ArtworkDocument[],
+  setArtwork: Dispatch<SetStateAction<ArtworkWithRelations | null>>,
+  originalArtworkRef: MutableRefObject<ArtworkWithRelations | null>
+) {
+  setArtwork(previous => previous
+    ? normalizeArtwork({ ...previous, ...fields, documents: [...(previous.documents ?? []), ...documents] })
+    : previous)
+  const original = originalArtworkRef.current
+  if (original) {
+    originalArtworkRef.current = normalizeArtwork({
+      ...original,
+      ...fields,
+      documents: [...(original.documents ?? []), ...documents],
+    })
+  }
 }
 
 
@@ -1572,6 +1592,14 @@ const artworkDocuments = useMemo(
 
             {isEditing && artwork.id && (
               <div style={{ marginBottom: 16 }}>
+                <BlondeauSheetImporter
+                  artwork={artwork}
+                  disabled={saving || deleting || uploadingDoc || categorizing}
+                  onBusyChange={setUploadingDoc}
+                  onImported={(fields, documents) =>
+                    updateArtworkAfterBlondeauImport(fields, documents, setArtwork, originalArtworkRef)
+                  }
+                />
                 <datalist id={NEW_DOCUMENT_LABEL_DATALIST_ID}>
                   {DOCUMENT_LABEL_SUGGESTIONS.map((suggestion) => (
                     <option key={suggestion} value={suggestion} />
