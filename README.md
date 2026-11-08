@@ -55,6 +55,10 @@ For Infomaniak, follow the [isolated release deployment procedure](docs/INFOMANI
 It covers cross-PC preparation, verified backups, Builder restrictions,
 production switching and rollback without overwriting the active release.
 
+SharePoint documents are streamed directly from the authenticated ArtMuse endpoint
+with an inline disposition. There is no automatic preview-page redirect, so
+reverse-proxy internal addresses such as `localhost:3000` are not sent to the browser.
+
 ## Roles
 
 | Role | Access |
@@ -469,11 +473,13 @@ External links and documents request a separate tab; internal ArtMuse navigation
 is unchanged. iOS controls whether a home-screen app actually opens a Safari
 window, and can display same-origin PDFs without browser navigation controls.
 On iPhone (Safari and the installed app), opening a SharePoint document through
-ArtMuse therefore uses a document reader with a persistent **Back to ArtMuse**
-link and a **Download** action. The return link uses the referring ArtMuse page
-when available, otherwise the document's artwork factsheet (or Market).
-The embedded file and downloads retain the existing authenticated, RLS-checked
-document endpoint. Desktop behavior is unchanged.
+ArtMuse delivers the complete file directly, without an intermediate preview page
+or a required **Download** click. PDFs use the browser's native document viewer;
+formats the browser cannot display may require a download or a compatible app.
+The separate download action remains available. Opening and downloading retain
+the existing authenticated, RLS-checked document endpoint. Desktop behavior is
+unchanged. Use browser navigation or close the document tab to return; the installed
+app's navigation controls depend on iOS.
 
 ## Automatic auction buyer premiums
 

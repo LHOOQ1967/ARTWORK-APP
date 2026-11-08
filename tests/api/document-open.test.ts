@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { documentReturnPath, iphoneDocumentViewerUrl } from '@/lib/documentViewer'
+import { documentReturnPath } from '@/lib/documentViewer'
 import DocumentViewerPage from '@/app/(protected)/documents/[id]/view/page'
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ function request(query = '', userAgent = iphone) {
 }
 const context = { params: Promise.resolve({ id: 'doc-1' }) }
 
-describe('iPhone document reader', () => {
+describe('document opening', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.requireUser.mockResolvedValue({
@@ -37,39 +37,40 @@ describe('iPhone document reader', () => {
     mocks.downloadDocument.mockImplementation(() => Promise.resolve(new Response('PDF content')))
   })
 
-  it('sends an iPhone document navigation to the reader with an artwork return link', async () => {
+  it('opens the complete iPhone document inline without an intermediate reader', async () => {
+    const content = '%PDF-1.7\nFirst page\nSecond page\n%%EOF'
+    mocks.downloadDocument.mockResolvedValue(new Response(content))
     const response = await GET(request(), context)
-    const destination = new URL(response.headers.get('location')!)
-    expect(destination.pathname).toBe('/documents/doc-1/view')
-    expect(destination.searchParams.get('returnTo')).toBe('/artworks/print/art-1')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('content-type')).toBe('application/pdf')
+    expect(response.headers.get('content-disposition')).toBe("inline; filename*=UTF-8''Report.pdf")
     expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(mocks.downloadDocument).not.toHaveBeenCalled()
+    expect(mocks.downloadDocument).toHaveBeenCalledWith('drive-1', 'item-1')
+    expect(await response.text()).toBe(content)
   })
 
-  it('uses the original referring page when available', () => {
-    const req = new Request(request(), { headers: {
-      'user-agent': iphone, accept: 'text/html',
-      referer: 'https://artmuse.ch/artworks/print/art-1?client=2',
-    } })
-    expect(iphoneDocumentViewerUrl(req, 'doc-1', 'art-1')?.searchParams.get('returnTo'))
-      .toBe('/artworks/print/art-1?client=2')
+  it('streams the document without exposing localhost behind the production proxy', async () => {
+    const req = new Request('http://localhost:3000/api/documents/doc-1/open', {
+      headers: {
+        'user-agent': iphone, accept: 'text/html',
+        'x-forwarded-host': 'artmuse.ch', 'x-forwarded-proto': 'https',
+        referer: 'https://artmuse.ch/artworks/print/art-1?returnTo=%2Fartworks%2Factive',
+      },
+    })
+    const response = await GET(req, context)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('content-disposition')).toContain('inline;')
+    expect(await response.text()).toBe('PDF content')
   })
 
-  it('does not redirect a programmatic API fetch', () => {
+  it('preserves inline delivery for programmatic API fetches', async () => {
     const req = new Request('https://artmuse.ch/api/documents/doc-1/open', { headers: { 'user-agent': iphone } })
-    expect(iphoneDocumentViewerUrl(req, 'doc-1', 'art-1')).toBeNull()
-  })
-
-  it('returns market documents to Market when no referring page is available', () => {
-    expect(iphoneDocumentViewerUrl(request(), 'doc-1', null)?.searchParams.get('returnTo')).toBe('/market')
-  })
-
-  it('ignores an external referring page', () => {
-    const req = new Request(request(), { headers: {
-      'user-agent': iphone, accept: 'text/html', referer: 'https://example.com/other',
-    } })
-    expect(iphoneDocumentViewerUrl(req, 'doc-1', 'art-1')?.searchParams.get('returnTo'))
-      .toBe('/artworks/print/art-1')
+    const response = await GET(req, context)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('content-disposition')).toContain('inline;')
+    expect(await response.text()).toBe('PDF content')
   })
 
   it.each(['?embedded=1', ''])('keeps inline delivery for embedded iPhone files or desktop (%s)', async query => {
@@ -90,10 +91,11 @@ describe('iPhone document reader', () => {
     expect((await GET(request(), context)).headers.get('location')).toBe('https://example.com/file.pdf')
   })
 
-  it('requires authorization before returning the reader', async () => {
+  it('requires authorization before opening the document', async () => {
     mocks.requireUser.mockResolvedValue({ response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) })
     expect((await GET(request(), context)).status).toBe(401)
     expect(mocks.maybeSingle).not.toHaveBeenCalled()
+    expect(mocks.downloadDocument).not.toHaveBeenCalled()
   })
 
   it('does not expose inaccessible documents', async () => {

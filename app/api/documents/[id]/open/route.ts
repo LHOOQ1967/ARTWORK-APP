@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/apiAuth'
 import { downloadDocument } from '@/lib/sharepoint'
-import { iphoneDocumentViewerUrl } from '@/lib/documentViewer'
 
 export async function GET(
   req: Request,
@@ -14,7 +13,7 @@ export async function GET(
   const { data: doc, error } = await authorization.supabase
     .from('documents')
     .select(
-      'url, legacy_url, storage_provider, sharepoint_drive_id, sharepoint_item_id, file_name, mime_type, artwork_id'
+      'url, legacy_url, storage_provider, sharepoint_drive_id, sharepoint_item_id, file_name, mime_type'
     )
     .eq('id', id)
     .maybeSingle()
@@ -25,13 +24,6 @@ export async function GET(
 
   if (doc.storage_provider !== 'sharepoint') {
     return NextResponse.redirect(doc.legacy_url ?? doc.url)
-  }
-
-  const viewerUrl = iphoneDocumentViewerUrl(req, id, doc.artwork_id)
-  if (viewerUrl) {
-    return NextResponse.redirect(viewerUrl, {
-      headers: { 'Cache-Control': 'private, no-store' },
-    })
   }
 
   try {

@@ -17,7 +17,8 @@ const nextConfig = {
   },
   // 🔥 IMPORTANT → empêche génération statique
   experimental: {
-    workerThreads: false,
+    workerThreads: true,
+    webpackBuildWorker: false,
     cpus: 1,
   },
 }
