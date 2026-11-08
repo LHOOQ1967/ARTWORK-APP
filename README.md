@@ -51,6 +51,10 @@ Run `npm run build:prod` on Windows or Linux to build with webpack and a
 1024 MB Node.js heap limit. The script passes the memory option directly
 to Node.js without shell-specific environment-variable syntax.
 
+For Infomaniak, follow the [isolated release deployment procedure](docs/INFOMANIAK_DEPLOYMENT.md).
+It covers cross-PC preparation, verified backups, Builder restrictions,
+production switching and rollback without overwriting the active release.
+
 ## Roles
 
 | Role | Access |
