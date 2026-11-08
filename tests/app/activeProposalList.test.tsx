@@ -38,18 +38,26 @@ beforeEach(() => {
 })
 
 describe('active proposal list layout', () => {
-  it.each(['market', 'auction'] as const)('moves Proposed to below Status/Priority for %s', mode => {
+  it.each([
+    { section: 'active' as const, mode: 'market' as const },
+    { section: 'active' as const, mode: 'auction' as const },
+    { section: 'archived' as const, mode: 'market' as const },
+    { section: 'archived' as const, mode: 'auction' as const },
+  ])('uses the proposal layout for $section $mode lists', ({ section, mode }) => {
     const { header, cells } = render({
+      section,
       mode,
       canEditStatusPriority: true,
       statusOptions: ['Negotiation'],
       onUpdateArtworkField: vi.fn(),
     })
     expect(header.indexOf('Location')).toBeGreaterThan(header.indexOf('Proposed by'))
+    expect(header).toContain('Medium')
     expect(header.indexOf('Proposed to')).toBeGreaterThan(header.indexOf('Priority'))
     expect(cells[1]).toContain('Seller Gallery')
     expect(cells[1].indexOf('Storage Geneva')).toBeGreaterThan(cells[1].indexOf('Seller Gallery'))
     expect(cells[1]).not.toContain('Private Client')
+    expect(cells[1]).toMatch(/color:#666;font-size:0\.95rem[^"]*" title="Storage Geneva"/)
     expect(cells[3]).toMatch(/display:flex;flex-direction:row;gap:4px;align-items:center/)
     expect(cells[3]).toContain('aria-label="Status"')
     expect(cells[3]).toContain('aria-label="Priority"')
@@ -73,11 +81,8 @@ describe('active proposal list layout', () => {
     expect(render().cells[3]).toContain('Private Client')
   })
 
-  it.each([
-    { section: 'archived' as const },
-    { mode: 'bought' as const },
-  ])('preserves other list layouts: %j', props => {
-    const { header, cells } = render(props)
+  it('preserves the bought list layout', () => {
+    const { header, cells } = render({ mode: 'bought' })
     expect(header).not.toContain('Location')
     expect(cells[1]).toContain('Private Client')
     expect(cells[3]).not.toContain('Private Client')

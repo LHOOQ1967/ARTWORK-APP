@@ -1,7 +1,7 @@
 
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
@@ -108,6 +108,37 @@ const secondLine: React.CSSProperties = {
   textOverflow: 'ellipsis',
 }
 
+const detailLine: React.CSSProperties = {
+  ...secondLine,
+  fontSize: '0.95rem',
+  color: '#666',
+}
+
+function ArtistName({ fullName, lastName }: { fullName: string; lastName?: string | null }) {
+  const container = useRef<HTMLDivElement>(null)
+  const measure = useRef<HTMLSpanElement>(null)
+  const [useLastName, setUseLastName] = useState(false)
+
+  useEffect(() => {
+    const element = container.current
+    const text = measure.current
+    if (!element || !text) return
+    const update = () => setUseLastName(text.scrollWidth > element.clientWidth)
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    document.fonts?.ready.then(update)
+    return () => observer.disconnect()
+  }, [fullName])
+
+  return <div ref={container} style={{ ...mainLine, position: 'relative' }} title={fullName}>
+    <span ref={measure} aria-hidden="true"
+      style={{ position: 'absolute', visibility: 'hidden', whiteSpace: 'nowrap' }}>{fullName}</span>
+    {useLastName && lastName?.trim() ? lastName.trim() : fullName}
+  </div>
+}
+
 
 export default function ArtworkList({
   artworks,
@@ -130,8 +161,7 @@ const { role } = useSessionProfile()
 const normalizedRole =
   typeof role === 'string' ? role.toLowerCase() : ''
 
-const isActiveProposal = section === 'active' && mode !== 'bought'
-const inlineStatusFields = isActiveProposal || mode === 'bought'
+const isProposalList = mode !== 'bought'
 const canSeeProposedTo = normalizedRole === 'administrator' || normalizedRole === 'editor'
 
 const [localTableState, setLocalTableState] = useState<ArtworkTableState>({
@@ -210,6 +240,16 @@ const priceSortKey: 'asking' | 'estimate' | 'sold_premium' | 'cost' =
     return effectiveDir === 'asc' ? ' ▲' : ' ▼'
   }
 
+  const qualityHeader = (
+    <span
+      style={{ cursor: 'pointer', padding: '2px 6px', borderRadius: 4, backgroundColor: sortKey === 'quality' ? '#eee' : 'transparent' }}
+      onClick={event => { event.stopPropagation(); handleSort('quality') }}
+      title="Sort by quality"
+    >
+      Quality{getHeaderArrow('quality')}
+    </span>
+  )
+
 return (
   <div
     style={{
@@ -226,8 +266,15 @@ return (
           borderCollapse: 'collapse',
           backgroundColor: 'white',
           tableLayout: 'fixed',
+          minWidth: 680,
         }}
       >
+        <colgroup>
+          <col style={{ width: 104 }} />
+          <col style={{ width: 134 }} />
+          <col />
+          <col style={{ width: 316 }} />
+        </colgroup>
         <thead>
           <tr>
             {/* 1) Image */}
@@ -265,7 +312,7 @@ return (
       Proposed by
     </div>
 
-    {isActiveProposal ? (
+    {isProposalList ? (
       <div style={headerStaticLineStyle}>Location</div>
     ) : proposedToHeader}
   </div>
@@ -278,7 +325,7 @@ return (
             {/* 3) Artist / Title */}
 
 
-<th style={{ ...th, width: 140 }}>
+<th style={th}>
 
   <div style={{ display: 'flex', flexDirection: 'column' }}>
 
@@ -312,6 +359,8 @@ return (
       Title{sortKey === 'title' ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
     </div>
 
+    <div style={headerStaticLineStyle}>Medium</div>
+
   </div>
 
 </th>
@@ -324,7 +373,7 @@ return (
   style={{
     ...th,
     userSelect: 'none',
-    width: inlineStatusFields ? 300 : 180,
+    width: 316,
     textAlign: 'right',
   }}
 >
@@ -353,13 +402,13 @@ return (
     marginTop: 4,
     textAlign: 'right',
     display: 'flex',
-    flexDirection: inlineStatusFields ? 'row' : 'column',
+    flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'flex-end',
     gap: 2,
   }}
 >
-  <span
+  {mode !== 'bought' && <span
     style={{
       cursor: 'pointer',
       backgroundColor: sortKey === 'status' ? '#eee' : 'transparent',
@@ -375,15 +424,9 @@ return (
     Status
     {sortKey === 'status' &&
       (sortDirection === 'asc' ? ' ▲' : ' ▼')}
-  </span>
+  </span>}
 
-  <span
-    style={{ cursor: 'pointer', padding: '2px 6px', borderRadius: 4, backgroundColor: sortKey === 'quality' ? '#eee' : 'transparent' }}
-    onClick={event => { event.stopPropagation(); handleSort('quality') }}
-    title="Sort by quality"
-  >
-    Quality{getHeaderArrow('quality')}
-  </span>
+  {mode === 'bought' && qualityHeader}
 
   <span
     style={{
@@ -402,8 +445,9 @@ return (
     {sortKey === 'priority' &&
       (sortDirection === 'asc' ? ' ▲' : ' ▼')}
   </span>
+  {mode !== 'bought' && qualityHeader}
 </div>
-{isActiveProposal && proposedToHeader}
+{isProposalList && proposedToHeader}
 </th>
 
           </tr>
@@ -448,13 +492,25 @@ const proposedToText = getProposedToText(a)
 
             const prStatus = getPriorityStatusText(a)
             const mainImage = getMainImage(a)
+            const qualityField = canEditStatusPriority && onUpdateArtworkField ? (
+              <QualitySelect
+                value={a.quality}
+                disabled={savingInlineKey === `${a.id}:quality`}
+                onChange={value => onUpdateArtworkField(a.id, 'quality', value)}
+                style={{ ...inlineMiniSelect, width: 64 }}
+                unratedLabel="—"
+              />
+            ) : <span>{a.quality == null ? 'Not rated' : `${a.quality}/10`}</span>
 
             return (
               <tr
                 key={a.id}
                 onClick={() => {
                   onOpenArtwork?.()
-                  router.push(`/artworks/print/${a.id}`)
+                  const params = new URLSearchParams({
+                    returnTo: window.location.pathname + window.location.search,
+                  })
+                  router.push(`/artworks/print/${a.id}?${params}`)
                 }}
                 style={{ cursor: 'pointer', transition: 'background-color 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f5f5f5')}
@@ -484,8 +540,7 @@ const proposedToText = getProposedToText(a)
 <td
   style={{
     ...td,
-    width: 220,
-    minWidth: 220,
+    width: 134,
   }}
 >
   <div
@@ -507,8 +562,8 @@ const proposedToText = getProposedToText(a)
       {truncateText(proposedByText, 26)}
     </div>
 
-    {isActiveProposal ? (
-      <div style={secondLine} title={locationText}>
+    {isProposalList ? (
+      <div style={detailLine} title={locationText}>
         {truncateText(locationText, 26)}
       </div>
     ) : proposedToLine}
@@ -518,7 +573,7 @@ const proposedToText = getProposedToText(a)
 
 
                 {/* 3) Artist / Title */}
-<td style={{ ...td, width: 180 }}>
+<td style={td}>
   <div
     style={{
       display: 'flex',
@@ -529,9 +584,7 @@ const proposedToText = getProposedToText(a)
     }}
   >
     {/* Artiste */}
-    <div style={mainLine} title={artistText}>
-      {truncateText(artistText, 24)}
-    </div>
+    <ArtistName fullName={artistText} lastName={a.artist?.last_name} />
 
     {/* Titre + année */}
     <div
@@ -543,11 +596,7 @@ const proposedToText = getProposedToText(a)
 
     {/* Medium */}
     <div
-      style={{
-        ...secondLine,
-        fontSize: '0.95rem',
-        color: '#666',
-      }}
+      style={detailLine}
       title={a.medium ?? ''}
     >
       {truncateText(a.medium ?? '', 40)}
@@ -558,7 +607,7 @@ const proposedToText = getProposedToText(a)
 
 
 {/* 4) Price / Priority+Status */}
-<td style={{ ...td, width: inlineStatusFields ? 300 : 180, textAlign: 'right' }}>
+<td style={{ ...td, width: 316, textAlign: 'right' }}>
   <div style={{ ...cell2Lines, alignItems: 'flex-end' }}>
 
     {/* ✅ PRICE */}
@@ -572,16 +621,16 @@ const proposedToText = getProposedToText(a)
     <div
       style={{
         display: 'flex',
-        flexDirection: inlineStatusFields ? 'row' : 'column',
+        flexDirection: 'row',
         gap: 4,
-        alignItems: inlineStatusFields ? 'center' : 'flex-end',
+        alignItems: 'center',
       }}
       onClick={(e) => {
         e.stopPropagation()
       }}
     >
       {/* ✅ STATUS */}
-      <select
+      {mode !== 'bought' && <select
         aria-label="Status"
         value={(a.status ?? '').toString()}
         disabled={savingInlineKey === `${a.id}:status`}
@@ -595,7 +644,7 @@ const proposedToText = getProposedToText(a)
             e.target.value || null
           )
         }}
-        style={{ ...inlineMiniSelect, width: 110 }}
+        style={{ ...inlineMiniSelect, width: 88 }}
       >
         <option value="">—</option>
 
@@ -604,15 +653,9 @@ const proposedToText = getProposedToText(a)
             {s}
           </option>
         ))}
-      </select>
+      </select>}
 
-      <QualitySelect
-        value={a.quality}
-        disabled={savingInlineKey === `${a.id}:quality`}
-        onChange={value => onUpdateArtworkField(a.id, 'quality', value)}
-        style={{ ...inlineMiniSelect, width: 64 }}
-        unratedLabel="—"
-      />
+      {mode === 'bought' && qualityField}
 
       {/* ✅ PRIORITY */}
       <select
@@ -629,7 +672,7 @@ const proposedToText = getProposedToText(a)
             e.target.value || null
           )
         }}
-        style={{ ...inlineMiniSelect, width: 84 }}
+        style={{ ...inlineMiniSelect, width: 77 }}
       >
         <option value="">—</option>
 
@@ -638,16 +681,18 @@ const proposedToText = getProposedToText(a)
         <option value="Low">Low</option>
         <option value="Information">Info</option>
       </select>
+      {mode !== 'bought' && qualityField}
     </div>
   ) : (
-    <div style={{ display: 'flex', flexDirection: inlineStatusFields ? 'row' : 'column', alignItems: inlineStatusFields ? 'center' : 'flex-end', gap: 4 }}>
-      <span>{a.status ?? '—'}</span>
-      <span>{a.quality == null ? 'Not rated' : `${a.quality}/10`}</span>
+    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      {mode !== 'bought' && <span>{a.status ?? '—'}</span>}
+      {mode === 'bought' && qualityField}
       <span>{a.priority === 'Information' ? 'Info' : a.priority ?? '—'}</span>
+      {mode !== 'bought' && qualityField}
     </div>
   )}
 </div>
-    {isActiveProposal && proposedToLine}
+    {isProposalList && proposedToLine}
   </div>
 </td>
 

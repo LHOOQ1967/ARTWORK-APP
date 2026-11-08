@@ -154,6 +154,45 @@ rows across 13 groups, with a maximum of 20 rows per group. The complete RPC
 response, including global filter options/counts, measured 227,577 uncompressed
 JSON bytes. This is a payload measurement, not a browser load-time benchmark.
 
+### Proposal market filters
+
+Proposal section and category counts link to `/artworks/print/category`.
+The page uses `artwork_category_ids(text,jsonb,jsonb)` to collect all matching
+artwork IDs in one compact request, with the current filters and sorting.
+Full factsheets are then read in batches of 20 from the role-specific print
+view; existing RLS and client scope are preserved.
+
+`20261108180000_add_category_artwork_ids.sql` was applied atomically and
+recorded in production migration history on 2026-11-08 after approval.
+It avoids the repeated full-row, image and filter-option aggregation that
+caused statement timeouts when gathering category IDs through the list RPC.
+The new function is SECURITY INVOKER with anonymous execution revoked.
+Authenticated staff benchmarks returned all 551 archived IDs in 202 ms;
+the other section requests took 169–347 ms, without raising statement timeout.
+Rollback-only SQL tests passed before and after deployment, covering complete
+IDs, sorting, filters and Viewer/outsider access. Email dispatch was disabled
+only inside these rolled-back test transactions.
+
+Factsheet return links carry the original proposal URL, including filters.
+Both the return link and proposal-list restoration use Next.js search parameters
+so client-side navigation to a retained list restores the requested filters
+without depending on browser URL update timing.
+The `returnTo` parameter is also propagated through factsheet Edit links and
+the edit form's Save and Cancel destinations, preserving filters after changes.
+
+`20261108110000_add_artwork_market_type_filter.sql` and
+`20261108120000_allow_empty_artwork_market_filter.sql` extend the paginated RPC
+with `marketType`: `all`, `market`, `auction`, or `none`. Both checked markets
+use `all`; unchecking both returns no rows. Filtering precedes pagination and
+counts, and preserves existing RLS and recipient restrictions.
+
+Both migrations were applied atomically to the linked production project on
+2026-11-08 and recorded in migration history. The rollback-only
+`tests\db\paginated-artwork-lists.sql` suite passed before and after application.
+Email dispatch triggers were disabled only inside the rolled-back test
+transactions; no test email was sent. Their enabled state and both persisted
+migration versions were verified afterward.
+
 ### Lightweight artwork lists
 
 `20261025190000_add_lightweight_artwork_lists.sql` adds

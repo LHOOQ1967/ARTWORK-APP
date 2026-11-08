@@ -45,6 +45,8 @@ describe('artwork image albums', () => {
   it('opens at the clicked image and navigates in both directions with wraparound', async () => {
     await render('second')
     expect(container.querySelector('dialog')?.open).toBe(true)
+    expect(container.querySelector('dialog')?.style.backgroundColor).toBe('rgb(255, 255, 255)')
+    expect(container.querySelector('dialog')?.style.color).toBe('rgb(23, 23, 23)')
     expect(container.querySelector('img')?.getAttribute('src')).toBe('/api/documents/second/open')
     expect(container.querySelector('[role="status"]')?.textContent).toBe('2 / 2')
     await click('Next image')

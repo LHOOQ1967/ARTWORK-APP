@@ -21,9 +21,10 @@ describe('paginated artwork wire contract', () => {
   })
 
   it('omits default filters and applies explicit scope restrictions', () => {
-    expect(artworkPageFilters({ artistId: 'all', search: '', proposedBy: 'seller', proposedTo: 'other' },
+    expect(artworkPageFilters({ artistId: 'all', marketType: 'auction', search: '', proposedBy: 'seller' },
       'Bought', 'global-client', 'fixed-client')).toEqual({
-      status: 'Bought', proposedBy: 'seller', proposedTo: 'fixed-client', client: 'global-client',
+      status: 'Bought', marketType: 'auction', proposedBy: 'seller', proposedTo: 'fixed-client', client: 'global-client',
     })
+    expect(artworkPageFilters({ marketType: 'none' })).toEqual({ marketType: 'none', status: 'all' })
   })
 })

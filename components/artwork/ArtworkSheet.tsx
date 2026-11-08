@@ -6,10 +6,13 @@ import { groupDocumentLinks } from '@/lib/documentCategory'
 import ArtworkDocumentLink from './ArtworkDocumentLink'
 import ArtworkCategoryDownload from './ArtworkCategoryDownload'
 import ArtworkPrintToolbar from './ArtworkPrintToolbar'
+import FactsheetBackLink from './FactsheetBackLink'
 import ArtworkImageAlbum, { type AlbumImage } from './ArtworkImageAlbum'
 import { documentFileType } from '@/lib/documentFileType'
 import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { artworkNavigationUrl } from '@/lib/factsheetNavigation'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(protected)/types/artwork'
 import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
 import { LinkedText } from '@/components/ui/LinkedText'
@@ -161,6 +164,7 @@ function hasValidNumber(value: unknown) {
 /* ---------- component ---------- */
 
 export default function ArtworkSheet({ artwork, isEditMode, canEdit, floatingControls = false }: Props) {
+  const returnTo = useSearchParams()?.get('returnTo')
   const [shipmentArtworkId, setShipmentArtworkId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -396,6 +400,8 @@ const displayTitle = (() => {
 
   {/* RIGHT: Priority + Status + Edit */}
   <ArtworkPrintToolbar floating={floatingControls}>
+    <div role="group" aria-label="Artwork priority, rating and status"
+      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
     {/* Priority */}
     <span
       style={{
@@ -450,6 +456,12 @@ const displayTitle = (() => {
       {statusStyle.label ?? artwork.status}
     </span>
 
+    </div>
+
+    <div role="group" aria-label="Factsheet actions"
+      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginLeft: 'auto' }}>
+    <FactsheetBackLink />
+
     {/* Print */}
     <button
       type="button"
@@ -461,7 +473,7 @@ const displayTitle = (() => {
 
     {/* Edit */}
     {!isEditMode && canEdit && (
-      <Link className="no-print" href={`/artworks/${artworkId}/edit`}>
+      <Link className="no-print" href={artworkNavigationUrl(`/artworks/${artworkId}/edit`, returnTo)}>
         <button
           className="edit-button"
           onMouseUp={e => {
@@ -477,6 +489,7 @@ const displayTitle = (() => {
         </button>
       </Link>
     )}
+    </div>
   </ArtworkPrintToolbar>
 </div>
 

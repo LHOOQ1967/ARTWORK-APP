@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtworksIndexPage from '@/components/pages/ArtworksIndexPage'
+import BoughtPage from '@/app/(protected)/artworks/bought/page'
 import { invalidateTemporaryCaches } from '@/lib/temporaryCache'
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +12,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/supabaseBrowser', () => ({ supabase: { rpc: mocks.rpc } }))
 vi.mock('@/contexts/SessionContext', () => ({ useSessionProfile: () => ({ role: mocks.role, user: { id: mocks.userId } }) }))
 vi.mock('@/contexts/ClientFilterContext', () => ({ useClientFilter: () => ({ selectedClientId: mocks.clientId }) }))
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}))
 vi.mock('@/components/ui/SearchSelect', () => ({
   default: (props: { label: string; valueId: string; onChangeId: (id: string) => void; options: { id: string; label: string }[] }) =>
     <select aria-label={props.label} value={props.valueId} onChange={event => props.onChangeId(event.target.value)}>
@@ -70,6 +74,15 @@ describe('server-paginated artwork index', () => {
     vi.unstubAllGlobals()
   })
 
+  it('titles the bought page Collection while retaining the Bought filter', async () => {
+    await act(async () => root.render(<BoughtPage />))
+    await settle()
+    expect(container.querySelector('h1')?.textContent).toBe('Collection')
+    expect(mocks.rpc).toHaveBeenCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Bought' },
+    }))
+  })
+
   it.each(['Editor', 'Administrator', 'Viewer'])('loads 20 rows with a global count for %s', async role => {
     mocks.role = role
     await render({ forcedStatus: 'Active' })
@@ -82,6 +95,34 @@ describe('server-paginated artwork index', () => {
     expect(container.textContent).toContain('20 of 45 artworks')
   })
 
+  it('shows the simplified header and separate aligned date and market fields', async () => {
+    await render()
+    expect(container.textContent).not.toContain('Collection management')
+    expect(container.textContent).not.toContain('Review, filter and update proposals from one workspace.')
+    expect([...container.querySelectorAll('button')].some(button => button.textContent === 'Refresh')).toBe(false)
+    const date = container.querySelector<HTMLInputElement>('#artwork-from-date')!
+    expect(date.className).toBe('artwork-index-date-input')
+    expect(container.querySelector('label[for="artwork-from-date"]')?.contains(date)).toBe(false)
+    expect(container.querySelector('.artwork-index-market-filter legend')?.textContent).toBe('Market type')
+    expect(container.querySelectorAll('.artwork-index-market-options input[type="checkbox"]')).toHaveLength(2)
+    const fields = container.querySelector('.artwork-index-filter-grid')!.children
+    expect(fields).toHaveLength(4)
+    expect(fields[0].querySelector('legend')?.textContent).toBe('Market type')
+    expect(fields[1].querySelector('#artwork-from-date')).not.toBeNull()
+    expect(fields[2].getAttribute('aria-label')).toBe('Artist')
+    expect(fields[3].querySelector('#artwork-search')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Proposed by"]')).toBeNull()
+  })
+
+  it('links section and group counts to their complete category factsheets', async () => {
+    await render({ forcedStatus: 'Active' })
+    const section = container.querySelector<HTMLAnchorElement>('h2 a')!
+    const group = container.querySelector<HTMLAnchorElement>('h3 a')!
+    expect(new URL(section.href).searchParams.get('category')).toBe('market')
+    expect(new URL(group.href).searchParams.get('category')).toBe('market-High-others')
+    expect(new URL(group.href).searchParams.get('status')).toBe('Active')
+    expect(group.textContent).toBe('(45)')
+  })
   it('loads only the next 20 rows of the selected group and then the final five', async () => {
     await render()
     await click('Load more')
@@ -122,6 +163,49 @@ describe('server-paginated artwork index', () => {
     expect(container.querySelector<HTMLInputElement>('input[type="search"]')!.value).toBe('Painting 44')
   })
 
+  it('filters by market type across all rows on the server', async () => {
+    await render()
+    const [marketCheckbox, auctionCheckbox] = container.querySelectorAll<HTMLInputElement>(
+      '.artwork-index-market-filter input[type="checkbox"]')
+    expect(marketCheckbox.checked).toBe(true)
+    expect(auctionCheckbox.checked).toBe(true)
+    expect(container.querySelector('select[aria-label="Proposed to"]')).toBeNull()
+    await act(async () => {
+      marketCheckbox.click()
+    })
+    await settle()
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'all', marketType: 'auction' },
+    }))
+    expect(new URL(window.location.href).searchParams.get('marketType')).toBe('auction')
+    expect(container.querySelector<HTMLInputElement>('.artwork-index-market-filter input[type="checkbox"]')!.checked).toBe(false)
+  })
+
+  it('can uncheck both market types to show no artworks', async () => {
+    await render()
+    const marketCheckbox = container.querySelector<HTMLInputElement>('.artwork-index-market-filter input[type="checkbox"]')!
+    await act(async () => marketCheckbox.click())
+    const auctionCheckbox = container.querySelectorAll<HTMLInputElement>('.artwork-index-market-filter input[type="checkbox"]')[1]
+    await act(async () => auctionCheckbox.click())
+    await settle()
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'all', marketType: 'none' },
+    }))
+  })
+
+  it('removes the market type from the URL when both checkboxes are checked again', async () => {
+    await render()
+    const marketCheckbox = container.querySelector<HTMLInputElement>('.artwork-index-market-filter input[type="checkbox"]')!
+    await act(async () => marketCheckbox.click())
+    await settle()
+    await act(async () => marketCheckbox.click())
+    await settle()
+    expect(new URL(window.location.href).searchParams.has('marketType')).toBe(false)
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'all' },
+    }))
+  })
+
   it('restores previously loaded pages when returning to the history entry', async () => {
     await render()
     await click('Load more')
@@ -133,9 +217,25 @@ describe('server-paginated artwork index', () => {
     expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({ p_offset: 20 }))
   })
 
+  it('restores filters when navigating back to an already mounted list', async () => {
+    await render({ forcedStatus: 'Active' })
+    window.history.replaceState(null, '', '/artworks/active?marketType=auction&artistId=artist&search=bronze&fromDate=2026-01-01')
+    await render({ forcedStatus: 'Active' })
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Active', marketType: 'auction', artistId: 'artist', search: 'bronze', fromDate: '2026-01-01' },
+    }))
+    expect(container.querySelector<HTMLInputElement>('#artwork-search')!.value).toBe('bronze')
+    expect(container.querySelector<HTMLInputElement>('#artwork-from-date')!.value).toBe('2026-01-01')
+    expect(container.querySelector<HTMLSelectElement>('[aria-label="Artist"]')!.value).toBe('artist')
+    const checkboxes = container.querySelectorAll<HTMLInputElement>('.artwork-index-market-options input')
+    expect(checkboxes[0].checked).toBe(false)
+    expect(checkboxes[1].checked).toBe(true)
+  })
+
   it('sends client, fixed recipient and status restrictions to the server', async () => {
     mocks.clientId = 'global-client'
     await render({ forcedStatus: 'Bought', fixedProposedToId: 'recipient' })
+    expect(container.querySelector('.artwork-index-market-filter')).toBeNull()
     expect(mocks.rpc).toHaveBeenCalledWith('artwork_list_page', expect.objectContaining({
       p_filters: { status: 'Bought', client: 'global-client', proposedTo: 'recipient' },
     }))

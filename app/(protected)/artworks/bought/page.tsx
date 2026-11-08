@@ -5,7 +5,7 @@ import ArtworksIndexPage from '@/components/pages/ArtworksIndexPage'
 export default function BoughtPage() {
   return (
     <ArtworksIndexPage
-      title="Bought artworks"
+      title="Collection"
       forcedStatus="Bought"
     />
   )

@@ -41,7 +41,7 @@ export default function ArtworkImageAlbum({ images, initialId, onClose }: {
       style={{
         position: 'fixed', inset: 0, margin: 'auto', width: '96vw', maxWidth: '96vw',
         height: '94dvh', maxHeight: '94dvh', padding: 16, border: 0, borderRadius: 8,
-        backgroundColor: '#171717', color: '#fff',
+        backgroundColor: '#fff', color: '#171717',
       }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>

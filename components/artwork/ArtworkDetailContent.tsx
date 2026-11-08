@@ -5,7 +5,8 @@ import { artworkYearError, formatArtworkYears } from '@/lib/artworkYears'
 import { artworkStatusChange } from '@/lib/artworkStatus'
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { artworkNavigationUrl } from '@/lib/factsheetNavigation'
 import { useEditMode } from '@/contexts/EditModeContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 import { supabase } from '@/lib/supabaseBrowser'
@@ -219,6 +220,7 @@ export default function ArtworkDetailContent({
 }) {
   const id = decodeURIComponent(artworkId || '')
   const router = useRouter()
+  const returnTo = useSearchParams()?.get('returnTo')
   const { isEditing, setIsEditing } = useEditMode()
   const { selectedClient } = useClientFilter()
 
@@ -784,7 +786,7 @@ try {
 }
 
 await new Promise(resolve => setTimeout(resolve, 450))
-router.push(`/artworks/print/${artwork.id}`)
+router.push(artworkNavigationUrl(`/artworks/print/${artwork.id}`, returnTo))
 
     } catch (err) {
       console.error('Unexpected save error:', err)
@@ -1401,9 +1403,9 @@ const artworkDocuments = useMemo(
     if (!artwork?.id) return
 
     if (isEditing) {
-      router.push(`/artworks/print/${artwork.id}`)
+      router.push(artworkNavigationUrl(`/artworks/print/${artwork.id}`, returnTo))
     } else {
-      router.push(`/artworks/${artwork.id}/edit`)
+      router.push(artworkNavigationUrl(`/artworks/${artwork.id}/edit`, returnTo))
     }
   }}
 >

@@ -23,10 +23,10 @@ export default function ArtworkPrintToolbar({ children, floating }: { children: 
 
   return (
     <div className={floating ? 'artwork-print-toolbar-space' : undefined}
-      style={floating ? { minHeight: layout.height } : undefined}>
+      style={{ width: '100%', ...(floating ? { minHeight: layout.height } : {}) }}>
       <div ref={toolbar} className={floating ? 'artwork-print-toolbar-floating' : undefined}
         role="group" aria-label="Artwork status and actions"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10,
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
           ...(floating ? { top: layout.top } : {}) }}>
         {children}
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import ArtworkList from '@/components/artwork/ArtworkList'
 import {
   DEFAULT_ARTWORK_TABLE_STATE, useArtworkListNavigation, type ArtworkTableState,
@@ -12,6 +13,7 @@ import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 import SearchSelect from '@/components/ui/SearchSelect'
+import { categoryFactsheetsUrl } from '@/lib/categoryFactsheets'
 
 type Props = {
   title?: string
@@ -49,8 +51,9 @@ function ArtworksIndexContent({
 }: Props & { navigationScope: string }) {
   const { role } = useSessionProfile()
   const { selectedClientId } = useClientFilter()
+  const query = useSearchParams().toString()
   const [ready, setReady] = useState(false)
-  const navigation = useArtworkListNavigation(navigationScope, ready)
+  const navigation = useArtworkListNavigation(navigationScope, ready, query)
   const { filters, tables } = navigation
   const requestFilters = artworkPageFilters(filters, forcedStatus, selectedClientId, fixedProposedToId)
   const { data, loading, refreshing, error, refresh } = usePaginatedArtworks(navigationScope, requestFilters, tables)
@@ -62,6 +65,12 @@ function ArtworksIndexContent({
   const isViewer = role?.toLowerCase() === 'viewer'
   const canEdit = role === 'Administrator' || role === 'Editor'
   const statuses = Array.from(new Set(['Draft', 'Viewed', 'Negotiation', 'Bought', 'Archived', ...(data?.statuses ?? [])]))
+  const includesMarket = filters.marketType === 'all' || filters.marketType === 'market'
+  const includesAuctions = filters.marketType === 'all' || filters.marketType === 'auction'
+
+  function updateMarketType(market: boolean, auctions: boolean) {
+    navigation.updateFilters({ marketType: market ? auctions ? 'all' : 'market' : auctions ? 'auction' : 'none' })
+  }
 
   async function updateArtwork(id: string, field: 'status' | 'quality' | 'priority', value: string | number | null) {
     if (!canEdit) return
@@ -103,14 +112,18 @@ function ArtworksIndexContent({
   const groups = [...(data?.groups ?? [])].sort((a, b) => groupOrder.indexOf(a.id) - groupOrder.indexOf(b.id))
   const sectionTotals = (prefix: string) => groups.filter(group => group.id.startsWith(prefix))
     .reduce((total, group) => total + group.total, 0)
+  const categoryCount = (category: string, total: number) => (
+    <Link className="artwork-index-category-count"
+      href={categoryFactsheetsUrl(category, requestFilters, tables,
+        typeof window === 'undefined' ? undefined : window.location.pathname + window.location.search)}
+      onClick={navigation.saveScroll} title="Open category factsheets">({total})</Link>
+  )
 
   return <main style={mainStyle}>
     <div className="artwork-index-shell">
       <div className="artwork-index-header">
         <div>
-          <div className="artwork-index-eyebrow">Collection management</div>
           <h1 className="artwork-index-title">{title ?? 'Artworks — Private market & Auctions'}</h1>
-          <p className="artwork-index-subtitle">Review, filter and update proposals from one workspace.</p>
           {refreshing && <p role="status" aria-live="polite">Refreshing artworks...</p>}
         </div>
         {!isViewer && <Link className="no-print artwork-index-new-link" href="/artworks/new">
@@ -127,12 +140,30 @@ function ArtworksIndexContent({
           <div className="artwork-index-count">{data?.total ?? 0} proposals</div>
         </div>
         <div className="artwork-index-filter-grid">
+          {forcedStatus !== 'Bought' && (
+            <fieldset className="artwork-index-market-filter">
+              <legend>Market type</legend>
+              <div className="artwork-index-market-options">
+                <label>
+                  <input type="checkbox" checked={includesMarket}
+                    onChange={event => updateMarketType(event.target.checked, includesAuctions)} />
+                  Private market
+                </label>
+                <label>
+                  <input type="checkbox" checked={includesAuctions}
+                    onChange={event => updateMarketType(includesMarket, event.target.checked)} />
+                  Auctions
+                </label>
+              </div>
+            </fieldset>
+          )}
           <div style={{ minWidth: 0 }}>
-            <label style={{ display: 'block', fontSize: 14, fontWeight: 'bold', marginBottom: 6 }}>
+            <label htmlFor="artwork-from-date" className="artwork-index-field-label">
               From date <span style={{ fontWeight: 'normal', fontSize: 12 }}>(Bought = acquisition date, Archived = proposed date)</span>
-              <input type="date" aria-label="From date" value={filters.fromDate} style={inputStyle}
-                onChange={event => navigation.updateFilters({ fromDate: event.target.value })} />
             </label>
+            <input id="artwork-from-date" type="date" aria-label="From date" value={filters.fromDate}
+              className="artwork-index-date-input"
+              onChange={event => navigation.updateFilters({ fromDate: event.target.value })} />
           </div>
           <SearchSelect label="Artist" placeholder="Search artist…" valueId={filters.artistId}
             onChangeId={artistId => navigation.updateFilters({ artistId })} options={data?.artists ?? []} />
@@ -142,17 +173,12 @@ function ArtworksIndexContent({
               placeholder="Title, artist, status, contact, location…"
               onChange={event => navigation.updateFilters({ search: event.target.value })} />
           </div>
-          <SearchSelect label="Proposed by" placeholder="Search contact…" valueId={filters.proposedBy}
-            onChangeId={proposedBy => navigation.updateFilters({ proposedBy })} options={data?.proposers ?? []} />
-          {!fixedProposedToId && !isViewer && <SearchSelect label="Proposed to" placeholder="Search contact…"
-            valueId={filters.proposedTo} onChangeId={proposedTo => navigation.updateFilters({ proposedTo })}
-            options={data?.recipients ?? []} />}
         </div>
         <div className="artwork-index-filter-actions">
           <button type="button" className="artwork-index-reset-button" onClick={() =>
-            navigation.updateFilters({ artistId: 'all', proposedBy: 'all', proposedTo: 'all', search: '', fromDate: '' })
+            navigation.updateFilters({ artistId: 'all',
+              marketType: 'all', search: '', fromDate: '' })
           }>Reset filters</button>
-          <button type="button" className="artwork-index-reset-button" disabled={refreshing} onClick={refresh}>Refresh</button>
         </div>
       </section>
       {inlineError && <p role="alert">{inlineError}</p>}
@@ -165,12 +191,12 @@ function ArtworksIndexContent({
         const table = tables[group.id] ?? DEFAULT_ARTWORK_TABLE_STATE
         return <section key={group.id} style={{ marginTop: 16 }}>
           {sectionStart && <div style={sectionHeaderStyle}><h2 style={{ fontSize: '1.6rem', fontWeight: 500, margin: 0 }}>
-            {section === 'market' ? `Private market (${sectionTotals('market-')})`
-              : section === 'auction' ? `Auctions (${sectionTotals('auction-')})`
-              : section === 'bought' ? `Bought (${group.total})` : `Archived (${sectionTotals('archived-')})`}
+            {section === 'market' ? 'Private market' : section === 'auction' ? 'Auctions'
+              : section === 'bought' ? 'Bought' : 'Archived'}{' '}
+            {categoryCount(section, section === 'bought' ? group.total : sectionTotals(`${section}-`))}
           </h2></div>}
           {group.id !== 'bought' && <h3 style={{ fontSize: '1.1rem', fontWeight: 400, marginBottom: 6 }}>
-            {groupLabel(group.id)} ({group.total})
+            {groupLabel(group.id)} {categoryCount(group.id, group.total)}
           </h3>}
           <ArtworkList artworks={group.rows} mode={section === 'bought' ? 'bought' : group.id.includes('auction') ? 'auction' : 'market'}
             section={section === 'archived' ? 'archived' : 'active'} tableState={table}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useEffect } from 'react'
+import { act, useEffect, useLayoutEffect } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ArtworkList from '@/components/artwork/ArtworkList'
@@ -18,8 +18,11 @@ const works = Array.from({ length: 8 }, (_, index) => ({
   id: `work-${index}`, title: `Title ${index}`, date_proposition: `2026-01-0${index + 1}`,
 }))
 
-function Page({ ready = true, scope = 'user:active' }: { ready?: boolean; scope?: string }) {
+function Page({ ready = true, scope = 'user:active', committedUrl }: { ready?: boolean; scope?: string; committedUrl?: string }) {
   const state = useArtworkListNavigation(scope, ready)
+  useLayoutEffect(() => {
+    if (committedUrl) window.history.replaceState(null, '', committedUrl)
+  }, [committedUrl])
   useEffect(() => { navigation = state }, [state])
   return <>
     <p>{state.filters.artistId} / {state.filters.search}</p>
@@ -49,7 +52,7 @@ describe('artwork list navigation restoration', () => {
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
     vi.stubGlobal('scrollTo', scroll)
     vi.stubGlobal('scrollY', 0)
-    window.history.replaceState({ nextRouterState: 'preserved' }, '', '/artworks/active?artistId=artist-a&unrelated=keep#list')
+    window.history.replaceState({ nextRouterState: 'preserved' }, '', '/artworks/active?artistId=artist-a&proposedTo=legacy&proposedBy=legacy&unrelated=keep#list')
     container = document.createElement('div')
     document.body.append(container)
     root = createRoot(container)
@@ -64,12 +67,14 @@ describe('artwork list navigation restoration', () => {
     await render()
     expect(navigation.filters.artistId).toBe('artist-a')
     await act(async () => navigation.updateFilters({
-      proposedBy: 'seller', proposedTo: 'client', search: 'Bronze & stone', fromDate: '2026-01-01',
+      marketType: 'auction',
+      search: 'Bronze & stone', fromDate: '2026-01-01',
     }))
     const url = new URL(window.location.href)
     expect(url.searchParams.get('search')).toBe('Bronze & stone')
-    expect(url.searchParams.get('proposedBy')).toBe('seller')
-    expect(url.searchParams.get('proposedTo')).toBe('client')
+    expect(url.searchParams.has('proposedBy')).toBe(false)
+    expect(url.searchParams.has('proposedTo')).toBe(false)
+    expect(url.searchParams.get('marketType')).toBe('auction')
     expect(url.searchParams.get('fromDate')).toBe('2026-01-01')
     expect(url.searchParams.get('unrelated')).toBe('keep')
     expect(url.hash).toBe('#list')
@@ -77,6 +82,22 @@ describe('artwork list navigation restoration', () => {
     await act(async () => root.render(null))
     await render()
     expect(navigation.filters.search).toBe('Bronze & stone')
+  })
+
+  it('persists filters when the router commits the destination URL after rendering the list', async () => {
+    window.history.replaceState(null, '', '/')
+    await act(async () => root.render(<Page committedUrl="/artworks/active" />))
+    await act(async () => navigation.updateFilters({
+      artistId: 'artist-a', marketType: 'auction', search: 'bronze',
+    }))
+    const url = new URL(window.location.href)
+    expect(url.pathname).toBe('/artworks/active')
+    expect(url.searchParams.get('artistId')).toBe('artist-a')
+    expect(url.searchParams.get('marketType')).toBe('auction')
+    expect(url.searchParams.get('search')).toBe('bronze')
+    await act(async () => container.querySelector('tbody tr')!.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+    const destination = new URL(push.mock.calls[0][0], 'http://localhost')
+    expect(destination.searchParams.get('returnTo')).toBe(url.pathname + url.search)
   })
 
   it('restores sorting and expanded rows before restoring scroll after the data becomes ready', async () => {

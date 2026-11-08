@@ -62,6 +62,19 @@ BEGIN
   END IF;
   filtered := public.artwork_list_page(filters || '{"search":"Pagination fixture 001"}');
   IF (filtered->>'total')::int <> 1 THEN RAISE EXCEPTION 'Search ignored unloaded rows'; END IF;
+  IF cardinality(public.artwork_category_ids('market', filters)) <> 45 OR
+    public.artwork_category_ids('market', filters) <>
+      (SELECT array_agg(id ORDER BY n DESC) FROM page_test_works) THEN
+    RAISE EXCEPTION 'Category identifiers must include all rows in default list order';
+  END IF;
+  IF public.artwork_category_ids('market-High-others', filters,
+      '{"market-High-others":{"sortKey":"asking","sortDirection":"asc"}}') <>
+      (SELECT array_agg(id ORDER BY n) FROM page_test_works) THEN
+    RAISE EXCEPTION 'Category identifiers must preserve global custom sort';
+  END IF;
+  IF cardinality(public.artwork_category_ids('market', filters || '{"search":"Pagination fixture 001"}')) <> 1 THEN
+    RAISE EXCEPTION 'Category identifiers ignored search';
+  END IF;
   IF jsonb_array_length(filtered->'artists') = 0 OR jsonb_array_length(filtered->'recipients') = 0 THEN
     RAISE EXCEPTION 'Filter options must include the whole scoped dataset';
   END IF;
@@ -80,6 +93,10 @@ DO $$
 DECLARE result jsonb;
 BEGIN
   result := public.artwork_list_page(jsonb_build_object('artistId', (SELECT id FROM page_test_ids WHERE name = 'artist')));
+  IF cardinality(public.artwork_category_ids('market',
+      jsonb_build_object('artistId', (SELECT id FROM page_test_ids WHERE name = 'artist')))) <> 45 THEN
+    RAISE EXCEPTION 'Viewer category identifiers changed artwork access';
+  END IF;
   IF (result->>'total')::int <> 45 OR result->'recipients' <> '[]'::jsonb OR
     result#>'{groups,0,rows,0,proposals}' <> '[]'::jsonb OR
     result#>>'{groups,0,rows,0,images,0,url}' <> 'https://example.invalid/public' THEN
@@ -94,6 +111,10 @@ BEGIN
   LOOP
     PERFORM set_config('request.jwt.claim.sub', (SELECT id::text FROM page_test_ids WHERE name = member), true);
     result := public.artwork_list_page(jsonb_build_object('artistId', (SELECT id FROM page_test_ids WHERE name = 'artist')));
+    IF cardinality(public.artwork_category_ids('market',
+        jsonb_build_object('artistId', (SELECT id FROM page_test_ids WHERE name = 'artist')))) <> 0 THEN
+      RAISE EXCEPTION 'Category identifiers leaked unauthorized artworks';
+    END IF;
     IF (result->>'total')::int <> 0 OR result->'groups' <> '[]'::jsonb OR
       result->'artists' <> '[]'::jsonb OR result->'recipients' <> '[]'::jsonb THEN
       RAISE EXCEPTION 'Pagination leaked unauthorized data to %', member;
@@ -139,12 +160,37 @@ BEGIN
   IF (result->>'total')::int <> 43 THEN RAISE EXCEPTION 'Date filter must preserve active works'; END IF;
   result := public.artwork_list_page(filters || '{"fromDate":"2026-03-01","status":"Archived"}');
   IF (result->>'total')::int <> 1 THEN RAISE EXCEPTION 'Archived sale-date fallback lost'; END IF;
+  result := public.artwork_list_page(filters || '{"marketType":"auction"}');
+  IF (result->>'total')::int <> 1 THEN RAISE EXCEPTION 'Auction market filter returned the wrong artworks'; END IF;
+  result := public.artwork_list_page(filters || '{"marketType":"market"}');
+  IF (result->>'total')::int <> 44 THEN RAISE EXCEPTION 'Private market filter returned the wrong artworks'; END IF;
+  result := public.artwork_list_page(filters || '{"marketType":"auction","status":"Archived"}');
+  IF (result->>'total')::int <> 0 THEN RAISE EXCEPTION 'Auction filter did not scope archived artworks'; END IF;
+  result := public.artwork_list_page(filters || '{"marketType":"market","status":"Archived"}');
+  IF (result->>'total')::int <> 1 THEN RAISE EXCEPTION 'Private market filter did not scope archived artworks'; END IF;
+  result := public.artwork_list_page(filters || '{"marketType":"none"}');
+  IF (result->>'total')::int <> 0 THEN RAISE EXCEPTION 'No-market selection must return no artworks'; END IF;
+  IF cardinality(public.artwork_category_ids('archived', filters)) <> 1
+    OR cardinality(public.artwork_category_ids('auction', filters)) <> 1
+    OR cardinality(public.artwork_category_ids('bought', filters)) <> 1
+    OR cardinality(public.artwork_category_ids('market', filters || '{"marketType":"none"}')) <> 0 THEN
+    RAISE EXCEPTION 'Category identifier section or market filtering changed';
+  END IF;
+  IF has_function_privilege('anon', 'public.artwork_category_ids(text,jsonb,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Anonymous category access was granted';
+  END IF;
   result := public.artwork_list_page(filters || jsonb_build_object('status', 'Bought',
     'client', (SELECT id FROM page_test_ids WHERE name = 'client')));
   IF (result->>'total')::int <> 1 THEN RAISE EXCEPTION 'Global client filter must include buyer without proposal'; END IF;
   result := public.artwork_list_page(filters || jsonb_build_object('status', 'Bought',
     'proposedTo', (SELECT id FROM page_test_ids WHERE name = 'client')));
   IF (result->>'total')::int <> 0 THEN RAISE EXCEPTION 'Fixed recipient filter was ignored'; END IF;
+  BEGIN
+    PERFORM public.artwork_list_page(filters || '{"marketType":"invalid"}');
+    RAISE EXCEPTION 'Invalid market type accepted';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'Invalid market type filter' THEN RAISE; END IF;
+  END;
   BEGIN
     PERFORM public.artwork_list_page(filters, '{}', NULL, -1);
     RAISE EXCEPTION 'Negative offset accepted';

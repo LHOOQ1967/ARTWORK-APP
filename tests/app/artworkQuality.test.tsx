@@ -80,14 +80,15 @@ describe('artwork quality', () => {
     expect(setArtwork).toHaveBeenCalledWith({ status: 'Viewed', quality: 9, priority: 'High' })
   })
 
-  it.each(['market', 'auction', 'bought'] as const)('shows editable Quality between Status and Priority in %s lists', mode => {
+  it.each(['market', 'auction'] as const)('shows editable Priority between Status and Quality in %s lists', mode => {
     session.role = 'Editor'
     const html = renderToStaticMarkup(
       <ArtworkList artworks={[{ id: 'artwork-1', status: 'Viewed', quality: 8, priority: 'High' }]}
         mode={mode} canEditStatusPriority statusOptions={['Viewed']} onUpdateArtworkField={vi.fn()} />
     )
-    expect(html.indexOf('aria-label="Status"')).toBeLessThan(html.indexOf('aria-label="Quality"'))
-    expect(html.indexOf('aria-label="Quality"')).toBeLessThan(html.indexOf('aria-label="Priority"'))
+    expect(html.indexOf('aria-label="Status"')).toBeLessThan(html.indexOf('aria-label="Priority"'))
+    expect(html.indexOf('aria-label="Priority"')).toBeLessThan(html.indexOf('aria-label="Quality"'))
+    expect(html.indexOf('Sort by priority')).toBeLessThan(html.indexOf('Sort by quality'))
     expect(html).toContain('value="8" selected=""')
     expect(html).not.toContain('View quality history')
   })
@@ -102,7 +103,7 @@ describe('artwork quality', () => {
     expect(html).not.toContain('View quality history')
   })
 
-  it.each([true, false])('keeps collection Status, Quality and Priority on one line (editable: %s)', canEdit => {
+  it.each([true, false])('hides collection Status and keeps Quality and Priority on one line (editable: %s)', canEdit => {
     session.role = canEdit ? 'Editor' : 'Viewer'
     const html = renderToStaticMarkup(
       <ArtworkList
@@ -114,11 +115,14 @@ describe('artwork quality', () => {
       />
     )
     const statusFields = canEdit
-      ? html.match(/<div style="([^"]*)"><select aria-label="Status"/)
-      : html.match(/<div style="([^"]*)"><span>Bought<\/span><span>8\/10<\/span><span>High<\/span>/)
+      ? html.match(/<div style="([^"]*)"><select aria-label="Quality"/)
+      : html.match(/<div style="([^"]*)"><span>8\/10<\/span><span>High<\/span>/)
     expect(statusFields).not.toBeNull()
     expect(statusFields?.[1]).toContain('flex-direction:row')
     expect(html).not.toContain('History')
+    expect(html).not.toContain('aria-label="Status"')
+    expect(html).not.toContain('Sort by status')
+    expect(html).not.toContain('>Bought</span>')
   })
 
   it.each([true, false])('displays Info without changing the stored priority (editable: %s)', canEdit => {
@@ -132,9 +136,9 @@ describe('artwork quality', () => {
     )
     if (canEdit) {
       expect(html).toContain('value="Information" selected="">Info</option>')
-      expect(html).toMatch(/aria-label="Status"[^>]*style="[^"]*width:110px/)
+      expect(html).toMatch(/aria-label="Status"[^>]*style="[^"]*width:88px/)
       expect(html).toMatch(/aria-label="Quality"[^>]*style="[^"]*width:64px/)
-      expect(html).toMatch(/aria-label="Priority"[^>]*style="[^"]*width:84px/)
+      expect(html).toMatch(/aria-label="Priority"[^>]*style="[^"]*width:77px/)
       for (const label of ['Status', 'Quality', 'Priority']) {
         expect(html).toMatch(new RegExp(`aria-label="${label}"[^>]*style="[^"]*font-size:1rem`))
       }

@@ -42,6 +42,7 @@ html, body {
 @media screen {
   .artwork-print-toolbar-floating {
     position: fixed;
+    left: 20px;
     right: 20px;
     max-width: calc(100vw - 40px);
     z-index: 900;
@@ -128,6 +129,10 @@ body {
 
 .protected-page-shell[data-page-section='proposals'] {
   --section-page-bg: #deeee8;
+}
+
+.protected-page-shell[data-page-section='factsheets'] {
+  --section-page-bg: #ffffff;
 }
 
 .protected-page-shell[data-page-section='collection'] {
@@ -299,7 +304,7 @@ button:focus-visible {
 
 .artwork-index-filter-title {
   color: #183e31;
-  font-size: 1.15rem;
+  font-size: 1.38rem;
   font-weight: 700;
 }
 
@@ -325,9 +330,77 @@ button:focus-visible {
   gap: 18px;
 }
 
+.artwork-index-category-count {
+  color: inherit;
+  text-decoration: none;
+}
+
+.artwork-index-category-count:hover,
+.artwork-index-category-count:focus-visible {
+  text-decoration: underline;
+}
+
 .artwork-index-search-field {
-  grid-column: 1 / -1;
   width: 100%;
+  min-width: 0;
+}
+
+.artwork-index-field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.artwork-index-date-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 46px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+.artwork-index-market-filter {
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.artwork-index-market-filter legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.artwork-index-market-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 46px;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.artwork-index-market-filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.artwork-index-market-filter input {
+  accent-color: #006b42;
 }
 
 .artwork-index-filter-actions {
@@ -644,6 +717,8 @@ button:focus-visible {
     font-weight: 700;
   }
 
+}
+
   .artwork-edit-shell {
     width: min(1180px, 100%);
     margin: 0 auto;
@@ -671,7 +746,7 @@ button:focus-visible {
   .artwork-edit-eyebrow {
     margin-bottom: 7px;
     color: #557067;
-    font-size: 0.75rem;
+    font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -680,7 +755,7 @@ button:focus-visible {
   .artwork-edit-header h1 {
     margin: 0;
     color: #143b2d;
-    font-size: clamp(2.5rem, 5vw, 3.75rem);
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
     line-height: 1;
     letter-spacing: -0.03em;
   }
@@ -693,7 +768,7 @@ button:focus-visible {
 
   .artwork-edit-status-fields {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     align-items: flex-end;
     flex-wrap: wrap;
     gap: 12px;
@@ -707,12 +782,16 @@ button:focus-visible {
     font-size: 0.85rem;
   }
 
+  .artwork-edit-status-fields label > span {
+    padding-left: 11px;
+  }
+
   .artwork-edit-status-fields select {
     min-width: 110px;
     padding: 8px 10px;
     border: 1px solid #ccc;
     border-radius: 6px;
-    background: white;
+    background: #eef0f5;
     font-size: 1rem;
   }
 
@@ -748,6 +827,7 @@ button:focus-visible {
     }
   }
 
+@media (max-width: 720px) {
   .artwork-index-primary-button {
     width: 100%;
   }

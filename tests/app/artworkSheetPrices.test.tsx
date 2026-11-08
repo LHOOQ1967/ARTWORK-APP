@@ -4,6 +4,10 @@ import ArtworkSheet from '@/components/artwork/ArtworkSheet'
 import type { ArtworkPrint } from '@/app/(protected)/types/artwork'
 
 const session = vi.hoisted(() => ({ role: 'Editor' as string | undefined }))
+const navigation = vi.hoisted(() => ({ returnTo: null as string | null }))
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(navigation.returnTo ? { returnTo: navigation.returnTo } : {}),
+}))
 vi.mock('@/contexts/SessionContext', () => ({
   useSessionProfile: () => ({ role: session.role }),
 }))
@@ -14,6 +18,7 @@ vi.mock('@/lib/supabaseBrowser', () => ({ supabase: {} }))
 
 beforeEach(() => {
   session.role = 'Editor'
+  navigation.returnTo = null
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
 afterEach(() => vi.restoreAllMocks())
@@ -25,6 +30,32 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it('separates left-side badges from right-side actions', () => {
+    const html = render({ priority: 'High', quality: 8, status: 'Viewed' })
+    const badges = html.match(/aria-label="Artwork priority, rating and status"[^>]*>([\s\S]*?)<\/div>/)?.[1]
+    const actions = html.match(/aria-label="Factsheet actions"[^>]*>([\s\S]*?)<\/div>/)?.[1]
+    expect(badges).toContain('[High]')
+    expect(badges).toContain('8/10')
+    expect(badges).not.toContain('>Back<')
+    expect(actions).toContain('>Back<')
+    expect(actions).toContain('>Print<')
+    expect(actions).toContain('>Edit<')
+    expect(html).toMatch(/aria-label="Factsheet actions"[^>]*margin-left:auto/)
+  })
+
+  it('places Back immediately before Print without separating the buttons', () => {
+    const html = render({})
+    expect(html).toMatch(/<a[^>]*class="no-print edit-button"[^>]*>Back<\/a><button[^>]*>Print<\/button>/)
+    expect(html).not.toContain('margin-right:auto')
+  })
+
+  it('includes the original filtered list in the Edit link', () => {
+    navigation.returnTo = '/artworks/active?marketType=auction&search=bronze'
+    const html = render({})
+    const editHref = html.match(/href="([^"]*\/artworks\/work\/edit[^"]*)"/)?.[1]
+    expect(editHref).toBeDefined()
+    expect(new URL(editHref!, 'http://localhost').searchParams.get('returnTo')).toBe(navigation.returnTo)
+  })
   it.each(['Editor', 'Administrator'])('shows proposal recipients alongside the proposer for %s', role => {
     session.role = role
     const html = render({

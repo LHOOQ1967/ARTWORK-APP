@@ -4,6 +4,10 @@ import { createRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 import ArtworkPrintToolbar from '@/components/artwork/ArtworkPrintToolbar'
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}))
+
 describe('floating factsheet toolbar', () => {
   it('tracks header height, reserves space and cleans up its observer', async () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -27,6 +31,8 @@ describe('floating factsheet toolbar', () => {
       const toolbar = container.querySelector<HTMLDivElement>('[aria-label="Artwork status and actions"]')!
       expect(toolbar.className).toBe('artwork-print-toolbar-floating')
       expect(toolbar.style.top).toBe('68px')
+      expect(toolbar.style.justifyContent).toBe('space-between')
+      expect(toolbar.parentElement?.style.width).toBe('100%')
       expect(observe).toHaveBeenCalledWith(header)
       bottom = 116
       await act(async () => resize())

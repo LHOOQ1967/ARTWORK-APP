@@ -15,8 +15,7 @@ export const DEFAULT_ARTWORK_TABLE_STATE: ArtworkTableState = {
 
 type Filters = {
   artistId: string
-  proposedBy: string
-  proposedTo: string
+  marketType: string
   search: string
   fromDate: string
 }
@@ -27,19 +26,19 @@ const sortKeys: ArtworkSortKey[] = [
   'sold_premium', 'cost', 'priority', 'quality', 'status',
 ]
 const filterDefaults: Filters = {
-  artistId: 'all', proposedBy: 'all', proposedTo: 'all', search: '', fromDate: '',
+  artistId: 'all', marketType: 'all', search: '', fromDate: '',
 }
 function isSortKey(value: unknown): value is ArtworkSortKey | null {
   return value === null || sortKeys.some(key => key === value)
 }
 
-function readNavigation(scope: string): NavigationState {
+function readNavigation(scope: string, query?: string): NavigationState {
   const filters = { ...filterDefaults }
-  if (typeof window === 'undefined') return { filters, tables: {}, scrollY: 0 }
-  const params = new URLSearchParams(window.location.search)
+  const params = new URLSearchParams(query ?? (typeof window === 'undefined' ? '' : window.location.search))
   for (const key of Object.keys(filters) as (keyof Filters)[]) {
     filters[key] = params.get(key) ?? filters[key]
   }
+  if (typeof window === 'undefined') return { filters, tables: {}, scrollY: 0 }
   const saved = window.history.state?.[historyKey]
   const tables: Record<string, ArtworkTableState> = {}
   if (saved?.scope === scope && saved.tables && typeof saved.tables === 'object') {
@@ -62,20 +61,36 @@ function readNavigation(scope: string): NavigationState {
     Number.isFinite(saved.scrollY) && saved.scrollY >= 0 ? saved.scrollY : 0 }
 }
 
-export function useArtworkListNavigation(scope: string, ready: boolean) {
-  const [state, setState] = useState(() => readNavigation(scope))
+export function useArtworkListNavigation(scope: string, ready: boolean, query?: string) {
+  const [state, setState] = useState(() => readNavigation(scope, query))
   const current = useRef(state)
   const restored = useRef(false)
   const entryUrl = useRef(typeof window === 'undefined' ? '' : window.location.href)
 
+  useEffect(() => {
+    entryUrl.current = window.location.href
+  }, [])
+
+  useEffect(() => {
+    if (query === undefined) return
+    const next = readNavigation(scope, query)
+    if (JSON.stringify(next.filters) === JSON.stringify(current.current.filters)) return
+    current.current = next
+    entryUrl.current = window.location.href
+    restored.current = false
+    setState(next)
+  }, [query, scope])
+
   function persist(next: NavigationState, updateUrl = false) {
-    if (window.location.href !== entryUrl.current) return
+    if (entryUrl.current && window.location.href !== entryUrl.current) return
     const url = new URL(window.location.href)
     if (updateUrl) {
       for (const key of Object.keys(filterDefaults) as (keyof Filters)[]) {
         if (next.filters[key] === filterDefaults[key]) url.searchParams.delete(key)
         else url.searchParams.set(key, next.filters[key])
       }
+      url.searchParams.delete('proposedTo')
+      url.searchParams.delete('proposedBy')
     }
     window.history.replaceState({
       ...window.history.state,
