@@ -10,7 +10,9 @@ type ProfileRole = 'Administrator' | 'Editor' | 'Viewer' | null;
 type MarketCategory = 'Foire' | 'Ventes aux enchères' | 'Autre';
 
 type MarketItemType = 'web_link' | 'document';
+type CatalogueStatus = 'Yes' | 'No' | 'Received' | 'Printed';
 type ItemSortMode = 'label_asc' | 'created_desc' | 'auction_datetime_asc';
+type MarketViewMode = 'sections' | 'calendar';
 
 
 type MarketSection = {
@@ -38,6 +40,7 @@ type MarketSectionItemView = {
   updated_at: string;
   auction_house: string | null;
   auction_datetime: string | null;
+  catalogue_status: CatalogueStatus | null;
   document_id: string | null;
   document_url: string | null;
   document_type: string | null;
@@ -58,6 +61,16 @@ type EditState = {
   auctionHouse: string;
   auctionDate: string;
   auctionTime: string;
+  catalogueStatus: CatalogueStatus | '';
+};
+
+type SectionEditState = {
+  id: string;
+  title: string;
+  category: MarketCategory;
+  startDate: string;
+  endDate: string;
+  notes: string;
 };
 
 function formatDate(date?: string | null) {
@@ -150,6 +163,23 @@ function getItemTypeLabel(item: MarketSectionItemView) {
   return item.item_type === 'document' ? 'PDF / OneDrive' : 'Lien web';
 }
 
+function getAuctionHouseColor(auctionHouse?: string | null) {
+  const normalized = auctionHouse?.toLowerCase().replace(/[^a-z]/g, '');
+  if (normalized === 'christies' || normalized === 'cs') return '#b4232d';
+  if (normalized === 'sothebys' || normalized === 'ss') return '#1d4ed8';
+  if (normalized === 'phillips' || normalized === 'phs') return '#16803c';
+  return '#334155';
+}
+
+function formatCalendarDate(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
 
 function sortSections(a: SectionWithItems, b: SectionWithItems) {
   const aDate = a.start_date ?? '0000-01-01';
@@ -218,6 +248,7 @@ function makeEditState(item: MarketSectionItemView): EditState {
     auctionHouse: item.auction_house ?? '',
     auctionDate,
     auctionTime,
+    catalogueStatus: item.catalogue_status ?? '',
   };
 }
 
@@ -591,12 +622,14 @@ export default function MarketPage() {
   const [role, setRole] = useState<ProfileRole>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<MarketViewMode>('calendar');
 
 
 const [sections, setSections] = useState<SectionWithItems[]>([]);
 const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSortMode>>({});
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [sectionEditState, setSectionEditState] = useState<SectionEditState | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
 
@@ -622,6 +655,7 @@ const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSort
     auctionHouse: '',
     auctionDate: '',
     auctionTime: '',
+    catalogueStatus: '',
   });
   const [itemFile, setItemFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -799,6 +833,26 @@ const displaySections = useMemo(() => {
   return [...futureSections, ...pastSections];
 }, [sections, sectionSortModes, todayDate]);
 
+const calendarSections = useMemo(() => displaySections
+  .map((section) => ({
+    ...section,
+    items: section.items
+      .filter((item) => {
+        const { auctionDate } = parseAuctionDateTimeRaw(item.auction_datetime);
+        return Boolean(auctionDate) && auctionDate > todayDate;
+      })
+      .sort((a, b) =>
+        (a.auction_datetime ?? '').localeCompare(b.auction_datetime ?? '') ||
+        a.label.localeCompare(b.label, 'en', { sensitivity: 'base' })
+      ),
+  }))
+  .filter((section) => section.items.length > 0), [displaySections, todayDate]);
+
+const calendarEntryCount = calendarSections.reduce(
+  (count, section) => count + section.items.length,
+  0
+);
+
 
   function toggleSection(sectionId: string) {
     setExpandedSections((prev) => ({
@@ -855,6 +909,7 @@ const displaySections = useMemo(() => {
         notes,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
+        catalogue_status: editState.catalogueStatus || null,
         ...(item.item_type === 'web_link' ? { url } : {}),
       })
       .eq('id', item.id);
@@ -935,6 +990,64 @@ const displaySections = useMemo(() => {
     await loadData();
   }
 
+  function startSectionEdit(section: MarketSection) {
+    setSectionEditState({
+      id: section.id,
+      title: section.title,
+      category: section.category,
+      startDate: section.start_date ?? '',
+      endDate: section.end_date ?? '',
+      notes: section.notes ?? '',
+    });
+    setEditingItemId(null);
+    setEditState(null);
+    setMessage(null);
+    setErrorMessage(null);
+  }
+
+  function cancelSectionEdit() {
+    setSectionEditState(null);
+  }
+
+  async function handleSaveSectionEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!canEdit || !sectionEditState) return;
+
+    setSaving(true);
+    setMessage(null);
+    setErrorMessage(null);
+
+    const title = sectionEditState.title.trim();
+    if (!title) {
+      setErrorMessage('Section title is required.');
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('market_sections')
+      .update({
+        title,
+        category: sectionEditState.category,
+        start_date: sectionEditState.startDate || null,
+        end_date: sectionEditState.endDate || null,
+        notes: sectionEditState.notes.trim() || null,
+      })
+      .eq('id', sectionEditState.id);
+
+    if (error) {
+      console.error('UPDATE MARKET SECTION ERROR', error);
+      setErrorMessage(`Unable to update section: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    setSectionEditState(null);
+    setMessage('Section updated.');
+    setSaving(false);
+    await loadData();
+  }
+
     async function handleCreateItem(e: React.FormEvent<HTMLFormElement>) {
 
     e.preventDefault();
@@ -982,6 +1095,7 @@ const displaySections = useMemo(() => {
         position: 0,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
+        catalogue_status: itemForm.catalogueStatus || null,
       });
 
       if (error) {
@@ -1001,6 +1115,7 @@ const displaySections = useMemo(() => {
         auctionHouse: '',
         auctionDate: '',
         auctionTime: '',
+        catalogueStatus: '',
       }));
 
       setMessage('Lien ajouté.');
@@ -1028,6 +1143,7 @@ const displaySections = useMemo(() => {
         position: 0,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
+        catalogue_status: itemForm.catalogueStatus || null,
       })
       .select('id')
       .single();
@@ -1097,6 +1213,7 @@ const displaySections = useMemo(() => {
       auctionHouse: '',
       auctionDate: '',
       auctionTime: '',
+      catalogueStatus: '',
     }));
 
     setMessage('Document ajouté.');
@@ -1207,7 +1324,33 @@ const displaySections = useMemo(() => {
           </div>
 
           <div style={styles.pillRow}>
-            <span className="market-page-count">{displaySections.length} sections</span>
+            <span className="market-page-count">
+              {viewMode === 'calendar'
+                ? `${calendarEntryCount} sales`
+                : `${displaySections.length} sections`}
+            </span>
+            <button
+              type="button"
+              onClick={() => setViewMode('sections')}
+              aria-pressed={viewMode === 'sections'}
+              style={{
+                ...styles.sortButton,
+                ...(viewMode === 'sections' ? styles.sortButtonActive : {}),
+              }}
+            >
+              Sections
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              aria-pressed={viewMode === 'calendar'}
+              style={{
+                ...styles.sortButton,
+                ...(viewMode === 'calendar' ? styles.sortButtonActive : {}),
+              }}
+            >
+              Auction calendar
+            </button>
           </div>
         </div>
 
@@ -1217,6 +1360,100 @@ const displaySections = useMemo(() => {
 
 
 
+{viewMode === 'calendar' ? (
+  <div style={styles.card}>
+    <div style={styles.cardHeader}>
+      <h2 style={styles.cardTitle}>Auction calendar — local time</h2>
+      <p style={styles.cardSubtitle}>Future sales grouped by Art Market section. Select a sale title to open its link.</p>
+    </div>
+    <div style={styles.cardBody}>
+      {loading ? (
+        <div style={styles.emptyBox}>Loading…</div>
+      ) : calendarEntryCount === 0 ? (
+        <div style={styles.emptyBox}>No future sales found. Add an auction date to a market resource to show it here.</div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table
+            aria-label="Auction calendar"
+            style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', textAlign: 'left' }}
+          >
+            <thead>
+              <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
+                <th scope="col" style={{ padding: '12px 10px' }}>Date</th>
+                <th scope="col" style={{ padding: '12px 10px' }}>Time (local time)</th>
+                <th scope="col" style={{ padding: '12px 10px' }}>Auction house</th>
+                <th scope="col" style={{ padding: '12px 10px' }}>Catalogue</th>
+                <th scope="col" style={{ padding: '12px 10px' }}>Sale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {calendarSections.map((section) => (
+                <Fragment key={section.id}>
+                  <tr>
+                    <th
+                      colSpan={5}
+                      scope="colgroup"
+                      style={{
+                        padding: '12px 10px',
+                        background: '#e8eee9',
+                        color: '#143b2d',
+                        fontSize: '16px',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {section.title}
+                    </th>
+                  </tr>
+                  {section.items.map((item) => {
+                    const href = getItemHref(item);
+                    const { auctionDate, auctionTime } = parseAuctionDateTimeRaw(item.auction_datetime);
+                    return (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                          {formatCalendarDate(auctionDate)}
+                        </td>
+                        <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                          {auctionTime || '—'}
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 10px',
+                            whiteSpace: 'nowrap',
+                            color: getAuctionHouseColor(item.auction_house),
+                            fontWeight: 700,
+                          }}
+                        >
+                          {item.auction_house || '—'}
+                        </td>
+                        <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                          {item.catalogue_status || '—'}
+                        </td>
+                        <td style={{ padding: '12px 10px', minWidth: '280px' }}>
+                          {href !== '#' ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: '#0f172a', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                            >
+                              {item.label}
+                            </a>
+                          ) : (
+                            item.label
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+) : (
 <div style={styles.sectionList}>
   {loading ? (
     <div style={styles.card}>
@@ -1360,15 +1597,26 @@ const displaySections = useMemo(() => {
   </div>
 
   {canEdit ? (
-    <button
-      type="button"
-      onClick={() => handleDeleteSection(section.id)}
-      disabled={saving}
-      style={getButtonStyle('danger', saving)}
-    >
-      <span>🗑</span>
-      <span>Section</span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => startSectionEdit(section)}
+        disabled={saving}
+        style={getButtonStyle('secondary', saving)}
+        aria-label={`Edit ${section.title}`}
+      >
+        Edit
+      </button>
+      <button
+        type="button"
+        onClick={() => handleDeleteSection(section.id)}
+        disabled={saving}
+        style={getButtonStyle('danger', saving)}
+      >
+        <span>🗑</span>
+        <span>Section</span>
+      </button>
+    </>
   ) : null}
 </div>
 
@@ -1376,6 +1624,111 @@ const displaySections = useMemo(() => {
               </div>
             </div>
 
+          {sectionEditState?.id === section.id ? (
+            <div style={styles.cardBody}>
+              <form onSubmit={handleSaveSectionEdit} style={styles.formStack}>
+                <div>
+                  <label htmlFor={`section-title-${section.id}`} style={styles.label}>Title</label>
+                  <input
+                    id={`section-title-${section.id}`}
+                    value={sectionEditState.title}
+                    onChange={(e) =>
+                      setSectionEditState((prev) =>
+                        prev ? { ...prev, title: e.target.value } : prev
+                      )
+                    }
+                    style={styles.input}
+                    required
+                  />
+                </div>
+
+                <div style={twoColumnsResponsiveStyle}>
+                  <div>
+                    <label htmlFor={`section-category-${section.id}`} style={styles.label}>Category</label>
+                    <select
+                      id={`section-category-${section.id}`}
+                      value={sectionEditState.category}
+                      onChange={(e) =>
+                        setSectionEditState((prev) =>
+                          prev
+                            ? { ...prev, category: e.target.value as MarketCategory }
+                            : prev
+                        )
+                      }
+                      style={styles.input}
+                    >
+                      <option value="Foire">Fair</option>
+                      <option value="Ventes aux enchères">Auction</option>
+                      <option value="Autre">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor={`section-start-date-${section.id}`} style={styles.label}>Start date</label>
+                    <input
+                      id={`section-start-date-${section.id}`}
+                      type="date"
+                      value={sectionEditState.startDate}
+                      onChange={(e) =>
+                        setSectionEditState((prev) =>
+                          prev ? { ...prev, startDate: e.target.value } : prev
+                        )
+                      }
+                      style={styles.input}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor={`section-end-date-${section.id}`} style={styles.label}>End date</label>
+                  <input
+                    id={`section-end-date-${section.id}`}
+                    type="date"
+                    value={sectionEditState.endDate}
+                    onChange={(e) =>
+                      setSectionEditState((prev) =>
+                        prev ? { ...prev, endDate: e.target.value } : prev
+                      )
+                    }
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor={`section-notes-${section.id}`} style={styles.label}>Notes</label>
+                  <textarea
+                    id={`section-notes-${section.id}`}
+                    value={sectionEditState.notes}
+                    onChange={(e) =>
+                      setSectionEditState((prev) =>
+                        prev ? { ...prev, notes: e.target.value } : prev
+                      )
+                    }
+                    rows={4}
+                    style={styles.textarea}
+                  />
+                </div>
+
+                <div style={styles.formActionsRight}>
+                  <button
+                    type="button"
+                    onClick={cancelSectionEdit}
+                    disabled={saving}
+                    style={getButtonStyle('secondary', saving)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    style={getButtonStyle('primary', saving)}
+                  >
+                    Save changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
 
           {isExpanded ? (
             <div style={styles.cardBody}>
@@ -1409,10 +1762,13 @@ const displaySections = useMemo(() => {
                                 )}
                               </div>
 
-                              {item.auction_house || item.auction_datetime ? (
+                              {item.auction_house || item.auction_datetime || item.catalogue_status ? (
                                 <div style={styles.itemHeaderRow}>
                                   {item.auction_house ? (
                                     <span style={styles.itemMetaText}>{item.auction_house}</span>
+                                  ) : null}
+                                  {item.catalogue_status ? (
+                                    <span style={styles.itemMetaText}>Catalogue: {item.catalogue_status}</span>
                                   ) : null}
                                   {item.auction_datetime ? (
                                     <span style={styles.itemMetaText}>
@@ -1559,6 +1915,28 @@ const displaySections = useMemo(() => {
                                 />
                               </div>
 
+                              <div>
+                                <label htmlFor={`item-catalogue-${item.id}`} style={styles.label}>Catalogue</label>
+                                <select
+                                  id={`item-catalogue-${item.id}`}
+                                  value={editState.catalogueStatus}
+                                  onChange={(e) =>
+                                    setEditState((prev) =>
+                                      prev
+                                        ? { ...prev, catalogueStatus: e.target.value as CatalogueStatus | '' }
+                                        : prev
+                                    )
+                                  }
+                                  style={styles.input}
+                                >
+                                  <option value="">Not specified</option>
+                                  <option value="Yes">Yes</option>
+                                  <option value="No">No</option>
+                                  <option value="Received">Received</option>
+                                  <option value="Printed">Printed</option>
+                                </select>
+                              </div>
+
                               <div style={twoColumnsResponsiveStyle}>
                                 <div>
                                   <label style={styles.label}>Date de vente</label>
@@ -1637,6 +2015,7 @@ const displaySections = useMemo(() => {
     })
   )}
 </div>
+)}
 
 
         {canEdit ? (
@@ -1653,6 +2032,7 @@ const displaySections = useMemo(() => {
             }}
           />
           <h2
+            className="no-print"
             style={{
               margin: 0,
               color: '#143b2d',
@@ -1919,6 +2299,27 @@ const displaySections = useMemo(() => {
                     />
                   </div>
 
+                  <div>
+                    <label htmlFor="item-catalogue" style={styles.label}>Catalogue</label>
+                    <select
+                      id="item-catalogue"
+                      value={itemForm.catalogueStatus}
+                      onChange={(e) =>
+                        setItemForm((prev) => ({
+                          ...prev,
+                          catalogueStatus: e.target.value as CatalogueStatus | '',
+                        }))
+                      }
+                      style={styles.input}
+                    >
+                      <option value="">Not specified</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                      <option value="Received">Received</option>
+                      <option value="Printed">Printed</option>
+                    </select>
+                  </div>
+
                   <div style={twoColumnsResponsiveStyle}>
                     <div>
                       <label htmlFor="item-auction-date" style={styles.label}>Date de vente</label>
@@ -1931,6 +2332,7 @@ const displaySections = useMemo(() => {
                         }
                         style={styles.input}
                       />
+                      <p style={styles.helperText}>Past dates can still be entered; the calendar only shows future sales.</p>
                     </div>
 
                     <div>

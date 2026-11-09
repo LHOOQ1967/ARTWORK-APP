@@ -74,7 +74,7 @@ migration canonique une fois celle-ci extraite.
 | `artwork_viewer_comments` | Commentaires des viewers associes aux oeuvres et aux profils. |
 | `contact_users` | Association entre un utilisateur Supabase et un contact, avec statut d'invitation. |
 | `market_sections` | Sections du marche (titre, categorie, dates, notes, position et horodatages). |
-| `market_section_items` | Liens ou documents d'une section de marche, avec ordre et informations de vente. |
+| `market_section_items` | Liens ou documents d'une section de marche, avec ordre, informations de vente et statut du catalogue (`Yes`, `No`, `Received` ou `Printed`). |
 | `fx_rates_history` | Historique de taux de change utilise par l'inventaire. |
 | `v_inventory_bought_florac` | Vue historique limitee aux oeuvres achetees par Florac; conservee pour compatibilite. |
 | `v_inventory_bought` | Inventaire de toutes les oeuvres au statut `Bought`, avec buyer, artiste, premiere image et taux EUR; respecte RLS via `security_invoker`. |
@@ -88,6 +88,14 @@ relation sans rechercher son nom dans le code: les jointures PostgREST
 nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
+
+### Market catalogue status
+
+Apply `20261109110000_add_market_catalogue_status.sql` with the Art Market
+release. It adds the nullable `catalogue_status` field, constrains it to
+`Yes`, `No`, `Received` or `Printed`, and exposes it through
+`v_market_section_items`. Existing market resources remain valid with a null
+status.
 
 ### Stored artwork thumbnails
 
