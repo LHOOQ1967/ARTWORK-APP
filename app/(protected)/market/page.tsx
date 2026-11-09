@@ -11,6 +11,7 @@ type MarketCategory = 'Foire' | 'Ventes aux enchères' | 'Autre';
 
 type MarketItemType = 'web_link' | 'document';
 type CatalogueStatus = 'Yes' | 'No' | 'Received' | 'Printed';
+type PaddlePlacesStatus = 'No' | 'Yes 1' | 'Yes 2';
 type ItemSortMode = 'label_asc' | 'created_desc' | 'auction_datetime_asc';
 type MarketViewMode = 'sections' | 'calendar';
 
@@ -41,6 +42,7 @@ type MarketSectionItemView = {
   auction_house: string | null;
   auction_datetime: string | null;
   catalogue_status: CatalogueStatus | null;
+  paddle_places: PaddlePlacesStatus | null;
   document_id: string | null;
   document_url: string | null;
   document_type: string | null;
@@ -80,20 +82,6 @@ function formatDate(date?: string | null) {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  });
-}
-
-function formatCreatedAt(dateTime?: string | null) {
-  if (!dateTime) return null;
-  const d = new Date(dateTime);
-  if (Number.isNaN(d.getTime())) return null;
-
-  return d.toLocaleString('fr-CH', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
   });
 }
 
@@ -545,14 +533,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 400,
     lineHeight: 1.6,
   },
-  itemCreatedText: {
-    margin: 0,
-    color: '#000000',
-    fontFamily: 'inherit',
-    fontSize: '12px',
-    fontWeight: 400,
-    lineHeight: 1.4,
-  },
   rightActions: {
     display: 'flex',
     gap: '8px',
@@ -942,6 +922,54 @@ const calendarEntryCount = calendarSections.reduce(
     setSaving(false);
     setEditingItemId(null);
     setEditState(null);
+    await loadData();
+  }
+
+  async function handleCatalogueStatusChange(itemId: string, value: string) {
+    if (!canEdit) return;
+
+    setSaving(true);
+    setMessage(null);
+    setErrorMessage(null);
+
+    const { error } = await supabase
+      .from('market_section_items')
+      .update({ catalogue_status: value || null })
+      .eq('id', itemId);
+
+    if (error) {
+      console.error('UPDATE MARKET CATALOGUE STATUS ERROR', error);
+      setErrorMessage(`Unable to update catalogue status: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    setMessage('Catalogue status updated.');
+    setSaving(false);
+    await loadData();
+  }
+
+  async function handlePaddlePlacesChange(itemId: string, value: string) {
+    if (!canEdit) return;
+
+    setSaving(true);
+    setMessage(null);
+    setErrorMessage(null);
+
+    const { error } = await supabase
+      .from('market_section_items')
+      .update({ paddle_places: value || null })
+      .eq('id', itemId);
+
+    if (error) {
+      console.error('UPDATE MARKET PADDLE/PLACES ERROR', error);
+      setErrorMessage(`Unable to update Paddle/Places: ${error.message}`);
+      setSaving(false);
+      return;
+    }
+
+    setMessage('Paddle/Places updated.');
+    setSaving(false);
     await loadData();
   }
 
@@ -1375,14 +1403,19 @@ const calendarEntryCount = calendarSections.reduce(
         <div style={{ overflowX: 'auto' }}>
           <table
             aria-label="Auction calendar"
-            style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', textAlign: 'left' }}
+            style={{ width: '100%', minWidth: canEdit ? '940px' : '760px', borderCollapse: 'collapse', textAlign: 'left' }}
           >
             <thead>
               <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
                 <th scope="col" style={{ padding: '12px 10px' }}>Date</th>
                 <th scope="col" style={{ padding: '12px 10px' }}>Time (local time)</th>
                 <th scope="col" style={{ padding: '12px 10px' }}>Auction house</th>
-                <th scope="col" style={{ padding: '12px 10px' }}>Catalogue</th>
+                {canEdit ? (
+                  <th scope="col" style={{ padding: '12px 10px' }}>Catalogue</th>
+                ) : null}
+                {canEdit ? (
+                  <th scope="col" style={{ padding: '12px 10px' }}>Paddle/Places</th>
+                ) : null}
                 <th scope="col" style={{ padding: '12px 10px' }}>Sale</th>
               </tr>
             </thead>
@@ -1391,7 +1424,7 @@ const calendarEntryCount = calendarSections.reduce(
                 <Fragment key={section.id}>
                   <tr>
                     <th
-                      colSpan={5}
+                      colSpan={canEdit ? 6 : 4}
                       scope="colgroup"
                       style={{
                         padding: '12px 10px',
@@ -1425,9 +1458,43 @@ const calendarEntryCount = calendarSections.reduce(
                         >
                           {item.auction_house || '—'}
                         </td>
-                        <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-                          {item.catalogue_status || '—'}
-                        </td>
+                        {canEdit ? (
+                          <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                            <select
+                              aria-label={`Catalogue status for ${item.label}`}
+                              value={item.catalogue_status ?? ''}
+                              onChange={(e) =>
+                                void handleCatalogueStatusChange(item.id, e.target.value)
+                              }
+                              disabled={saving}
+                              style={{ ...styles.input, minWidth: '130px' }}
+                            >
+                              <option value="">Not specified</option>
+                              <option value="Yes">Yes</option>
+                              <option value="No">No</option>
+                              <option value="Received">Received</option>
+                              <option value="Printed">Printed</option>
+                            </select>
+                          </td>
+                        ) : null}
+                        {canEdit ? (
+                          <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                            <select
+                              aria-label={`Paddle/Places for ${item.label}`}
+                              value={item.paddle_places ?? ''}
+                              onChange={(e) =>
+                                void handlePaddlePlacesChange(item.id, e.target.value)
+                              }
+                              disabled={saving}
+                              style={{ ...styles.input, minWidth: '120px' }}
+                            >
+                              <option value="">Select</option>
+                              <option value="No">No</option>
+                              <option value="Yes 1">Yes 1</option>
+                              <option value="Yes 2">Yes 2</option>
+                            </select>
+                          </td>
+                        ) : null}
                         <td style={{ padding: '12px 10px', minWidth: '280px' }}>
                           {href !== '#' ? (
                             <a
@@ -1762,12 +1829,12 @@ const calendarEntryCount = calendarSections.reduce(
                                 )}
                               </div>
 
-                              {item.auction_house || item.auction_datetime || item.catalogue_status ? (
+                              {item.auction_house || item.auction_datetime || (canEdit && item.catalogue_status) ? (
                                 <div style={styles.itemHeaderRow}>
                                   {item.auction_house ? (
                                     <span style={styles.itemMetaText}>{item.auction_house}</span>
                                   ) : null}
-                                  {item.catalogue_status ? (
+                                  {canEdit && item.catalogue_status ? (
                                     <span style={styles.itemMetaText}>Catalogue: {item.catalogue_status}</span>
                                   ) : null}
                                   {item.auction_datetime ? (
@@ -1782,21 +1849,66 @@ const calendarEntryCount = calendarSections.reduce(
                                 <p style={styles.itemSecondaryText}><LinkedText text={item.notes} /></p>
                               ) : null}
 
-                              {formatCreatedAt(item.created_at) ? (
-                                <p style={styles.itemCreatedText}>
-                                  Created: {formatCreatedAt(item.created_at)}
-                                </p>
-                              ) : null}
                             </div>
 
                             <div style={styles.rightActions}>
                               {canEdit ? (
                                 <>
+                                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                      <label
+                                        htmlFor={`catalogue-status-${item.id}`}
+                                        style={{ ...styles.label, marginBottom: 0 }}
+                                      >
+                                        Catalogue
+                                      </label>
+                                      <select
+                                        id={`catalogue-status-${item.id}`}
+                                        aria-label={`Catalogue status for ${item.label}`}
+                                        value={item.catalogue_status ?? ''}
+                                        onChange={(e) =>
+                                          void handleCatalogueStatusChange(item.id, e.target.value)
+                                        }
+                                        disabled={saving}
+                                        style={{ ...styles.input, width: 'auto', minWidth: '130px' }}
+                                      >
+                                        <option value="">Not specified</option>
+                                        <option value="Yes">Yes</option>
+                                        <option value="No">No</option>
+                                        <option value="Received">Received</option>
+                                        <option value="Printed">Printed</option>
+                                      </select>
+                                    </div>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                      <label
+                                        htmlFor={`paddle-places-${item.id}`}
+                                        style={{ ...styles.label, marginBottom: 0 }}
+                                      >
+                                        Paddle/Places
+                                      </label>
+                                      <select
+                                        id={`paddle-places-${item.id}`}
+                                        aria-label={`Paddle/Places for ${item.label}`}
+                                        value={item.paddle_places ?? ''}
+                                        onChange={(e) =>
+                                          void handlePaddlePlacesChange(item.id, e.target.value)
+                                        }
+                                        disabled={saving}
+                                        style={{ ...styles.input, width: 'auto', minWidth: '130px' }}
+                                      >
+                                        <option value="">Not specified</option>
+                                        <option value="No">No</option>
+                                        <option value="Yes 1">Yes 1</option>
+                                        <option value="Yes 2">Yes 2</option>
+                                      </select>
+                                    </div>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => startInlineEdit(item)}
                                     disabled={saving}
                                     style={getButtonStyle('secondary', saving)}
+                                    aria-label={`Edit ${item.label}`}
                                   >
                                     ✏️ 
                                   </button>
@@ -2018,9 +2130,10 @@ const calendarEntryCount = calendarSections.reduce(
 )}
 
 
-        {canEdit ? (
+        {canEdit && viewMode === 'sections' ? (
           <>
           <div
+            className="no-print"
             role="separator"
             aria-orientation="horizontal"
             style={{
@@ -2043,7 +2156,7 @@ const calendarEntryCount = calendarSections.reduce(
           >
             New
           </h2>
-          <div style={twoColumnsResponsiveStyle}>
+          <div className="no-print" style={twoColumnsResponsiveStyle}>
             <div style={{ ...styles.card, background: '#f5f6f5' }}>
               <div style={styles.cardHeader}>
                 <h2 style={styles.cardTitle}>Nouvelle section</h2>
