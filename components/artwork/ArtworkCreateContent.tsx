@@ -3,11 +3,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { ArtworkForm, Artist, Contact } from '@/app/(protected)/types/artwork'
 import { ArtworkFieldsLayout } from './ArtworkFieldsLayout'
 import type { PremiumPair } from './AuctionPremiumFields'
 import { supabase } from '@/lib/supabaseBrowser'
 import { artworkYearError } from '@/lib/artworkYears'
+import { importBlondeauSheet, type BlondeauSheetDraft } from '@/lib/imports/importBlondeauSheet'
+import { fetchWithAuth } from '@/lib/fetchWithAuth'
+import { auctionHouseNames, record, type AuctionImportDraft } from '@/lib/imports/auction'
 
 type ArtworkCreateInitialValues = {
   import_id?: string
@@ -34,6 +38,14 @@ type ArtworkCreateInitialValues = {
   estimate_low?: string | number
   estimate_high?: string | number
   auction_currency?: string
+  auctions?: boolean
+  sale_date?: string
+  sale_time?: string
+  auction_link?: string
+  proposed_by_id?: string
+  auction_contact_id?: string
+  location_contact_id?: string
+  location_address_id?: string
 }
 
 type ManualImportPrefill = {
@@ -78,6 +90,8 @@ type ArtworkImportRow = {
 type ArtworkCreateContentProps = {
   initialValues?: ArtworkCreateInitialValues | null
   importRow?: ArtworkImportRow | null
+  blondeauSheet?: BlondeauSheetDraft
+  auctionDraft?: AuctionImportDraft
 }
 
 const EMPTY_ARTWORK: ArtworkForm = {
@@ -670,6 +684,10 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
     dimensions,
     notes: toNullableText(initialValues.notes),
     artist_id: toNullableText(initialValues.artist_id),
+    proposed_by_id: toNullableText(initialValues.proposed_by_id),
+    auction_contact_id: toNullableText(initialValues.auction_contact_id),
+    location_contact_id: toNullableText(initialValues.location_contact_id),
+    location_address_id: toNullableText(initialValues.location_address_id),
 
     height_cm: heightCm,
     width_cm: widthCm,
@@ -694,7 +712,10 @@ function buildArtworkFromInitialValues(initialValues: ArtworkCreateInitialValues
     auction_currency:
       toNullableText(initialValues.auction_currency) ?? null,
 
-    auctions: hasEstimate,
+    auctions: initialValues.auctions ?? hasEstimate,
+    sale_date: toNullableText(initialValues.sale_date),
+    sale_time: toNullableText(initialValues.sale_time),
+    auction_link: toNullableText(initialValues.auction_link),
 
     // ======================
     // ACQUISITION (indépendant)
@@ -748,6 +769,8 @@ function isMeaningfulArtworkDraft(artwork: ArtworkForm) {
 export default function ArtworkCreateContent({
   initialValues = null,
   importRow = null,
+  blondeauSheet,
+  auctionDraft,
 }: ArtworkCreateContentProps) {
   const router = useRouter()
 const hasRestoredDraftRef = useRef(false)
@@ -756,6 +779,7 @@ const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [artwork, setArtwork] = useState<ArtworkForm>(EMPTY_ARTWORK)
 
   const [saving, setSaving] = useState(false)
+  const [createdArtworkId, setCreatedArtworkId] = useState<string | null>(null)
   const [premiumPending, setPremiumPending] = useState({ suggestion: false, result: false })
   const calculatingPremium = premiumPending.suggestion || premiumPending.result
   const handlePremiumPending = (pair: PremiumPair, pending: boolean) =>
@@ -789,8 +813,8 @@ const draftSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     
 const draftKey = useMemo(() => {
-  return getArtworkDraftKey(currentImportId)
-}, [currentImportId])
+  return getArtworkDraftKey(auctionDraft ? `${auctionDraft.provider}_${auctionDraft.lot.source_url}` : blondeauSheet ? `blondeau_${blondeauSheet.pdf.name}_${blondeauSheet.pdf.size}_${blondeauSheet.pdf.lastModified}` : currentImportId)
+}, [currentImportId, blondeauSheet, auctionDraft])
 
 
   const mergedInitialValues = useMemo(() => {
@@ -835,11 +859,23 @@ const draftKey = useMemo(() => {
         return
       }
 
-      setContactOptions((data as Contact[]) ?? [])
+      const contacts: Contact[] = data ?? []
+      const contactId = auctionDraft?.lot.contact_defaults?.contact_id
+      if (contactId && !contacts.some(contact => contact.id === contactId)) {
+        const { data: contact, error: contactError } = await supabase.from('contacts')
+          .select('id, company_name, first_name, last_name').eq('id', contactId).single()
+        if (contactError || !contact) {
+          console.error('LOAD AUCTION CONTACT FAILED:', contactError)
+          setError('Could not load the selected auction house contact. Verify the contact fields before saving.')
+          return
+        }
+        contacts.push(contact)
+      }
+      setContactOptions(contacts)
     }
 
     loadContacts()
-  }, [])
+  }, [auctionDraft?.lot.contact_defaults?.contact_id])
 
   // Load initial artists
   useEffect(() => {
@@ -932,7 +968,7 @@ useEffect(() => {
   // ✅ Priorité 1 : restaurer le brouillon local si disponible
   if (!hasRestoredDraftRef.current) {
     try {
-      const rawDraft = sessionStorage.getItem(draftKey)
+      const rawDraft = blondeauSheet || auctionDraft ? null : sessionStorage.getItem(draftKey)
 
       if (rawDraft) {
         const parsed = JSON.parse(rawDraft)
@@ -1025,6 +1061,8 @@ useEffect(() => {
   importRow,
   currentImportId,
   draftKey,
+  blondeauSheet,
+  auctionDraft,
 ])
 
 
@@ -1137,6 +1175,7 @@ useEffect(() => {
 
 
 async function saveArtwork() {
+  if (saving) return
   if (calculatingPremium) {
     setError('Complete the buyer premium calculation or switch off Auto to enter both amounts manually before saving.')
     return
@@ -1221,7 +1260,9 @@ async function saveArtwork() {
     }
 
 
-    const { data, error } = await supabase
+    const { data, error } = createdArtworkId
+      ? { data: { id: createdArtworkId }, error: null }
+      : await supabase
       .from('artworks')
       .insert(payload)
       .select()
@@ -1237,6 +1278,38 @@ async function saveArtwork() {
       console.error('NO DATA RETURNED:', data)
       setError('Artwork not created (no id)')
       return
+    }
+
+    if (blondeauSheet) {
+      setCreatedArtworkId(data.id)
+      try {
+        await importBlondeauSheet(data.id, { ...blondeauSheet, fields: {} })
+      } catch (cause) {
+        console.error('CREATE ARTWORK BLONDEAU IMPORT FAILED:', cause)
+        setError(`The artwork was created, but its factsheet could not be attached. ${cause instanceof Error ? cause.message : 'Document import failed.'} Use Retry document import to attach it without creating another artwork.`)
+        return
+      }
+    }
+
+    if (auctionDraft) {
+      setCreatedArtworkId(data.id)
+      try {
+        const response = await fetchWithAuth(`/api/artworks/${data.id}/${auctionDraft.provider}-imports`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: auctionDraft.lot.source_url, images: auctionDraft.lot.images.map(image => image.url) }),
+        })
+        const body: unknown = await response.json()
+        if (!response.ok) throw new Error(record(body) && typeof body.error === 'string' ? body.error : `Document import failed (HTTP ${response.status}).`)
+        if (!record(body) || body.artwork_id !== data.id || !Array.isArray(body.document_ids) ||
+          body.document_ids.length !== auctionDraft.lot.images.length + 1 ||
+          !body.document_ids.every(id => typeof id === 'string')) {
+          throw new Error('The imported source and images could not be confirmed.')
+        }
+      } catch (cause) {
+        console.error('CREATE ARTWORK AUCTION IMPORT FAILED:', cause)
+        setError(`The artwork was created, but its source or images could not all be attached. ${cause instanceof Error ? cause.message : 'Document import failed.'} Use Retry document import to finish without creating another artwork.`)
+        return
+      }
     }
 
     if (importRow?.id) {
@@ -1268,7 +1341,7 @@ try {
 }
 
 
-    setSaveSuccess('Œuvre créée. Ouverture de la fiche…')
+    setSaveSuccess('Artwork created. Opening the factsheet…')
     await new Promise(resolve => setTimeout(resolve, 450))
     router.push(`/artworks/print/${data.id}`)
   } catch (err) {
@@ -1373,6 +1446,20 @@ try {
           </div>
         )}
 
+        {blondeauSheet && (
+          <p role="status">
+            Blondeau factsheet: {blondeauSheet.pdf.name}.
+            {blondeauSheet.image ? ' The selected artwork image will also be attached.' : ''}
+            {' '}Review the details and select the artist before saving.
+          </p>
+        )}
+        {auctionDraft && (
+          <p role="status">
+            {auctionHouseNames[auctionDraft.provider]} auction import: {auctionDraft.lot.images.length} selected image(s) and the source link will be attached.
+            {' '}Verify the artist, auction house contact/address and local sale date/time before saving.
+          </p>
+        )}
+
         {error && (
           <div
             style={{
@@ -1386,6 +1473,9 @@ try {
             }}
           >
             {error}
+            {createdArtworkId && (
+              <p><Link href={`/artworks/${createdArtworkId}/edit`}>Open the created artwork</Link></p>
+            )}
           </div>
         )}
 
@@ -1454,7 +1544,9 @@ try {
   onClick={() => {
     if (isMeaningfulArtworkDraft(artwork)) {
       const ok = window.confirm(
-        'Voulez-vous vraiment quitter cette page ? Les informations non enregistrées seront conservées comme brouillon.'
+        blondeauSheet || auctionDraft
+          ? 'Leave this page? The pending import will not be retained. Any artwork already created will remain saved.'
+          : 'Voulez-vous vraiment quitter cette page ? Les informations non enregistrées seront conservées comme brouillon.'
       )
 
       if (!ok) return
@@ -1494,7 +1586,7 @@ try {
                   <span>Saving…</span>
                 </>
               ) : (
-                'Save'
+                createdArtworkId ? 'Retry document import' : 'Save'
               )}
             </button>
           </div>
@@ -1503,7 +1595,7 @@ try {
         <ArtworkFieldsLayout
           artwork={artwork}
           setArtwork={setArtwork}
-          isEditing={!saving}
+          isEditing={!saving && !createdArtworkId}
           onPremiumPendingChange={handlePremiumPending}
 
           // Artists

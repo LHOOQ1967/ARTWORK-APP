@@ -24,10 +24,13 @@ SELECT id, 'Pagination fixture ' || lpad(n::text, 3, '0'), 'Viewed', 'High', n,
 FROM page_test_works;
 INSERT INTO public.artwork_proposals(artwork_id, contact_id)
 SELECT w.id, c.id FROM page_test_works w CROSS JOIN page_test_ids c WHERE c.name = 'client';
-INSERT INTO public.documents(artwork_id, document_type, url, visibility)
-SELECT id, 'image', 'https://example.invalid/private', 'internal' FROM page_test_works;
+INSERT INTO public.documents(artwork_id, document_type, url, visibility, position)
+SELECT id, 'image', 'https://example.invalid/private', 'internal', 0 FROM page_test_works;
 INSERT INTO public.documents(artwork_id, document_type, url, position)
 SELECT id, 'image', 'https://example.invalid/public', 1 FROM page_test_works;
+INSERT INTO public.documents(artwork_id, document_type, url, position)
+SELECT id, 'image', 'https://example.invalid/later', position
+FROM page_test_works CROSS JOIN (VALUES (2), (NULL::integer)) positions(position);
 
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub', (SELECT id::text FROM page_test_ids WHERE name = 'editor'), true);
@@ -84,6 +87,18 @@ BEGIN
   END IF;
   IF (first_page#>'{groups,0,rows,0}') ? 'documents' THEN
     RAISE EXCEPTION 'Full documentation included in paginated rows';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(first_page->'groups') g,
+      jsonb_array_elements(g->'rows') r
+    WHERE jsonb_array_length(r->'images') <> 1
+      OR r#>>'{images,0,url}' <> 'https://example.invalid/private'
+  ) THEN RAISE EXCEPTION 'Staff pages must retain only the first accessible gallery image'; END IF;
+  IF first_page->'artists' IS DISTINCT FROM second_page->'artists'
+    OR first_page->'proposers' IS DISTINCT FROM second_page->'proposers'
+    OR first_page->'recipients' IS DISTINCT FROM second_page->'recipients'
+    OR first_page->'statuses' IS DISTINCT FROM second_page->'statuses' THEN
+    RAISE EXCEPTION 'Named pages must preserve complete scoped filter options';
   END IF;
 END;
 $$;

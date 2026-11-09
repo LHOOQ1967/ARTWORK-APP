@@ -124,23 +124,17 @@ function InfoRowShort({
   )
 }
 
-function formatDateTimeGeneva(
+function formatLocalSaleDateTime(
   date: string | null,
   time?: string | null
 ) {
   if (!date) return '—'
 
-  const formattedDate = new Date(date).toLocaleDateString('fr-CH')
+  const formattedDate = new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString('fr-CH', { timeZone: 'UTC' })
 
   if (!time) return formattedDate
 
-  // ✅ on GUARANTIT HH:mm sans secondes
-  const formattedTime = new Intl.DateTimeFormat('fr-CH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/Zurich',
-  }).format(new Date(`${date}T${time}`))
+  const formattedTime = time.slice(0, 5)
 
   return `${formattedDate} at ${formattedTime} (local time)`
 }
@@ -786,7 +780,7 @@ const displayTitle = (() => {
       {artwork.sale_date && (
         <InfoRow
         label="Auction Date"
-        value={formatDateTimeGeneva(
+        value={formatLocalSaleDateTime(
           artwork.sale_date, 
           artwork.sale_time
         )}

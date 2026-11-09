@@ -30,6 +30,10 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it('displays stored local sale time unchanged rather than converting it to Geneva', () => {
+    const html = render({ sale_date: '2026-11-17', sale_time: '18:30:00' })
+    expect(html).toContain('17.11.2026 at 18:30 (local time)')
+  })
   it('separates left-side badges from right-side actions', () => {
     const html = render({ priority: 'High', quality: 8, status: 'Viewed' })
     const badges = html.match(/aria-label="Artwork priority, rating and status"[^>]*>([\s\S]*?)<\/div>/)?.[1]
