@@ -97,6 +97,14 @@ release. It adds the nullable `catalogue_status` field, constrains it to
 `v_market_section_items`. Existing market resources remain valid with a null
 status.
 
+### Market Paddle/Places
+
+Apply `20261109120000_add_market_paddle_places.sql` with the matching Art Market
+release. It adds the nullable `paddle_places` field, constrains it to `No`,
+`Yes 1` or `Yes 2`, and exposes it through `v_market_section_items`. The
+Auction Calendar lets Editors and Administrators update this status; existing
+resources remain valid with a null value.
+
 ### Stored artwork thumbnails
 
 Apply `20261025200000_add_stored_artwork_thumbnails.sql` before the matching
