@@ -130,6 +130,61 @@ describe('factsheet auction prices', () => {
     expect(html).not.toContain(' / </')
   })
 
+  it('orders general fixed links first, manual links by position, and OneDrive last', () => {
+    const labels = [
+      ['Dossier One Drive', 1],
+      ['Manual link B', 8],
+      ['Raport de condition Héritier', 2],
+      ['Certificat', 7],
+      ['Résultat ventes', 9],
+      ['Manual link A', 6],
+      ['Facture Commission', 5],
+      ["Facture d'achat", 4],
+      ['Fiche Blondeau', 3],
+    ] as const
+    const html = render({
+      documents: labels.map(([label, position], index) => ({
+        id: `doc-${index}`,
+        artwork_id: 'work',
+        document_type: 'link' as const,
+        label,
+        url: `/doc-${index}`,
+        link_category: 'general' as const,
+        position,
+      })),
+    })
+    const expectedLabels = [
+      'Fiche Blondeau',
+      "Facture d'achat",
+      'Facture Commission',
+      'Résultat ventes',
+      'Certificat',
+      'Raport de condition Héritier',
+      'Manual link A',
+      'Manual link B',
+      'Dossier One Drive',
+    ]
+    const positions = expectedLabels.map(label =>
+      html.indexOf(label === "Facture d'achat" ? 'Facture d&#x27;achat' : label)
+    )
+    expect(expectedLabels.filter((_, index) => positions[index] === -1)).toEqual([])
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+  })
+
+  it('shows the heir condition report both in its dedicated row and under Links', () => {
+    const html = render({
+      documents: [{
+        id: 'heir-report',
+        artwork_id: 'work',
+        document_type: 'link',
+        label: 'Condition Report Héritier',
+        url: '/heir-report',
+        link_category: 'general',
+      }],
+    })
+    expect(html.match(/>Condition Report Héritier<\/a>/g)).toHaveLength(2)
+  })
+
   it('does not show the ZIP action when links are not stored in SharePoint', () => {
     const html = render({ documents: [
       { id: 'general', artwork_id: 'work', document_type: 'link', label: 'Certificate', url: '/certificate' },

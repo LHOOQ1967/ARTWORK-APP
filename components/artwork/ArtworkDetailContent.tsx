@@ -35,6 +35,7 @@ import {
 } from '@dnd-kit/sortable'
 import { SortableImage } from '@/components/SortableImage'
 import { SortableDocument } from '@/components/SortableDocument'
+import { canReorderArtworkDocument, sortArtworkDocuments } from '@/lib/artworkDocumentOrder'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import type {
   ArtworkWithRelations,
@@ -1170,48 +1171,51 @@ async function handleDocumentsDragEnd(event: DragEndEvent) {
   if (!overId || activeId === overId || !artwork) return
 
   const currentDocs =
-    (artwork.documents ?? [])
+    sortArtworkDocuments((artwork.documents ?? [])
       .filter(
         (d) => d.document_type === 'onedrive' || d.document_type === 'link'
-      )
-      .sort((a, b) => {
-        const pa = typeof a.position === 'number' ? a.position : 9999
-        const pb = typeof b.position === 'number' ? b.position : 9999
-        return pa - pb
-      }) ?? []
+      ))
 
   const oldIndex = currentDocs.findIndex((doc) => doc.id === activeId)
   const newIndex = currentDocs.findIndex((doc) => doc.id === overId)
 
   if (oldIndex === -1 || newIndex === -1) return
-  if ((currentDocs[oldIndex].link_category ?? 'general') !==
-    (currentDocs[newIndex].link_category ?? 'general')) return
+  const activeDocument = currentDocs[oldIndex]
+  const targetDocument = currentDocs[newIndex]
+  if ((activeDocument.link_category ?? 'general') !==
+    (targetDocument.link_category ?? 'general')) return
+  if ((activeDocument.link_category ?? 'general') === 'general' &&
+    (!canReorderArtworkDocument(activeDocument) || !canReorderArtworkDocument(targetDocument))) return
 
-  const reordered = arrayMove(currentDocs, oldIndex, newIndex)
+  const categoryDocuments = currentDocs.filter(
+    document => (document.link_category ?? 'general') === (activeDocument.link_category ?? 'general')
+  )
+  const reorderableDocuments = (activeDocument.link_category ?? 'general') === 'general'
+    ? categoryDocuments.filter(canReorderArtworkDocument)
+    : categoryDocuments
+  const categoryOldIndex = reorderableDocuments.findIndex(document => document.id === activeId)
+  const categoryNewIndex = reorderableDocuments.findIndex(document => document.id === overId)
+  if (categoryOldIndex === -1 || categoryNewIndex === -1) return
+  const reorderedCategoryDocuments = arrayMove(reorderableDocuments, categoryOldIndex, categoryNewIndex)
 
-  const updatedDocs: ArtworkDocument[] = reordered.map((doc, index) => ({
+  const updatedDocs: ArtworkDocument[] = reorderedCategoryDocuments.map((doc, index) => ({
     ...doc,
     artwork_id: artwork.id,
     position: index + 1,
   }))
+  const updatedDocumentById = new Map(updatedDocs.map(document => [document.id, document]))
+  const allUpdatedDocuments = currentDocs.map(document =>
+    updatedDocumentById.get(document.id) ?? document
+  )
 
   const otherDocs = (artwork.documents ?? []).filter(
     (d) => d.document_type !== 'onedrive' && d.document_type !== 'link'
   )
 
-  const updatedDocuments = [...otherDocs, ...updatedDocs]
-
-  setArtwork((prev) => {
-    if (!prev) return prev
-
-    return {
-      ...prev,
-      documents: updatedDocuments,
-    }
-  })
+  const updatedDocuments = [...otherDocs, ...allUpdatedDocuments]
 
   try {
-    await Promise.all(
+    const results = await Promise.all(
       updatedDocs.map((doc) =>
         supabase
           .from('documents')
@@ -1219,8 +1223,24 @@ async function handleDocumentsDragEnd(event: DragEndEvent) {
           .eq('id', doc.id)
       )
     )
+    const failedUpdate = results.find(result => result.error)
+    if (failedUpdate?.error) {
+      logSupabaseError('REORDER DOCUMENTS FAILED', failedUpdate.error)
+      setError('Failed to reorder links')
+      return
+    }
+
+    setArtwork((prev) => {
+      if (!prev) return prev
+
+      return {
+        ...prev,
+        documents: updatedDocuments,
+      }
+    })
   } catch (err) {
-    console.error('REORDER DOCUMENTS ERROR:', err)
+    logSupabaseError('REORDER DOCUMENTS ERROR', err)
+    setError('Failed to reorder links')
   }
 }
 
@@ -1236,15 +1256,11 @@ async function handleDocumentsDragEnd(event: DragEndEvent) {
 
 const artworkDocuments = useMemo(
   () =>
-    ((artwork?.documents ?? []) as ArtworkDocument[])
-      .filter(
+    sortArtworkDocuments(
+      ((artwork?.documents ?? []) as ArtworkDocument[]).filter(
         (d) => d.document_type === 'onedrive' || d.document_type === 'link'
       )
-      .sort((a, b) => {
-        const pa = typeof a.position === 'number' ? a.position : 9999
-        const pb = typeof b.position === 'number' ? b.position : 9999
-        return pa - pb
-      }),
+    ),
   [artwork]
 )
 
@@ -1729,6 +1745,7 @@ const artworkDocuments = useMemo(
                         key={doc.id}
                         artworkId={artwork.id}
                         document={doc}
+                        canReorder={canReorderArtworkDocument(doc)}
                         isEditing={isEditing && !categorizing && !saving && !deleting && !uploadingDoc}
                         onCategorySaved={updateDocumentCategory}
                         clients={documentClients}

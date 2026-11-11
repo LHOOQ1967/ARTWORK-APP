@@ -21,6 +21,10 @@ import { privateImageUrl } from '@/lib/privateImageUrl'
 import { supabase } from '@/lib/supabaseBrowser'
 import { QualityHistory } from './ArtworkQuality'
 import { CertificateAddress, CertificateLocationHistory } from './CertificateLocation'
+import {
+  isHeirConditionReportDocumentLabel,
+  sortArtworkDocuments,
+} from '@/lib/artworkDocumentOrder'
 
 
 type Props = {
@@ -267,17 +271,13 @@ const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
   
 
 
-const artworkDocuments =
+const artworkDocuments = sortArtworkDocuments(
   (artwork.documents ?? [])
     .filter(
       (d: ArtworkDocument) =>
         d.document_type === 'onedrive' || d.document_type === 'link'
     )
-    .sort((a, b) => {
-      const pa = typeof a.position === 'number' ? a.position : 9999
-      const pb = typeof b.position === 'number' ? b.position : 9999
-      return pa - pb
-    })
+)
 
 const invoiceDocument = artworkDocuments.find(
   (document) => document.label?.trim().toLowerCase() === 'facture'
@@ -285,16 +285,11 @@ const invoiceDocument = artworkDocuments.find(
 const heirConditionReportDocument =
   artwork.rapport_heritier_document ??
   artworkDocuments.find(
-    (document) =>
-      document.label?.trim().toLowerCase() === 'condition report héritier'
+    (document) => isHeirConditionReportDocumentLabel(document.label)
   )
 
 const links = [
   ...artworkDocuments
-    .filter(
-      (document) =>
-        document.id !== heirConditionReportDocument?.id
-    )
     .map((doc) => ({
     id: doc.id,
     url: doc.url,
