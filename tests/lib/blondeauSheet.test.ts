@@ -16,6 +16,9 @@ describe('parseBlondeauSheetText', () => {
       edition: '2/8',
       year_execution: 1915,
       year_execution_start: null,
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
     })
   })
 
@@ -38,6 +41,9 @@ describe('parseBlondeauSheetText', () => {
       edition: '3/10',
       year_execution: 1915,
       year_execution_start: 1913,
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
     })
   })
 
@@ -57,6 +63,9 @@ describe('parseBlondeauSheetText', () => {
       edition: null,
       year_execution: 1912,
       year_execution_start: 1911,
+      height_cm: 92,
+      width_cm: 60,
+      depth_cm: null,
     })
   })
 
@@ -68,6 +77,9 @@ describe('parseBlondeauSheetText', () => {
       edition: null,
       year_execution: 1905,
       year_execution_start: null,
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
     })
   })
 
@@ -79,6 +91,27 @@ describe('parseBlondeauSheetText', () => {
       edition: null,
       year_execution: null,
       year_execution_start: null,
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
+    })
+  })
+
+  it('extracts two- and three-dimensional metric measurements with decimal commas', () => {
+    expect(parseBlondeauSheetText('Dimensions: 40,5 x 30 x 2 cm (15.9 x 11.8 in.)')).toMatchObject({
+      height_cm: 40.5,
+      width_cm: 30,
+      depth_cm: 2,
+    })
+    expect(parseBlondeauSheetText('50 cm x 40 cm')).toMatchObject({
+      height_cm: 50,
+      width_cm: 40,
+      depth_cm: null,
+    })
+    expect(parseBlondeauSheetText('20 x 15 in.')).toMatchObject({
+      height_cm: null,
+      width_cm: null,
+      depth_cm: null,
     })
   })
 

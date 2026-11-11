@@ -5,19 +5,23 @@ export type BlondeauSheetFields = {
   edition: string | null
   year_execution: number | null
   year_execution_start: number | null
+  height_cm: number | null
+  width_cm: number | null
+  depth_cm: number | null
 }
 
 export type ArtworkImageCrop = { x: number; y: number; width: number; height: number }
 
-const FIELD_LABELS: Record<Exclude<keyof BlondeauSheetFields, 'year_execution' | 'year_execution_start'>, RegExp> = {
+const FIELD_LABELS: Record<'title' | 'medium' | 'signature' | 'edition', RegExp> = {
   title: /^(?:title|titre|oeuvre)\b/i,
   medium: /^(?:medium|technique|support|materiaux|matiere)\b/i,
   signature: /^(?:signature|signe|signed|marque)\b/i,
   edition: /^(?:edition|tirage|exemplaire)\b/i,
 }
 
-const ALL_LABELS = /^(?:title|titre|oeuvre|medium|technique|support|materiaux|matiere|signature|signe|signed|marque|edition|tirage|exemplaire|date|date de creation|annee|annees|dated|year|executed(?:\s+in)?|painted|created)\b/i
+const ALL_LABELS = /^(?:title|titre|oeuvre|medium|technique|support|materiaux|matiere|signature|signe|signed|marque|edition|tirage|exemplaire|dimensions?|date|date de creation|annee|annees|dated|year|executed(?:\s+in)?|painted|created)\b/i
 const MEDIUM_LINE = /^(?:oil|acrylic|watercolou?r|gouache|tempera|pastel|charcoal|pencil|ink|bronze|marble|wood|canvas|paper|silk|linen|panel|board|lithograph|etching|woodcut|screenprint|photograph|mixed media|ceramic|porcelain|huile|acrylique|aquarelle|gouache|tempera|pastel|fusain|crayon|encre|bronze|marbre|bois|toile|papier|soie|lin|panneau|gravure|lithographie|photographie)\b/i
+const METRIC_DIMENSIONS = /(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?(?:\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?)?\s*cm\b/i
 
 function normalizeLabel(value: string) {
   return value
@@ -100,6 +104,20 @@ function parseYears(value: string | null) {
   }
 }
 
+function parseDimensions(text: string) {
+  const match = text.match(METRIC_DIMENSIONS)
+  const values = match?.slice(1).filter((value): value is string => value !== undefined) ?? []
+  const dimensions = values.map(value => Number(value.replace(',', '.')))
+  if (dimensions.length < 2 || dimensions.some(value => !Number.isFinite(value) || value <= 0)) {
+    return { height_cm: null, width_cm: null, depth_cm: null }
+  }
+  return {
+    height_cm: dimensions[0],
+    width_cm: dimensions[1],
+    depth_cm: dimensions[2] ?? null,
+  }
+}
+
 function titleAfterArtistHeading(lines: string[]) {
   const artistHeadingIndex = lines.findIndex(line => {
     const normalized = normalizeLabel(line)
@@ -130,6 +148,7 @@ export function parseBlondeauSheetText(text: string): BlondeauSheetFields {
     signature: labelledSignature ?? lines.find(line => /^signed\b.+/i.test(line)) ?? null,
     edition: valueForLabel(lines, FIELD_LABELS.edition),
     ...parseYears(dateValue),
+    ...parseDimensions(text),
   }
 }
 

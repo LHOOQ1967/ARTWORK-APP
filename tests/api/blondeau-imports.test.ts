@@ -34,6 +34,9 @@ const artwork = {
   edition: null,
   year_execution: 1915,
   year_execution_start: null,
+  height_cm: null,
+  width_cm: null,
+  depth_cm: null,
   artist: { first_name: 'Amedeo', last_name: 'MODIGLIANI' },
 }
 const insertedDocuments = [{
@@ -173,6 +176,9 @@ describe('Blondeau sheet import', () => {
         title: 'Portrait de Paul Alexandre',
         year_execution: 1915,
         year_execution_start: null,
+        height_cm: 92,
+        width_cm: 60,
+        depth_cm: null,
       }),
       image: png,
     }), { params: Promise.resolve({ id: artworkId }) })
@@ -191,7 +197,18 @@ describe('Blondeau sheet import', () => {
       title: 'Portrait de Paul Alexandre',
       year_execution: 1915,
       year_execution_start: null,
+      height_cm: 92,
+      width_cm: 60,
+      depth_cm: null,
     })
     expect(mocks.schedule).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects incomplete dimension updates', async () => {
+    const response = await POST(request({
+      fields: JSON.stringify({ height_cm: 40, depth_cm: null }),
+    }), { params: Promise.resolve({ id: artworkId }) })
+    expect(response.status).toBe(400)
+    expect(mocks.uploadDocument).not.toHaveBeenCalled()
   })
 })

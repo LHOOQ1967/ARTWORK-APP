@@ -71,7 +71,7 @@ describe('Blondeau factsheet importer interface', () => {
           getViewport: () => ({ width: 100, height: 100 }),
           render: () => ({ promise: Promise.resolve() }),
           getTextContent: async () => ({
-            items: ['Title: Portrait', 'Medium: Oil on canvas', 'Date: 1912']
+            items: ['Title: Portrait', 'Medium: Oil on canvas', 'Date: 1912', 'Dimensions: 40 x 30 x 2 cm']
               .map(str => ({ str, hasEOL: true })),
           }),
         }),
@@ -114,9 +114,9 @@ describe('Blondeau factsheet importer interface', () => {
       expect(legend.style.textAlign).toBe(legend.textContent === 'Artwork image' ? 'center' : 'left')
       expect(legend.style.fontWeight).toBe('bold')
     }
-    expect(container.textContent?.match(/Current ArtMuse:/g)).toHaveLength(5)
-    expect(container.textContent?.match(/Detected in factsheet/g)).toHaveLength(5)
-    expect(container.querySelectorAll('fieldset p em')).toHaveLength(6)
+    expect(container.textContent?.match(/Current ArtMuse:/g)).toHaveLength(6)
+    expect(container.textContent?.match(/Detected in factsheet/g)).toHaveLength(6)
+    expect(container.querySelectorAll('fieldset p em')).toHaveLength(8)
     for (const input of container.querySelectorAll<HTMLInputElement>('input[type="text"]')) {
       expect(input.parentElement!.style.display).toBe('flex')
       expect(input.parentElement!.querySelector('span')!.textContent).toBe('Detected in factsheet:')
@@ -197,7 +197,7 @@ describe('Blondeau factsheet importer interface', () => {
     await drop([pdf])
     expect(container.textContent).not.toContain('Current ArtMuse:')
     const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
-    expect(checkboxes.filter(input => input.checked)).toHaveLength(3)
+    expect(checkboxes.filter(input => input.checked)).toHaveLength(4)
     await act(async () => {
       Array.from(container.querySelectorAll('button'))
         .find(button => button.textContent === 'Continue to artwork creation')!.click()
@@ -205,7 +205,15 @@ describe('Blondeau factsheet importer interface', () => {
     expect(mocks.onPrepared).toHaveBeenCalledWith({
       pdf,
       image: null,
-      fields: { title: 'Portrait', medium: 'Oil on canvas', year_execution: 1912, year_execution_start: null },
+      fields: {
+        title: 'Portrait',
+        medium: 'Oil on canvas',
+        year_execution: 1912,
+        year_execution_start: null,
+        height_cm: 40,
+        width_cm: 30,
+        depth_cm: 2,
+      },
     })
     expect(mocks.fetch).not.toHaveBeenCalled()
   })

@@ -76,8 +76,8 @@ label-photo importer to create a new artwork from a PDF. The former
 `/artworks/import-blondeau` URL redirects to this combined page.
 The existing artwork editor's PDF reader, local OCR and image crop
 tools are reused. Review or correct the detected title, medium, signature,
-edition and execution dates, then continue to the creation form to select the
-artist and complete any missing details.
+edition, execution dates and metric dimensions, then continue to the creation
+form to select the artist and complete any missing details.
 
 The original PDF and optional cropped image are attached only when the artwork
 is saved, using the existing document storage and access rules. Keep the page

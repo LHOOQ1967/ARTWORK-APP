@@ -676,7 +676,7 @@ export default function MarketPage() {
   const [role, setRole] = useState<ProfileRole>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<MarketViewMode>('calendar');
+  const [viewMode, setViewMode] = useState<MarketViewMode>('sections');
 
 
 const [sections, setSections] = useState<SectionWithItems[]>([]);
@@ -715,6 +715,8 @@ const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSort
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const canEdit = role === 'Administrator' || role === 'Editor';
+  const selectedItemSection = sections.find((section) => section.id === itemForm.sectionId);
+  const isAuctionItemSection = selectedItemSection?.category === 'Ventes aux enchères';
 
   
 
@@ -850,6 +852,8 @@ const calendarEntryCount = calendarSections.reduce(
   (count, section) => count + section.items.length,
   0
 );
+const showCalendarStatusColumn = canEdit &&
+  calendarSections.some((section) => section.category === 'Ventes aux enchères');
 
 
   function toggleSection(sectionId: string) {
@@ -1141,7 +1145,7 @@ const calendarEntryCount = calendarSections.reduce(
         position: 0,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
-        catalogue_status: itemForm.catalogueStatus || null,
+        catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       });
 
       if (error) {
@@ -1189,7 +1193,7 @@ const calendarEntryCount = calendarSections.reduce(
         position: 0,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
-        catalogue_status: itemForm.catalogueStatus || null,
+        catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       })
       .select('id')
       .single();
@@ -1429,7 +1433,7 @@ const calendarEntryCount = calendarSections.reduce(
               <col className="market-calendar-time-column" />
               <col className="market-calendar-house-column" />
               <col className="market-calendar-sale-column" />
-              {canEdit ? <col className="market-calendar-status-column" /> : null}
+              {showCalendarStatusColumn ? <col className="market-calendar-status-column" /> : null}
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
@@ -1437,7 +1441,7 @@ const calendarEntryCount = calendarSections.reduce(
                 <th className="market-calendar-time-cell" scope="col" style={{ padding: '12px 10px' }}>Time<br />(local time)</th>
                 <th className="market-calendar-house-cell" scope="col" style={{ padding: '12px 10px' }}>Auction house</th>
                 <th className="market-calendar-sale-cell" scope="col" style={{ padding: '12px 10px' }}>Sale</th>
-                {canEdit ? (
+                {showCalendarStatusColumn ? (
                   <th className="market-calendar-status-cell" scope="col" style={{ padding: '12px 10px' }}>
                     Catalogue<br />Paddle/Places
                   </th>
@@ -1449,7 +1453,7 @@ const calendarEntryCount = calendarSections.reduce(
                 <Fragment key={section.id}>
                   <tr>
                     <th
-                      colSpan={canEdit ? 5 : 4}
+                      colSpan={showCalendarStatusColumn ? 5 : 4}
                       scope="colgroup"
                       style={{
                         padding: '12px 10px',
@@ -1511,7 +1515,7 @@ const calendarEntryCount = calendarSections.reduce(
                             </p>
                           ) : null}
                         </td>
-                        {canEdit ? (
+                        {section.category === 'Ventes aux enchères' && showCalendarStatusColumn ? (
                           <td className="market-calendar-status-cell" style={{ padding: '8px 10px', minWidth: '160px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <select
@@ -1553,6 +1557,8 @@ const calendarEntryCount = calendarSections.reduce(
                               </span>
                             </div>
                           </td>
+                        ) : showCalendarStatusColumn ? (
+                          <td className="market-calendar-status-cell" />
                         ) : null}
                       </tr>
                     );
@@ -1874,12 +1880,13 @@ const calendarEntryCount = calendarSections.reduce(
                                 )}
                               </div>
 
-                              {item.auction_house || item.auction_datetime || (canEdit && item.catalogue_status) ? (
+                              {item.auction_house || item.auction_datetime ||
+                              (section.category === 'Ventes aux enchères' && canEdit && item.catalogue_status) ? (
                                 <div style={styles.itemHeaderRow}>
                                   {item.auction_house ? (
                                     <span style={styles.itemMetaText}>{item.auction_house}</span>
                                   ) : null}
-                                  {canEdit && item.catalogue_status ? (
+                                  {section.category === 'Ventes aux enchères' && canEdit && item.catalogue_status ? (
                                     <span style={styles.itemMetaText}>Catalogue: {item.catalogue_status}</span>
                                   ) : null}
                                   {item.auction_datetime ? (
@@ -1899,6 +1906,7 @@ const calendarEntryCount = calendarSections.reduce(
                             <div style={styles.rightActions}>
                               {canEdit ? (
                                 <>
+                                  {section.category === 'Ventes aux enchères' ? (
                                   <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                       <label
@@ -1948,6 +1956,7 @@ const calendarEntryCount = calendarSections.reduce(
                                       </select>
                                     </div>
                                   </div>
+                                  ) : null}
                                   <button
                                     type="button"
                                     onClick={() => startInlineEdit(item)}
@@ -2072,6 +2081,7 @@ const calendarEntryCount = calendarSections.reduce(
                                 />
                               </div>
 
+                              {section.category === 'Ventes aux enchères' ? (
                               <div>
                                 <label htmlFor={`item-catalogue-${item.id}`} style={styles.label}>Catalogue</label>
                                 <select
@@ -2093,6 +2103,7 @@ const calendarEntryCount = calendarSections.reduce(
                                   <option value="Printed">Printed</option>
                                 </select>
                               </div>
+                              ) : null}
 
                               <div style={twoColumnsResponsiveStyle}>
                                 <div>
@@ -2306,9 +2317,17 @@ const calendarEntryCount = calendarSections.reduce(
                     <label style={styles.label}>Section</label>
                     <select
                       value={itemForm.sectionId}
-                      onChange={(e) =>
-                        setItemForm((prev) => ({ ...prev, sectionId: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        const sectionId = e.target.value;
+                        const selectedSection = sections.find((section) => section.id === sectionId);
+                        setItemForm((prev) => ({
+                          ...prev,
+                          sectionId,
+                          ...(selectedSection?.category === 'Ventes aux enchères'
+                            ? {}
+                            : { catalogueStatus: '' }),
+                        }));
+                      }}
                       style={styles.input}
                     >
                       <option value="">Choisir une section</option>
@@ -2457,6 +2476,7 @@ const calendarEntryCount = calendarSections.reduce(
                     />
                   </div>
 
+                  {isAuctionItemSection ? (
                   <div>
                     <label htmlFor="item-catalogue" style={styles.label}>Catalogue</label>
                     <select
@@ -2477,6 +2497,7 @@ const calendarEntryCount = calendarSections.reduce(
                       <option value="Printed">Printed</option>
                     </select>
                   </div>
+                  ) : null}
 
                   <div style={twoColumnsResponsiveStyle}>
                     <div>

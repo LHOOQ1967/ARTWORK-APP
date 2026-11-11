@@ -56,6 +56,7 @@ vi.mock('@/components/artwork/BlondeauSheetImporter', () => ({
       fields: {
         title: 'Portrait', medium: 'Oil on canvas', signature: 'Signed', edition: 'AP',
         year_execution_start: 1910, year_execution: 1912,
+        height_cm: 92, width_cm: 60, depth_cm: null,
       },
     })}>Prepare factsheet</button>
   ),
@@ -180,6 +181,7 @@ describe('creating an artwork from a Blondeau factsheet', () => {
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Reviewed portrait', artist_id: 'artist-1', medium: 'Oil on canvas',
       signature: 'Signed', edition: 'AP', year_execution_start: 1910, year_execution: 1912,
+      height_cm: 92, width_cm: 60, depth_cm: null,
     }))
     expect(mocks.fetch).toHaveBeenCalledWith('/api/artworks/new-artwork/blondeau-imports', expect.objectContaining({
       method: 'POST', credentials: 'include',

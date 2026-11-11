@@ -93,10 +93,13 @@ export default function BlondeauSheetImporter({
     edition: null,
     year_execution: null,
     year_execution_start: null,
+    height_cm: null,
+    width_cm: null,
+    depth_cm: null,
   })
   const [dragging, setDragging] = useState(false)
   const [pages, setPages] = useState<PagePreview[]>([])
-  const [selectedFields, setSelectedFields] = useState<Partial<Record<ImportableField | 'dates', boolean>>>({})
+  const [selectedFields, setSelectedFields] = useState<Partial<Record<ImportableField | 'dates' | 'dimensions', boolean>>>({})
   const [importImage, setImportImage] = useState(false)
   const [cropPage, setCropPage] = useState<number | null>(null)
   const [cropRect, setCropRect] = useState<CropRect | null>(null)
@@ -124,6 +127,14 @@ export default function BlondeauSheetImporter({
     fields.year_execution !== null &&
     (fields.year_execution !== (artwork?.year_execution ?? null) ||
       fields.year_execution_start !== (artwork?.year_execution_start ?? null))
+  const dimensionsLabel = (height: number | null | undefined, width: number | null | undefined, depth: number | null | undefined) => {
+    if (height == null || width == null) return 'Not set'
+    const values = [height, width, depth].filter((value): value is number => value != null)
+    return `${values.join(' x ')} cm`
+  }
+  const dimensionsAreDifferent = fields.height_cm !== (artwork?.height_cm ?? null) ||
+    fields.width_cm !== (artwork?.width_cm ?? null) ||
+    fields.depth_cm !== (artwork?.depth_cm ?? null)
 
   function setTextField(key: ImportableField, value: string) {
     setFields(previous => ({ ...previous, [key]: value || null }))
@@ -144,7 +155,11 @@ export default function BlondeauSheetImporter({
     setStatus('')
     setFile(null)
     setPages([])
-    setFields({ title: null, medium: null, signature: null, edition: null, year_execution: null, year_execution_start: null })
+    setFields({
+      title: null, medium: null, signature: null, edition: null,
+      year_execution: null, year_execution_start: null,
+      height_cm: null, width_cm: null, depth_cm: null,
+    })
     setSelectedFields({})
     setImportImage(false)
     setCropPage(null)
@@ -262,6 +277,7 @@ export default function BlondeauSheetImporter({
           signature: detected.signature !== null,
           edition: detected.edition !== null,
           dates: detected.year_execution !== null,
+          dimensions: detected.height_cm !== null && detected.width_cm !== null,
         })
       }
       setStatus('')
@@ -367,6 +383,11 @@ export default function BlondeauSheetImporter({
     if (selectedFields.dates && fields.year_execution !== null) {
       fieldsToApply.year_execution = fields.year_execution
       fieldsToApply.year_execution_start = fields.year_execution_start
+    }
+    if (selectedFields.dimensions && fields.height_cm !== null && fields.width_cm !== null) {
+      fieldsToApply.height_cm = fields.height_cm
+      fieldsToApply.width_cm = fields.width_cm
+      fieldsToApply.depth_cm = fields.depth_cm
     }
 
     if (selectedFields.dates && fields.year_execution_start !== null &&
@@ -487,6 +508,51 @@ export default function BlondeauSheetImporter({
                 </fieldset>
               )
             })}
+
+            <fieldset style={{ border: '1px solid #ccc', padding: 10, borderRadius: 4 }}>
+              <legend style={{ fontWeight: 'bold', textAlign: 'left' }}>Dimensions (cm)</legend>
+              {artwork && <p>Current ArtMuse: <em>{dimensionsLabel(artwork.height_cm, artwork.width_cm, artwork.depth_cm)}</em></p>}
+              <p>Detected in factsheet: <em>{dimensionsLabel(fields.height_cm, fields.width_cm, fields.depth_cm)}</em></p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {([
+                  ['height_cm', 'Height'],
+                  ['width_cm', 'Width'],
+                  ['depth_cm', 'Depth'],
+                ] as const).map(([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={fields[key] ?? ''}
+                      disabled={busy}
+                      style={{ display: 'block', borderRadius: 4, padding: 6, fontStyle: 'italic' }}
+                      onChange={event => {
+                        const value = event.target.value === '' ? null : Number(event.target.value)
+                        const parsed = value !== null && Number.isFinite(value) && value > 0 ? value : null
+                        setFields(previous => ({ ...previous, [key]: parsed }))
+                        setSelectedFields(previous => ({
+                          ...previous,
+                          dimensions: key === 'height_cm'
+                            ? parsed !== null && fields.width_cm !== null
+                            : key === 'width_cm'
+                              ? fields.height_cm !== null && parsed !== null
+                              : fields.height_cm !== null && fields.width_cm !== null,
+                        }))
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+              {fields.height_cm === null || fields.width_cm === null
+                ? <p>No dimensions detected. Enter height and width above if needed.</p>
+                : artwork && dimensionsAreDifferent
+                  ? <label><input type="checkbox" checked={Boolean(selectedFields.dimensions)} disabled={busy} onChange={event => setSelectedFields(previous => ({ ...previous, dimensions: event.target.checked }))} /> Apply these dimensions</label>
+                  : onPrepared
+                    ? <label><input type="checkbox" checked={Boolean(selectedFields.dimensions)} disabled={busy} onChange={event => setSelectedFields(previous => ({ ...previous, dimensions: event.target.checked }))} /> Include these dimensions</label>
+                    : <p role="status"><strong>Matches the current dimensions.</strong></p>}
+            </fieldset>
 
             <fieldset style={{ border: '1px solid #ccc', padding: 10, borderRadius: 4 }}>
               <legend style={{ fontWeight: 'bold', textAlign: 'left' }}>Execution date</legend>

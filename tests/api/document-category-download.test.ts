@@ -100,9 +100,20 @@ describe('category ZIP downloads', () => {
     expect(mocks.range.mock.calls).toEqual([[0, 199], [200, 399]])
   })
 
-  it.each(['', 'category=other', 'category=general&category=invalid'])('rejects invalid selection %s', async query => {
+  it.each(['category=other', 'category=general&category=invalid'])('rejects invalid selection %s', async query => {
     expect((await GET(request(query), context)).status).toBe(400)
     expect(mocks.from).not.toHaveBeenCalled()
+  })
+
+  it('downloads all SharePoint files when no category is specified', async () => {
+    mocks.returns.mockResolvedValue({ data: [
+      document,
+      { ...document, id: 'doc-2', sharepoint_item_id: 'item-2', file_name: 'photo.jpg', link_category: 'images' },
+    ], error: null })
+    const response = await GET(request(''), context)
+    expect(response.status).toBe(200)
+    expect(entries(Buffer.from(await response.arrayBuffer()))).toHaveLength(2)
+    expect(mocks.in).not.toHaveBeenCalledWith('link_category', expect.anything())
   })
 
   it('requires authorization', async () => {

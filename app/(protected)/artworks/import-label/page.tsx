@@ -516,6 +516,9 @@ function handleResetAll() {
           edition: blondeauDraft.fields.edition ?? "",
           year: blondeauDraft.fields.year_execution ?? "",
           year_start: blondeauDraft.fields.year_execution_start ?? "",
+          height_cm: blondeauDraft.fields.height_cm ?? "",
+          width_cm: blondeauDraft.fields.width_cm ?? "",
+          depth_cm: blondeauDraft.fields.depth_cm ?? "",
         }}
       />
     );
