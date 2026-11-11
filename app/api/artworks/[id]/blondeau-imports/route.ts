@@ -16,6 +16,9 @@ const ALLOWED_FIELDS = new Set([
   'edition',
   'year_execution',
   'year_execution_start',
+  'height_cm',
+  'width_cm',
+  'depth_cm',
 ])
 
 function isUuid(value: string) {
@@ -37,7 +40,14 @@ function parseFields(value: FormDataEntryValue | null): Partial<BlondeauSheetFie
 
   const fields: Partial<BlondeauSheetFields> = {}
   for (const [key, fieldValue] of entries) {
-    if (key === 'year_execution' || key === 'year_execution_start') {
+    if (key === 'height_cm' || key === 'width_cm' || key === 'depth_cm') {
+      if (key === 'depth_cm' && fieldValue === null) {
+        fields.depth_cm = null
+        continue
+      }
+      if (typeof fieldValue !== 'number' || !Number.isFinite(fieldValue) || fieldValue <= 0) return null
+      fields[key] = fieldValue
+    } else if (key === 'year_execution' || key === 'year_execution_start') {
       if (key === 'year_execution_start' && fieldValue === null) {
         fields.year_execution_start = null
         continue
@@ -67,6 +77,8 @@ function parseFields(value: FormDataEntryValue | null): Partial<BlondeauSheetFie
   }
 
   if (
+    (['height_cm', 'width_cm', 'depth_cm'].some(key => key in fields) &&
+      (!('height_cm' in fields) || !('width_cm' in fields) || !('depth_cm' in fields))) ||
     ('year_execution' in fields) !== ('year_execution_start' in fields) ||
     (fields.year_execution_start != null &&
       fields.year_execution != null &&
@@ -110,7 +122,7 @@ export async function POST(
   const { supabase, userId } = authorization
   const { data: artwork, error: artworkError } = await supabase
     .from('artworks')
-    .select('id,title,artist_id,medium,signature,edition,year_execution,year_execution_start,artist:artists(first_name,last_name)')
+    .select('id,title,artist_id,medium,signature,edition,year_execution,year_execution_start,height_cm,width_cm,depth_cm,artist:artists(first_name,last_name)')
     .eq('id', artworkId)
     .maybeSingle()
   if (artworkError) {
@@ -252,6 +264,9 @@ export async function POST(
         edition: artwork.edition,
         year_execution: artwork.year_execution,
         year_execution_start: artwork.year_execution_start,
+        height_cm: artwork.height_cm,
+        width_cm: artwork.width_cm,
+        depth_cm: artwork.depth_cm,
         title: artwork.title,
       }).eq('id', artworkId)
       if (error) console.error('BLONDEAU IMPORT ARTWORK ROLLBACK FAILED:', error.message)

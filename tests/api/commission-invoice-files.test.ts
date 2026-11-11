@@ -81,9 +81,9 @@ describe('commission invoice files', () => {
   })
 
   it.each([
-    [artworkInvoice, 'record_artwork_commission_invoice', 'invoice'],
-    [correctionInvoice, 'record_artwork_commission_correction_invoice', 'correctionInvoice'],
-  ])('uploads one file and saves the %j invoice', async (invoice, rpc, key) => {
+    [artworkInvoice, 'record_artwork_commission_invoice', 'invoice', 'Facture Commission'],
+    [correctionInvoice, 'record_artwork_commission_correction_invoice', 'correctionInvoice', 'Commission correction invoice 2026'],
+  ])('uploads one file and saves the %j invoice', async (invoice, rpc, key, label) => {
     const response = await POST(uploadRequest(invoice))
     expect(response.status).toBe(200)
     const payload = await response.json()
@@ -95,7 +95,7 @@ describe('commission invoice files', () => {
     }))
     expect(mocks.insert).toHaveBeenCalledWith([expect.objectContaining({
       artwork_id: 'art-1', sharepoint_drive_id: 'drive-1', sharepoint_item_id: 'item-1',
-      visibility: 'all_clients', document_type: 'link',
+      visibility: 'all_clients', document_type: 'link', label,
     })])
     expect(mocks.rpc).toHaveBeenCalledWith(rpc, expect.objectContaining({
       p_invoice_url: payload[key].invoice_url, p_invoiced_at: '2026-10-26',

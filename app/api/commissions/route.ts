@@ -422,7 +422,7 @@ export async function POST(request: NextRequest) {
       id: crypto.randomUUID(),
       artwork_id: artworkId,
       document_type: 'link',
-      label: isArtworkInvoice ? 'Commission invoice' : `Commission correction invoice ${body.calendarYear}`,
+      label: isArtworkInvoice ? 'Facture Commission' : `Commission correction invoice ${body.calendarYear}`,
       visibility: 'all_clients',
       recipient_contact_id: null,
       link_category: 'general',

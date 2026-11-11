@@ -34,6 +34,7 @@ export function SortableDocument({
   artworkId,
   document,
   isEditing,
+  canReorder = true,
   onDelete,
   labelSuggestions,
   onLabelSaved,
@@ -44,6 +45,7 @@ export function SortableDocument({
   artworkId: string
   document: SortableArtworkDocument
   isEditing: boolean
+  canReorder?: boolean
   onDelete: (id: string) => void
   labelSuggestions: string[]
   onLabelSaved?: (id: string, label: string) => void
@@ -80,7 +82,7 @@ export function SortableDocument({
     setActivatorNodeRef,
     transform,
     transition,
-  } = useSortable({ id: document.id })
+  } = useSortable({ id: document.id, disabled: !isEditing || !canReorder })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -252,19 +254,21 @@ function handleOpen() {
           </div>
           <div role="group" aria-label="Document actions"
             style={{ display: 'flex', flexShrink: 0, gap: 8, alignItems: 'center', justifyContent: 'flex-end', marginLeft: 'auto' }}>
-            <button
-              type="button"
-              className="edit-button"
-              aria-label={`Reorder ${document.label || 'document'}`}
-              title="Drag to reorder"
-              disabled={saving}
-              ref={setActivatorNodeRef}
-              {...attributes}
-              {...listeners}
-              style={{ cursor: saving ? 'not-allowed' : 'grab' }}
-            >
-              ⠿
-            </button>
+            {canReorder && (
+              <button
+                type="button"
+                className="edit-button"
+                aria-label={`Reorder ${document.label || 'document'}`}
+                title="Drag to reorder"
+                disabled={saving}
+                ref={setActivatorNodeRef}
+                {...attributes}
+                {...listeners}
+                style={{ cursor: saving ? 'not-allowed' : 'grab' }}
+              >
+                ⠿
+              </button>
+            )}
             <button
               type="button"
               className="edit-button edit-button-danger"

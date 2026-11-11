@@ -3,6 +3,13 @@
 
 import React, { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ArtworkCreateContent from "@/components/artwork/ArtworkCreateContent";
+import BlondeauSheetImporter from "@/components/artwork/BlondeauSheetImporter";
+import type { BlondeauSheetDraft } from "@/lib/imports/importBlondeauSheet";
+import SothebysLotImporter from "@/components/artwork/SothebysLotImporter";
+import ChristiesLotImporter from "@/components/artwork/ChristiesLotImporter";
+import PhillipsLotImporter from "@/components/artwork/PhillipsLotImporter";
+import type { AuctionImportDraft } from "@/lib/imports/auction";
 
 type ArtworkImportStatus =
   | "pending"
@@ -197,6 +204,10 @@ function buildPrefillPayload(importRow: ArtworkImportRow, edited: EditableNormal
 
 export default function ImportLabelPage() {
   const router = useRouter();
+  const [blondeauDraft, setBlondeauDraft] = useState<BlondeauSheetDraft | null>(null);
+  const [blondeauBusy, setBlondeauBusy] = useState(false);
+  const [auctionDraft, setAuctionDraft] = useState<AuctionImportDraft | null>(null);
+  const [auctionBusy, setAuctionBusy] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
@@ -252,7 +263,7 @@ const [edited, setEdited] = useState<EditableNormalized>({
 
   useEffect(() => {
     function handlePaste(event: ClipboardEvent) {
-      if (isUploading || isAnalyzing) return;
+      if (isUploading || isAnalyzing || blondeauBusy || blondeauDraft || auctionBusy || auctionDraft) return;
 
       const items = event.clipboardData?.items;
       if (!items?.length) return;
@@ -292,7 +303,7 @@ const [edited, setEdited] = useState<EditableNormalized>({
     return () => {
       window.removeEventListener("paste", handlePaste);
     };
-  }, [isUploading, isAnalyzing]);
+  }, [isUploading, isAnalyzing, blondeauBusy, blondeauDraft, auctionBusy, auctionDraft]);
 
   function resetMessages() {
     setErrorMessage("");
@@ -460,6 +471,59 @@ function handleResetAll() {
       importRow.status === "validated" ||
       !!importRow.parsed_data?.normalized);
 
+  if (auctionDraft) {
+    const lot = auctionDraft.lot;
+    return (
+      <ArtworkCreateContent
+        auctionDraft={auctionDraft}
+        initialValues={{
+          artist_name: lot.artist_name,
+          title: lot.title,
+          medium: lot.medium ?? "",
+          signature: lot.signature ?? "",
+          edition: lot.edition ?? "",
+          year: lot.year ?? "",
+          year_start: lot.year_start ?? "",
+          height_cm: lot.height_cm ?? "",
+          width_cm: lot.width_cm ?? "",
+          depth_cm: lot.depth_cm ?? "",
+          auctions: true,
+          estimate_low: lot.estimate_low ?? "",
+          estimate_high: lot.estimate_high ?? "",
+          auction_currency: lot.auction_currency ?? "",
+          sale_date: lot.sale_date ?? "",
+          sale_time: lot.sale_time ?? "",
+          auction_link: lot.source_url,
+          proposed_by_id: lot.contact_defaults?.contact_id,
+          auction_contact_id: lot.contact_defaults?.contact_id,
+          location_contact_id: lot.contact_defaults?.contact_id,
+          location_address_id: lot.contact_defaults?.location_address_id ?? undefined,
+          lot: lot.lot ?? "",
+          notes: lot.notes,
+        }}
+      />
+    );
+  }
+
+  if (blondeauDraft) {
+    return (
+      <ArtworkCreateContent
+        blondeauSheet={blondeauDraft}
+        initialValues={{
+          title: blondeauDraft.fields.title ?? "",
+          medium: blondeauDraft.fields.medium ?? "",
+          signature: blondeauDraft.fields.signature ?? "",
+          edition: blondeauDraft.fields.edition ?? "",
+          year: blondeauDraft.fields.year_execution ?? "",
+          year_start: blondeauDraft.fields.year_execution_start ?? "",
+          height_cm: blondeauDraft.fields.height_cm ?? "",
+          width_cm: blondeauDraft.fields.width_cm ?? "",
+          depth_cm: blondeauDraft.fields.depth_cm ?? "",
+        }}
+      />
+    );
+  }
+
   return (
     <main
       style={{
@@ -473,12 +537,11 @@ function handleResetAll() {
     >
       <div style={styles.container}>
         <div style={styles.headerCard}>
-          <div style={styles.eyebrow}>Import assisté</div>
-          <h1 style={styles.title}>Importer une étiquette</h1>
+          <div style={styles.eyebrow}>Assisted import</div>
+          <h1 style={styles.title}>Import artwork</h1>
           <p style={styles.subtitle}>
-            Prenez une photo de l’étiquette avec l’iPhone, ou collez une image depuis le
-            presse-papier, envoyez-la, lancez l’analyse, corrigez les champs si nécessaire,
-            puis ouvrez le formulaire de création prérempli.
+            Import a Blondeau PDF factsheet, a label photo or a Sotheby&apos;s, Christie&apos;s or Phillips auction lot. Review the detected
+            details, then complete the artwork creation form.
           </p>
         </div>
 
@@ -493,9 +556,48 @@ function handleResetAll() {
           </div>
         )}
 
-        
+        <div style={styles.auctionGrid} role="group" aria-label="Auction imports">
+          <section style={styles.card} aria-labelledby="christies-section-heading">
+            <h2 id="christies-section-heading" style={styles.sectionTitle}>1. Christie&apos;s</h2>
+            <ChristiesLotImporter
+              disabled={blondeauBusy || auctionBusy || isUploading || isAnalyzing}
+              onBusyChange={setAuctionBusy}
+              onPrepared={lot => setAuctionDraft({ provider: "christies", lot })}
+            />
+          </section>
+          <section style={styles.card} aria-labelledby="sothebys-section-heading">
+            <h2 id="sothebys-section-heading" style={styles.sectionTitle}>2. Sotheby&apos;s</h2>
+            <SothebysLotImporter
+              disabled={blondeauBusy || auctionBusy || isUploading || isAnalyzing}
+              onBusyChange={setAuctionBusy}
+              onPrepared={lot => setAuctionDraft({ provider: "sothebys", lot })}
+            />
+          </section>
+          <section style={styles.card} aria-labelledby="phillips-section-heading">
+            <h2 id="phillips-section-heading" style={styles.sectionTitle}>3. Phillips</h2>
+            <PhillipsLotImporter
+              disabled={blondeauBusy || auctionBusy || isUploading || isAnalyzing}
+              onBusyChange={setAuctionBusy}
+              onPrepared={lot => setAuctionDraft({ provider: "phillips", lot })}
+            />
+          </section>
+        </div>
+
+        <section aria-labelledby="blondeau-section-heading" style={styles.card}>
+          <h2 id="blondeau-section-heading" style={styles.sectionTitle}>
+            4. Import Blondeau Factsheet
+          </h2>
+          <p>Review the detected details and optionally select an artwork image. Then complete the artist and other details in the creation form.</p>
+          <p>The PDF and selected image will be attached when you save the new artwork. Keep this page open until saving is complete.</p>
+          <BlondeauSheetImporter
+            onBusyChange={setBlondeauBusy}
+            disabled={blondeauBusy || auctionBusy || isUploading || isAnalyzing}
+            onPrepared={setBlondeauDraft}
+          />
+        </section>
+
           <section style={styles.card}>
-            <h2 style={styles.sectionTitle}>1. Photo de l’étiquette</h2>
+            <h2 style={styles.sectionTitle}>5. Label photo</h2>
 
             <label style={styles.label}>Choisir, prendre ou coller une photo</label>
 
@@ -572,7 +674,7 @@ function handleResetAll() {
           </section>
 
           <section style={styles.card}>
-            <h2 style={styles.sectionTitle}>2. Analyse</h2>
+            <h2 style={styles.sectionTitle}>6. Analysis</h2>
 
             <div style={styles.statusBox}>
               <div>
@@ -615,16 +717,15 @@ function handleResetAll() {
             </div>
 
             <p style={styles.helpText}>
-              Avant de cliquer sur <strong>Ouvrir dans le formulaire</strong>, vous pouvez
-              corriger les champs détectés dans la section 3. Les corrections seront
-              transmises au formulaire de création.
+              Review and correct the detected fields in section 7 before opening
+              the creation form. Your corrections will be carried over.
             </p>
           </section>
         
 
         <section style={styles.card}>
           <div style={styles.sectionHeaderInline}>
-            <h2 style={styles.sectionTitleNoMargin}>3. Résultats détectés et correction</h2>
+            <h2 style={styles.sectionTitleNoMargin}>7. Detected results and corrections</h2>
 
             <button
               type="button"
@@ -949,6 +1050,7 @@ function handleResetAll() {
             </>
           )}
         </section>
+
       </div>
     </main>
   );
@@ -1060,6 +1162,12 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: "20px",
+  },
+  auctionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+    gap: "20px",
+    alignItems: "start",
   },
   card: {
     background: "#ffffff",

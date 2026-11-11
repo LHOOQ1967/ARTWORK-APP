@@ -5,12 +5,11 @@ import Image from 'next/image'
 import type { ArtworkDocument, ArtworkWithRelations } from '@/app/(protected)/types/artwork'
 import type { ArtworkImageCrop, BlondeauSheetFields } from '@/lib/blondeauSheet'
 import { findArtworkImageBounds, parseBlondeauSheetText } from '@/lib/blondeauSheet'
+import { importBlondeauSheet, type BlondeauSheetDraft } from '@/lib/imports/importBlondeauSheet'
 
 type ImportableField = 'title' | 'medium' | 'signature' | 'edition'
 type CropRect = ArtworkImageCrop
 type PagePreview = { page: number; imageUrl: string; width: number; height: number; suggestedCrop: CropRect | null }
-type ImportedDocument = Pick<ArtworkDocument, 'id' | 'artwork_id' | 'document_type' | 'url' | 'label' | 'position'> &
-  Partial<ArtworkDocument>
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 const MAX_PAGES = 20
@@ -21,14 +20,6 @@ const FIELDS: Array<{ key: ImportableField; label: string }> = [
   { key: 'signature', label: 'Signature' },
   { key: 'edition', label: 'Edition' },
 ]
-
-function isImportedDocument(value: unknown, artworkId: string): value is ImportedDocument {
-  if (!value || typeof value !== 'object') return false
-  return 'id' in value && typeof value.id === 'string' &&
-    'artwork_id' in value && value.artwork_id === artworkId &&
-    'document_type' in value && typeof value.document_type === 'string' &&
-    'url' in value && typeof value.url === 'string'
-}
 
 function asYear(value: string) {
   if (!value.trim()) return null
@@ -74,17 +65,26 @@ function cropCanvas(canvas: HTMLCanvasElement, rect: CropRect) {
   return new Promise<Blob | null>(resolve => crop.toBlob(resolve, 'image/png'))
 }
 
+type BlondeauSheetImporterProps = {
+  disabled?: boolean
+  onBusyChange: (busy: boolean) => void
+} & ({
+  artwork: ArtworkWithRelations
+  onImported: (fields: Partial<BlondeauSheetFields>, documents: ArtworkDocument[]) => void
+  onPrepared?: never
+} | {
+  artwork?: never
+  onImported?: never
+  onPrepared: (draft: BlondeauSheetDraft) => void
+})
+
 export default function BlondeauSheetImporter({
   artwork,
   disabled = false,
   onBusyChange,
   onImported,
-}: {
-  artwork: ArtworkWithRelations
-  disabled?: boolean
-  onBusyChange: (busy: boolean) => void
-  onImported: (fields: Partial<BlondeauSheetFields>, documents: ArtworkDocument[]) => void
-}) {
+  onPrepared,
+}: BlondeauSheetImporterProps) {
   const [file, setFile] = useState<File | null>(null)
   const [fields, setFields] = useState<BlondeauSheetFields>({
     title: null,
@@ -93,10 +93,13 @@ export default function BlondeauSheetImporter({
     edition: null,
     year_execution: null,
     year_execution_start: null,
+    height_cm: null,
+    width_cm: null,
+    depth_cm: null,
   })
   const [dragging, setDragging] = useState(false)
   const [pages, setPages] = useState<PagePreview[]>([])
-  const [selectedFields, setSelectedFields] = useState<Partial<Record<ImportableField | 'dates', boolean>>>({})
+  const [selectedFields, setSelectedFields] = useState<Partial<Record<ImportableField | 'dates' | 'dimensions', boolean>>>({})
   const [importImage, setImportImage] = useState(false)
   const [cropPage, setCropPage] = useState<number | null>(null)
   const [cropRect, setCropRect] = useState<CropRect | null>(null)
@@ -122,12 +125,20 @@ export default function BlondeauSheetImporter({
   }), [fields.year_execution, fields.year_execution_start])
   const dateIsDifferent =
     fields.year_execution !== null &&
-    (fields.year_execution !== (artwork.year_execution ?? null) ||
-      fields.year_execution_start !== (artwork.year_execution_start ?? null))
+    (fields.year_execution !== (artwork?.year_execution ?? null) ||
+      fields.year_execution_start !== (artwork?.year_execution_start ?? null))
+  const dimensionsLabel = (height: number | null | undefined, width: number | null | undefined, depth: number | null | undefined) => {
+    if (height == null || width == null) return 'Not set'
+    const values = [height, width, depth].filter((value): value is number => value != null)
+    return `${values.join(' x ')} cm`
+  }
+  const dimensionsAreDifferent = fields.height_cm !== (artwork?.height_cm ?? null) ||
+    fields.width_cm !== (artwork?.width_cm ?? null) ||
+    fields.depth_cm !== (artwork?.depth_cm ?? null)
 
   function setTextField(key: ImportableField, value: string) {
     setFields(previous => ({ ...previous, [key]: value || null }))
-    setSelectedFields(previous => ({ ...previous, [key]: false }))
+    setSelectedFields(previous => ({ ...previous, [key]: Boolean(onPrepared && value.trim()) }))
   }
 
   function resetCrop() {
@@ -144,7 +155,11 @@ export default function BlondeauSheetImporter({
     setStatus('')
     setFile(null)
     setPages([])
-    setFields({ title: null, medium: null, signature: null, edition: null, year_execution: null, year_execution_start: null })
+    setFields({
+      title: null, medium: null, signature: null, edition: null,
+      year_execution: null, year_execution_start: null,
+      height_cm: null, width_cm: null, depth_cm: null,
+    })
     setSelectedFields({})
     setImportImage(false)
     setCropPage(null)
@@ -253,7 +268,18 @@ export default function BlondeauSheetImporter({
           await worker.terminate()
         }
       }
-      setFields(parseBlondeauSheetText(recognizedText))
+      const detected = parseBlondeauSheetText(recognizedText)
+      setFields(detected)
+      if (onPrepared) {
+        setSelectedFields({
+          title: detected.title !== null,
+          medium: detected.medium !== null,
+          signature: detected.signature !== null,
+          edition: detected.edition !== null,
+          dates: detected.year_execution !== null,
+          dimensions: detected.height_cm !== null && detected.width_cm !== null,
+        })
+      }
       setStatus('')
     } catch (cause) {
       console.error('BLONDEAU PDF EXTRACTION ERROR:', cause)
@@ -358,33 +384,30 @@ export default function BlondeauSheetImporter({
       fieldsToApply.year_execution = fields.year_execution
       fieldsToApply.year_execution_start = fields.year_execution_start
     }
+    if (selectedFields.dimensions && fields.height_cm !== null && fields.width_cm !== null) {
+      fieldsToApply.height_cm = fields.height_cm
+      fieldsToApply.width_cm = fields.width_cm
+      fieldsToApply.depth_cm = fields.depth_cm
+    }
 
-    const form = new FormData()
-    form.append('pdf', file)
-    form.append('fields', JSON.stringify(fieldsToApply))
-    if (importImage && cropFile) form.append('image', cropFile)
+    if (selectedFields.dates && fields.year_execution_start !== null &&
+      fields.year_execution !== null && fields.year_execution_start > fields.year_execution) {
+      setError('The start year must not be after the end year.')
+      return
+    }
+    const draft = { pdf: file, fields: fieldsToApply, image: importImage ? cropFile : null }
+    if (onPrepared) {
+      onPrepared(draft)
+      return
+    }
 
     setUploading(true)
     onBusyChange(true)
     setError('')
     setSuccess('')
     try {
-      const response = await fetch(`/api/artworks/${artwork.id}/blondeau-imports`, {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      })
-      const body: unknown = await response.json()
-      if (!response.ok) {
-        throw new Error(body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
-          ? body.error : `Import failed (HTTP ${response.status}).`)
-      }
-      if (!body || typeof body !== 'object' || !('documents' in body) ||
-        !Array.isArray(body.documents) || !body.documents.every(document => isImportedDocument(document, artwork.id))) {
-        throw new Error('The import could not be confirmed. Check the artwork documents before retrying.')
-      }
-
-      onImported(fieldsToApply, body.documents as ArtworkDocument[])
+      const documents = await importBlondeauSheet(artwork.id, draft)
+      onImported(fieldsToApply, documents)
       setSuccess('The Blondeau sheet was imported.')
       setFile(null)
       setPages([])
@@ -403,11 +426,11 @@ export default function BlondeauSheetImporter({
   }
 
   const different = (key: ImportableField) =>
-    normalizeText(fields[key]) !== normalizeText(artwork[key] as string | null | undefined)
+    normalizeText(fields[key]) !== normalizeText(artwork?.[key] as string | null | undefined)
 
   return (
     <section
-      aria-labelledby="blondeau-import-heading"
+      aria-labelledby={onPrepared ? 'blondeau-import-instruction' : 'blondeau-import-heading'}
       onDragOver={event => {
         event.preventDefault()
         event.dataTransfer.dropEffect = busy ? 'none' : 'copy'
@@ -429,14 +452,15 @@ export default function BlondeauSheetImporter({
       }}
       style={{ margin: '16px 0', padding: 16, background: dragging && !busy ? '#f0f7f2' : '#fff', border: dragging && !busy ? '1px dashed #0b5d2a' : '1px solid #999', borderRadius: 6 }}
     >
-      <h4 id="blondeau-import-heading" style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center' }}>Import Blondeau factsheet</h4>
+      {!onPrepared && <h4 id="blondeau-import-heading" style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center' }}>Import Blondeau factsheet</h4>}
       <button
+        id="blondeau-import-instruction"
         type="button"
         disabled={busy}
         onClick={() => fileInput.current?.click()}
-        style={{ display: 'block', margin: '0 0 12px', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', textAlign: 'left', cursor: busy ? 'not-allowed' : 'pointer' }}
+        style={{ display: 'block', width: onPrepared ? '100%' : undefined, margin: '0 0 12px', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', textAlign: onPrepared ? 'center' : 'left', cursor: busy ? 'not-allowed' : 'pointer' }}
       >
-        Select or move a factsheet to compare its details.
+        {onPrepared ? 'Select or move a factsheet to create a new artwork.' : 'Select or move a factsheet to compare its details.'}
       </button>
         <input
           ref={fileInput}
@@ -465,7 +489,7 @@ export default function BlondeauSheetImporter({
               return (
                 <fieldset key={key} style={{ border: '1px solid #ccc', padding: 10, borderRadius: 4 }}>
                   <legend style={{ fontWeight: 'bold', textAlign: 'left' }}>{label}</legend>
-                  <p>Current ArtMuse: <em>{displayValue(artwork[key] as string | null | undefined)}</em></p>
+                  {artwork && <p>Current ArtMuse: <em>{displayValue(artwork[key] as string | null | undefined)}</em></p>}
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ flexShrink: 0 }}>Detected in factsheet:</span>
                     <input
@@ -486,10 +510,55 @@ export default function BlondeauSheetImporter({
             })}
 
             <fieldset style={{ border: '1px solid #ccc', padding: 10, borderRadius: 4 }}>
+              <legend style={{ fontWeight: 'bold', textAlign: 'left' }}>Dimensions (cm)</legend>
+              {artwork && <p>Current ArtMuse: <em>{dimensionsLabel(artwork.height_cm, artwork.width_cm, artwork.depth_cm)}</em></p>}
+              <p>Detected in factsheet: <em>{dimensionsLabel(fields.height_cm, fields.width_cm, fields.depth_cm)}</em></p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {([
+                  ['height_cm', 'Height'],
+                  ['width_cm', 'Width'],
+                  ['depth_cm', 'Depth'],
+                ] as const).map(([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={fields[key] ?? ''}
+                      disabled={busy}
+                      style={{ display: 'block', borderRadius: 4, padding: 6, fontStyle: 'italic' }}
+                      onChange={event => {
+                        const value = event.target.value === '' ? null : Number(event.target.value)
+                        const parsed = value !== null && Number.isFinite(value) && value > 0 ? value : null
+                        setFields(previous => ({ ...previous, [key]: parsed }))
+                        setSelectedFields(previous => ({
+                          ...previous,
+                          dimensions: key === 'height_cm'
+                            ? parsed !== null && fields.width_cm !== null
+                            : key === 'width_cm'
+                              ? fields.height_cm !== null && parsed !== null
+                              : fields.height_cm !== null && fields.width_cm !== null,
+                        }))
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+              {fields.height_cm === null || fields.width_cm === null
+                ? <p>No dimensions detected. Enter height and width above if needed.</p>
+                : artwork && dimensionsAreDifferent
+                  ? <label><input type="checkbox" checked={Boolean(selectedFields.dimensions)} disabled={busy} onChange={event => setSelectedFields(previous => ({ ...previous, dimensions: event.target.checked }))} /> Apply these dimensions</label>
+                  : onPrepared
+                    ? <label><input type="checkbox" checked={Boolean(selectedFields.dimensions)} disabled={busy} onChange={event => setSelectedFields(previous => ({ ...previous, dimensions: event.target.checked }))} /> Include these dimensions</label>
+                    : <p role="status"><strong>Matches the current dimensions.</strong></p>}
+            </fieldset>
+
+            <fieldset style={{ border: '1px solid #ccc', padding: 10, borderRadius: 4 }}>
               <legend style={{ fontWeight: 'bold', textAlign: 'left' }}>Execution date</legend>
-              <p>Current ArtMuse: <em>{artwork.year_execution_start
+              {artwork && <p>Current ArtMuse: <em>{artwork.year_execution_start
                 ? `${artwork.year_execution_start}–${artwork.year_execution ?? ''}`
-                : displayValue(artwork.year_execution)}</em></p>
+                : displayValue(artwork.year_execution)}</em></p>}
               <p>Detected in factsheet: <em>{fields.year_execution === null
                 ? 'Not set'
                 : fields.year_execution_start === null
@@ -504,7 +573,7 @@ export default function BlondeauSheetImporter({
                     onChange={event => {
                       const parsed = asYear(event.target.value)
                       setFields(previous => ({ ...previous, year_execution_start: parsed ?? null }))
-                      setSelectedFields(previous => ({ ...previous, dates: false }))
+                      setSelectedFields(previous => ({ ...previous, dates: Boolean(onPrepared) }))
                     }}
                   />
                 </label>
@@ -516,7 +585,7 @@ export default function BlondeauSheetImporter({
                     onChange={event => {
                       const parsed = asYear(event.target.value)
                       setFields(previous => ({ ...previous, year_execution: parsed ?? null }))
-                      setSelectedFields(previous => ({ ...previous, dates: false }))
+                      setSelectedFields(previous => ({ ...previous, dates: Boolean(onPrepared) }))
                     }}
                   />
                 </label>
@@ -587,7 +656,7 @@ export default function BlondeauSheetImporter({
           </fieldset>
 
           <button type="button" className="edit-button" disabled={busy || pages.length === 0 || (importImage && !cropFile)} onClick={() => void importSheet()} style={{ marginTop: 16 }}>
-            {uploading ? 'Importing…' : 'Import PDF and selected changes'}
+            {uploading ? 'Importing…' : onPrepared ? 'Continue to artwork creation' : 'Import PDF and selected changes'}
           </button>
         </>
       )}

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   onImported: vi.fn(),
   onBusyChange: vi.fn(),
+  onPrepared: vi.fn(),
 }))
 
 vi.mock('pdfjs-dist', () => ({
@@ -70,7 +71,7 @@ describe('Blondeau factsheet importer interface', () => {
           getViewport: () => ({ width: 100, height: 100 }),
           render: () => ({ promise: Promise.resolve() }),
           getTextContent: async () => ({
-            items: ['Title: Portrait', 'Medium: Oil on canvas', 'Date: 1912']
+            items: ['Title: Portrait', 'Medium: Oil on canvas', 'Date: 1912', 'Dimensions: 40 x 30 x 2 cm']
               .map(str => ({ str, hasEOL: true })),
           }),
         }),
@@ -113,9 +114,9 @@ describe('Blondeau factsheet importer interface', () => {
       expect(legend.style.textAlign).toBe(legend.textContent === 'Artwork image' ? 'center' : 'left')
       expect(legend.style.fontWeight).toBe('bold')
     }
-    expect(container.textContent?.match(/Current ArtMuse:/g)).toHaveLength(5)
-    expect(container.textContent?.match(/Detected in factsheet/g)).toHaveLength(5)
-    expect(container.querySelectorAll('fieldset p em')).toHaveLength(6)
+    expect(container.textContent?.match(/Current ArtMuse:/g)).toHaveLength(6)
+    expect(container.textContent?.match(/Detected in factsheet/g)).toHaveLength(6)
+    expect(container.querySelectorAll('fieldset p em')).toHaveLength(8)
     for (const input of container.querySelectorAll<HTMLInputElement>('input[type="text"]')) {
       expect(input.parentElement!.style.display).toBe('flex')
       expect(input.parentElement!.querySelector('span')!.textContent).toBe('Detected in factsheet:')
@@ -144,6 +145,23 @@ describe('Blondeau factsheet importer interface', () => {
     expect(mocks.fetch).not.toHaveBeenCalled()
   })
 
+  it('still imports a PDF into an existing artwork', async () => {
+    mocks.fetch.mockResolvedValueOnce(Response.json({
+      documents: [{ id: 'pdf-doc', artwork_id: 'work', document_type: 'link', url: '/pdf' }],
+    }))
+    await render()
+    await drop([pdfFile()])
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find(button => button.textContent === 'Import PDF and selected changes')!.click()
+    })
+    expect(mocks.fetch).toHaveBeenCalledWith('/api/artworks/work/blondeau-imports', expect.objectContaining({ method: 'POST' }))
+    expect(mocks.onImported).toHaveBeenCalledWith({}, [
+      { id: 'pdf-doc', artwork_id: 'work', document_type: 'link', url: '/pdf' },
+    ])
+    expect(container.textContent).toContain('The Blondeau sheet was imported.')
+  })
+
   it('rejects multiple dropped files explicitly', async () => {
     await render()
     await drop([pdfFile(), pdfFile()])
@@ -163,5 +181,53 @@ describe('Blondeau factsheet importer interface', () => {
     await drop([pdfFile()])
     expect(mocks.getDocument).not.toHaveBeenCalled()
     expect(container.querySelector<HTMLInputElement>('input[type="file"]')!.disabled).toBe(true)
+  })
+
+  it('prepares a new artwork with detected fields selected without uploading', async () => {
+    await act(async () => root.render(
+      <BlondeauSheetImporter onBusyChange={mocks.onBusyChange} onPrepared={mocks.onPrepared} />
+    ))
+    expect(container.querySelector('h4')).toBeNull()
+    const instruction = container.querySelector('button')!
+    expect(instruction.textContent).toBe('Select or move a factsheet to create a new artwork.')
+    expect(instruction.style.textAlign).toBe('center')
+    expect(instruction.style.width).toBe('100%')
+    expect(container.querySelector('section')!.getAttribute('aria-labelledby')).toBe(instruction.id)
+    const pdf = pdfFile()
+    await drop([pdf])
+    expect(container.textContent).not.toContain('Current ArtMuse:')
+    const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
+    expect(checkboxes.filter(input => input.checked)).toHaveLength(4)
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find(button => button.textContent === 'Continue to artwork creation')!.click()
+    })
+    expect(mocks.onPrepared).toHaveBeenCalledWith({
+      pdf,
+      image: null,
+      fields: {
+        title: 'Portrait',
+        medium: 'Oil on canvas',
+        year_execution: 1912,
+        year_execution_start: null,
+        height_cm: 40,
+        width_cm: 30,
+        depth_cm: 2,
+      },
+    })
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+
+  it('omits deselected values when preparing a new artwork', async () => {
+    await act(async () => root.render(
+      <BlondeauSheetImporter onBusyChange={mocks.onBusyChange} onPrepared={mocks.onPrepared} />
+    ))
+    await drop([pdfFile()])
+    await act(async () => container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click())
+    await act(async () => {
+      Array.from(container.querySelectorAll('button'))
+        .find(button => button.textContent === 'Continue to artwork creation')!.click()
+    })
+    expect(mocks.onPrepared.mock.calls[0][0].fields).not.toHaveProperty('title')
   })
 })

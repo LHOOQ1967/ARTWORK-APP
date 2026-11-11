@@ -24,7 +24,7 @@ it('uses the surname only when the measured full name does not fit, and restores
   const root = createRoot(container)
   try {
     await act(async () => root.render(<ArtworkList artworks={[{
-      id: 'work', artist: { first_name: 'Thomas', last_name: 'SCHUTTE' },
+      id: 'work', artist: { id: 'artist', first_name: 'Thomas', last_name: 'SCHUTTE' },
     }]} canEditStatusPriority statusOptions={['Viewed']} onUpdateArtworkField={vi.fn()} />))
     const name = container.querySelector('[title="Thomas SCHUTTE"]')!
     expect(name.lastChild?.textContent).toBe('SCHUTTE')
@@ -33,8 +33,8 @@ it('uses the surname only when the measured full name does not fit, and restores
     expect(name.lastChild?.textContent).toBe('Thomas SCHUTTE')
     const status = container.querySelector<HTMLSelectElement>('[aria-label="Status"]')!
     const priority = container.querySelector<HTMLSelectElement>('[aria-label="Priority"]')!
-    expect(status.style.width).toBe('110px')
-    expect(priority.style.width).toBe(status.style.width)
+    expect(status.style.width).toBe('88px')
+    expect(priority.style.width).toBe('77px')
   } finally {
     await act(async () => root.unmount())
     container.remove()

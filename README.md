@@ -69,6 +69,70 @@ reverse-proxy internal addresses such as `localhost:3000` are not sent to the br
 
 Authorization is enforced in API route handlers. Supabase Row Level Security must remain enabled as a second layer of protection.
 
+## Blondeau factsheet import
+
+The **Import** page includes **4. Import Blondeau Factsheet** directly above the
+label-photo importer to create a new artwork from a PDF. The former
+`/artworks/import-blondeau` URL redirects to this combined page.
+The existing artwork editor's PDF reader, local OCR and image crop
+tools are reused. Review or correct the detected title, medium, signature,
+edition, execution dates and metric dimensions, then continue to the creation
+form to select the artist and complete any missing details.
+
+The original PDF and optional cropped image are attached only when the artwork
+is saved, using the existing document storage and access rules. Keep the page
+open until saving completes. If document import fails after creation, **Retry
+document import** reuses the created artwork rather than creating a duplicate.
+
+## Sotheby's, Christie's and Phillips auction imports
+
+The **Import** page starts with three auction columns: **1. Christie's**,
+**2. Sotheby's**, and **3. Phillips**. They wrap on smaller screens.
+Christie's accepts English lot links beginning with
+`https://www.christies.com/en/lot/lot-`, including links with breadcrumb parameters.
+Sotheby's accepts English lot URLs beginning with
+`https://www.sothebys.com/en/buy/auction/`.
+Phillips accepts lot links beginning with
+`https://www.phillips.com/detail/`, such as an artist slug followed by the object number.
+The remaining sections are **4. Import Blondeau Factsheet**, **5. Label photo**,
+**6. Analysis**, and **7. Detected results and corrections**.
+ArtMuse reads the selected lot's public page data directly, without a third-party
+extraction service. Private-sale pages and other auction websites are not supported.
+
+The preview includes the artist, title, medium, signature, edition and execution
+dates when published, metric dimensions, lot number, estimates and currency,
+auction name/location, and sale date/time in the **sale location's local timezone**,
+including daylight-saving adjustments. Both the date and time are kept local,
+not converted to Geneva time. The published timezone is used where available,
+otherwise the sale city determines it; an unidentified timezone reports an error.
+Unpublished information remains empty. Proposed by, Auction House and Location
+are prefilled from the matching existing Sotheby's, Christie's or Phillips contact. The location address is
+New York for USD, London for GBP, and Paris for EUR. Other currencies require
+manual address selection with an explicit warning. Missing or ambiguous contact
+or mapped address records report an error rather than selecting a different office.
+Review the fields and select the artist in the creation form. Provenance, exhibitions,
+bibliography and catalogue essays are not imported.
+
+All distinct lot-gallery images are offered for selection; alternative sizes
+of one image and images of recommended lots are excluded. Selected images are
+copied into ArtMuse's image storage, not merely hotlinked. The original source
+URL is saved both as the auction link and as a document. Attachments use
+**All artwork clients** visibility and the existing document access rules.
+Notes retain execution-date wording only; the source URL and auction information
+are not duplicated in notes.
+
+Keep the page open until saving completes. If attachments fail after creation,
+**Retry document import** resumes missing images on the same artwork; stable
+document identifiers prevent duplicate source links or images on retries.
+Imports support up to 30 images per lot, 15 MB per downloaded image, and
+40 million decoded pixels. Christie's and Phillips image renditions are limited to
+2048 pixels on their longest side. Videos, video poster frames, interactive zoom
+viewers, auction banners and recommended lots are not imported; Phillips uses only
+the selected lot's main image and additional image gallery.
+A long import can be resumed with Retry.
+Unavailable pages, browser-verification pages and unsupported formats report an
+explicit error; no artwork is created by the preview.
+
 ## Commission invoice files
 
 Commission loading failures are shown with a Retry loading commissions

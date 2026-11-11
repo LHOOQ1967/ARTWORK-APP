@@ -30,6 +30,24 @@ function render(prices: Partial<ArtworkPrint>) {
 }
 
 describe('factsheet auction prices', () => {
+  it('hides certificate location when none is specified', () => {
+    expect(render({})).not.toContain('Certificate location')
+  })
+
+  it('shows certificate location when a contact or address is specified', () => {
+    expect(render({
+      certificate_location_contact_id: 'contact',
+      certificateLocation: { id: 'contact', company_name: 'Certificate Archive' },
+    })).toContain('Certificate location')
+    expect(render({
+      certificate_location_address_id: 'address',
+    })).toContain('Certificate location')
+  })
+
+  it('displays stored local sale time unchanged rather than converting it to Geneva', () => {
+    const html = render({ sale_date: '2026-11-17', sale_time: '18:30:00' })
+    expect(html).toContain('17.11.2026 at 18:30 (local time)')
+  })
   it('separates left-side badges from right-side actions', () => {
     const html = render({ priority: 'High', quality: 8, status: 'Viewed' })
     const badges = html.match(/aria-label="Artwork priority, rating and status"[^>]*>([\s\S]*?)<\/div>/)?.[1]
@@ -99,15 +117,79 @@ describe('factsheet auction prices', () => {
     const html = render({ documents: [
       { id: 'general', artwork_id: 'work', document_type: 'link', label: 'Certificate', url: '/certificate' },
       { id: 'photos', artwork_id: 'work', document_type: 'link', label: 'Photo archive', url: '/photos', link_category: 'images' },
-      { id: 'book', artwork_id: 'work', document_type: 'link', label: 'Catalogue scan', url: '/book', link_category: 'exhibitions_literature' },
+      { id: 'book', artwork_id: 'work', document_type: 'link', label: 'Catalogue scan', url: '/book', link_category: 'exhibitions_literature', storage_provider: 'sharepoint' },
     ] })
     expect(html).toContain('General (1)')
     expect(html).toContain('Images (1)')
     expect(html).toContain('Exhibitions &amp; Literature (1)')
     expect(html.match(/<details /g)).toHaveLength(3)
     expect(html).toContain('href="/book"')
-    expect(html.indexOf('Download by category')).toBeGreaterThan(html.indexOf('href="/book"'))
+    expect(html).toContain('aria-label="Download all SharePoint files as ZIP"')
+    expect(html).toContain('href="/api/artworks/work/documents/download"')
+    expect(html).not.toContain('Download by category')
     expect(html).not.toContain(' / </')
+  })
+
+  it('orders general fixed links first, manual links by position, and OneDrive last', () => {
+    const labels = [
+      ['Dossier One Drive', 1],
+      ['Manual link B', 8],
+      ['Raport de condition Héritier', 2],
+      ['Certificat', 7],
+      ['Résultat ventes', 9],
+      ['Manual link A', 6],
+      ['Facture Commission', 5],
+      ["Facture d'achat", 4],
+      ['Fiche Blondeau', 3],
+    ] as const
+    const html = render({
+      documents: labels.map(([label, position], index) => ({
+        id: `doc-${index}`,
+        artwork_id: 'work',
+        document_type: 'link' as const,
+        label,
+        url: `/doc-${index}`,
+        link_category: 'general' as const,
+        position,
+      })),
+    })
+    const expectedLabels = [
+      'Fiche Blondeau',
+      "Facture d'achat",
+      'Facture Commission',
+      'Résultat ventes',
+      'Certificat',
+      'Raport de condition Héritier',
+      'Manual link A',
+      'Manual link B',
+      'Dossier One Drive',
+    ]
+    const positions = expectedLabels.map(label =>
+      html.indexOf(label === "Facture d'achat" ? 'Facture d&#x27;achat' : label)
+    )
+    expect(expectedLabels.filter((_, index) => positions[index] === -1)).toEqual([])
+    expect(positions).toEqual([...positions].sort((a, b) => a - b))
+  })
+
+  it('shows the heir condition report both in its dedicated row and under Links', () => {
+    const html = render({
+      documents: [{
+        id: 'heir-report',
+        artwork_id: 'work',
+        document_type: 'link',
+        label: 'Condition Report Héritier',
+        url: '/heir-report',
+        link_category: 'general',
+      }],
+    })
+    expect(html.match(/>Condition Report Héritier<\/a>/g)).toHaveLength(2)
+  })
+
+  it('does not show the ZIP action when links are not stored in SharePoint', () => {
+    const html = render({ documents: [
+      { id: 'general', artwork_id: 'work', document_type: 'link', label: 'Certificate', url: '/certificate' },
+    ] })
+    expect(html).not.toContain('Download all SharePoint files as ZIP')
   })
 
   it('omits empty link groups', () => {

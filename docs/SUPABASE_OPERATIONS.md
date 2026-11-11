@@ -170,6 +170,41 @@ rows across 13 groups, with a maximum of 20 rows per group. The complete RPC
 response, including global filter options/counts, measured 227,577 uncompressed
 JSON bytes. This is a payload measurement, not a browser load-time benchmark.
 
+#### Deferring gallery reads until after pagination
+
+Apply `20261109163000_defer_paginated_artwork_images.sql` to address list RPC
+statement timeouts. Previously, the materialized base read the first accessible
+image for every artwork in the scope before applying filters and LIMIT/OFFSET.
+The replacement projects only list fields from the same role-specific full
+views, then reads gallery documents only for the requested page rows. A partial
+gallery index matches the artwork, image type and existing position/ID order.
+The RPC signature, JSON fields, counts, global filter options and sorting remain
+unchanged. It remains SECURITY INVOKER; artwork and document RLS are unchanged.
+No statement timeout is increased.
+
+Local validation uses an isolated PostgreSQL-compatible engine with synthetic
+role/document fixtures, not production data. The existing rollback pagination
+suite passes before and after the migration; 146 complete JSON comparisons cover
+roles, filters, sorts and named pages. On a 1,000-artwork fixture, a named archived
+page reads documents only for its 20 returned artworks rather than all 250
+archived artworks. The local fixture uses C collation; production retains
+`pg_catalog."fr-CH-x-icu"`.
+
+Applied atomically to the linked production project on 2026-11-09 after approval
+and recorded in migration history. A rollback-only trial compared six complete
+responses against the old function on production data before application.
+The rollback pagination suite passed against the proposed and persisted schema,
+including Staff/Viewer image selection and complete options on named pages.
+Email dispatch triggers were disabled only inside rolled-back fixture
+transactions; both were verified enabled afterward and no fixture users remain.
+
+Authenticated Editor checks of all four list scopes completed under an
+eight-second statement cap: All 542 ms, Active 211 ms, Bought 239 ms, Archived
+327 ms. The same named archived page measured 550 ms before and 398 ms after.
+These are individual database timings, not browser or concurrent-load benchmarks.
+The persisted function remains SECURITY INVOKER, anonymous execution is denied,
+and the gallery index is valid. No application rebuild is needed for this SQL fix.
+
 ### Proposal market filters
 
 Proposal section and category counts link to `/artworks/print/category`.

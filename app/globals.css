@@ -1301,6 +1301,10 @@ button:focus-visible {
   margin: 12mm;
 }
 
+.market-calendar-print-value {
+  display: none;
+}
+
 @media print {
 
   /* IMPORTANT: neutraliser les contraintes écran */
@@ -1384,6 +1388,88 @@ button:focus-visible {
   th,
   td {
     padding: 6px 8px;
+  }
+
+  .market-calendar-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    font-size: 9pt !important;
+  }
+
+  .market-calendar-table-editable .market-calendar-date-column {
+    width: 13%;
+  }
+
+  .market-calendar-table-editable .market-calendar-time-column {
+    width: 9%;
+  }
+
+  .market-calendar-table-editable .market-calendar-house-column {
+    width: 15%;
+  }
+
+  .market-calendar-table-editable .market-calendar-sale-column {
+    width: 39%;
+  }
+
+  .market-calendar-table-editable .market-calendar-status-column {
+    width: 24%;
+  }
+
+  .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-date-column {
+    width: 17%;
+  }
+
+  .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-time-column {
+    width: 11%;
+  }
+
+  .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-house-column {
+    width: 20%;
+  }
+
+  .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-sale-column {
+    width: 52%;
+  }
+
+  .market-calendar-table th,
+  .market-calendar-table td {
+    padding: 4px !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    vertical-align: top;
+  }
+
+  .market-calendar-table .market-calendar-date-cell,
+  .market-calendar-table .market-calendar-time-cell {
+    white-space: normal !important;
+  }
+
+  .market-calendar-table .market-calendar-sale-cell {
+    min-width: 0 !important;
+  }
+
+  .market-calendar-table .market-calendar-status-cell {
+    min-width: 0 !important;
+    font-size: 8pt;
+  }
+
+  .market-calendar-table .market-calendar-control {
+    display: none !important;
+  }
+
+  .market-calendar-table .market-calendar-print-value {
+    display: block !important;
+    margin-bottom: 4px;
+    font-size: 8pt;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .market-calendar-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   /* sauts de page */

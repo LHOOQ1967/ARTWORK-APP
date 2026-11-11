@@ -38,20 +38,20 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   if (authorization.response) return authorization.response
   const { id } = await context.params
   const categories = [...new Set(new URL(req.url).searchParams.getAll('category'))]
-  if (categories.length === 0 || !categories.every(isDocumentCategory)) {
-    return NextResponse.json({ error: 'Select at least one valid document category' }, { status: 400 })
+  if (categories.length > 0 && !categories.every(isDocumentCategory)) {
+    return NextResponse.json({ error: 'Select valid document categories' }, { status: 400 })
   }
 
   const documents: DownloadableDocument[] = []
   for (let offset = 0; ; offset += 200) {
-    const { data, error } = await authorization.supabase.from('documents')
+    let query = authorization.supabase.from('documents')
       .select('id, file_name, link_category, sharepoint_drive_id, sharepoint_item_id')
       .eq('artwork_id', id)
       .eq('storage_provider', 'sharepoint')
       .in('document_type', ['link', 'onedrive'])
-      .in('link_category', categories)
-      .order('position').order('id').range(offset, offset + 199)
-      .returns<DownloadableDocument[]>()
+    if (categories.length > 0) query = query.in('link_category', categories)
+    const { data, error } = await query
+      .order('position').order('id').range(offset, offset + 199).returns<DownloadableDocument[]>()
     if (error) {
       console.error('DOCUMENT ZIP QUERY ERROR:', error)
       return NextResponse.json({ error: 'Unable to load files for download' }, { status: 502 })

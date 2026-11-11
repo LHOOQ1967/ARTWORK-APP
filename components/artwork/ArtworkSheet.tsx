@@ -4,7 +4,6 @@
 import { formatArtworkYears } from '@/lib/artworkYears'
 import { groupDocumentLinks } from '@/lib/documentCategory'
 import ArtworkDocumentLink from './ArtworkDocumentLink'
-import ArtworkCategoryDownload from './ArtworkCategoryDownload'
 import ArtworkPrintToolbar from './ArtworkPrintToolbar'
 import FactsheetBackLink from './FactsheetBackLink'
 import ArtworkImageAlbum, { type AlbumImage } from './ArtworkImageAlbum'
@@ -22,6 +21,10 @@ import { privateImageUrl } from '@/lib/privateImageUrl'
 import { supabase } from '@/lib/supabaseBrowser'
 import { QualityHistory } from './ArtworkQuality'
 import { CertificateAddress, CertificateLocationHistory } from './CertificateLocation'
+import {
+  isHeirConditionReportDocumentLabel,
+  sortArtworkDocuments,
+} from '@/lib/artworkDocumentOrder'
 
 
 type Props = {
@@ -124,23 +127,17 @@ function InfoRowShort({
   )
 }
 
-function formatDateTimeGeneva(
+function formatLocalSaleDateTime(
   date: string | null,
   time?: string | null
 ) {
   if (!date) return '—'
 
-  const formattedDate = new Date(date).toLocaleDateString('fr-CH')
+  const formattedDate = new Date(`${date.slice(0, 10)}T00:00:00Z`).toLocaleDateString('fr-CH', { timeZone: 'UTC' })
 
   if (!time) return formattedDate
 
-  // ✅ on GUARANTIT HH:mm sans secondes
-  const formattedTime = new Intl.DateTimeFormat('fr-CH', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/Zurich',
-  }).format(new Date(`${date}T${time}`))
+  const formattedTime = time.slice(0, 5)
 
   return `${formattedDate} at ${formattedTime} (local time)`
 }
@@ -274,17 +271,13 @@ const thumbnailHeight = thumbnailCount === 4 ? '10cm' : 'auto'
   
 
 
-const artworkDocuments =
+const artworkDocuments = sortArtworkDocuments(
   (artwork.documents ?? [])
     .filter(
       (d: ArtworkDocument) =>
         d.document_type === 'onedrive' || d.document_type === 'link'
     )
-    .sort((a, b) => {
-      const pa = typeof a.position === 'number' ? a.position : 9999
-      const pb = typeof b.position === 'number' ? b.position : 9999
-      return pa - pb
-    })
+)
 
 const invoiceDocument = artworkDocuments.find(
   (document) => document.label?.trim().toLowerCase() === 'facture'
@@ -292,16 +285,11 @@ const invoiceDocument = artworkDocuments.find(
 const heirConditionReportDocument =
   artwork.rapport_heritier_document ??
   artworkDocuments.find(
-    (document) =>
-      document.label?.trim().toLowerCase() === 'condition report héritier'
+    (document) => isHeirConditionReportDocumentLabel(document.label)
   )
 
 const links = [
   ...artworkDocuments
-    .filter(
-      (document) =>
-        document.id !== heirConditionReportDocument?.id
-    )
     .map((doc) => ({
     id: doc.id,
     url: doc.url,
@@ -786,7 +774,7 @@ const displayTitle = (() => {
       {artwork.sale_date && (
         <InfoRow
         label="Auction Date"
-        value={formatDateTimeGeneva(
+        value={formatLocalSaleDateTime(
           artwork.sale_date, 
           artwork.sale_time
         )}
@@ -928,21 +916,25 @@ const displayTitle = (() => {
     value="Yes"
   />
 )}
-  <InfoRow label={<span style={{ whiteSpace: 'normal' }}>Certificate location</span>} value={<>
-    {
-      artwork.certificateLocation
-        ? artwork.certificateLocation.company_name ||
-          [artwork.certificateLocation.first_name,
-           artwork.certificateLocation.last_name]
-            .filter(Boolean)
-            .join(' ')
-        : 'Not specified'
-    }
-    <div>
-      <CertificateAddress addressId={artwork.certificate_location_address_id} />
-    </div>
+  {(artwork.certificateLocation ||
+    artwork.certificate_location_contact_id ||
+    artwork.certificate_location_address_id) && (
+    <InfoRow label={<span style={{ whiteSpace: 'normal' }}>Certificate location</span>} value={<>
+      {
+        artwork.certificateLocation
+          ? artwork.certificateLocation.company_name ||
+            [artwork.certificateLocation.first_name,
+             artwork.certificateLocation.last_name]
+              .filter(Boolean)
+              .join(' ')
+          : 'Not specified'
+      }
+      <div>
+        <CertificateAddress addressId={artwork.certificate_location_address_id} />
+      </div>
       <CertificateLocationHistory artworkId={artwork.id} hideWhenEmpty />
     </>} />
+  )}
 
 
 {(artwork.date_acquisition || invoiceDocument) && (
@@ -1113,7 +1105,39 @@ const displayTitle = (() => {
 
 {links.length > 0 && (
   <InfoRow
-    label="Links"
+    label={
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        Links
+        {links.some(document => 'storage_provider' in document && document.storage_provider === 'sharepoint') && (
+          <a
+            className="no-print document-download-action"
+            href={`/api/artworks/${encodeURIComponent(artwork.id)}/documents/download`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Download all SharePoint files as ZIP"
+            title="Download all SharePoint files as ZIP"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid #bfc9c3',
+              borderRadius: 5,
+              backgroundColor: '#f3f4f3',
+              color: '#243a31',
+              textDecoration: 'none',
+              width: 22,
+              height: 22,
+              flexShrink: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
+              fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4" />
+            </svg>
+          </a>
+        )}
+      </span>
+    }
     value={
       <>
         {groupDocumentLinks(links).filter(group => group.documents.length > 0).map(group => (
@@ -1132,7 +1156,6 @@ const displayTitle = (() => {
             </ul>
           </details>
         ))}
-        <ArtworkCategoryDownload artworkId={artwork.id} documents={artworkDocuments} />
       </>
     }
   />

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { LinkedText } from '@/components/ui/LinkedText';
 import { supabase } from '@/lib/supabaseBrowser';
 
@@ -50,6 +50,12 @@ type MarketSectionItemView = {
 
 type SectionWithItems = MarketSection & {
   items: MarketSectionItemView[];
+};
+
+type MarketDataResult = {
+  role: ProfileRole;
+  sections: SectionWithItems[] | null;
+  errorMessage: string | null;
 };
 
 type EditState = {
@@ -147,10 +153,6 @@ function isSharePointDocument(item: MarketSectionItemView) {
   return item.item_type === 'document' && Boolean(item.document_url?.startsWith('/api/documents/'));
 }
 
-function getItemTypeLabel(item: MarketSectionItemView) {
-  return item.item_type === 'document' ? 'PDF / OneDrive' : 'Lien web';
-}
-
 function getAuctionHouseColor(auctionHouse?: string | null) {
   const normalized = auctionHouse?.toLowerCase().replace(/[^a-z]/g, '');
   if (normalized === 'christies' || normalized === 'cs') return '#b4232d';
@@ -160,7 +162,7 @@ function getAuctionHouseColor(auctionHouse?: string | null) {
 }
 
 function formatCalendarDate(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -179,6 +181,78 @@ function sortSections(a: SectionWithItems, b: SectionWithItems) {
   if (a.position !== b.position) return a.position - b.position;
 
   return a.title.localeCompare(b.title, 'fr', { sensitivity: 'base' });
+}
+
+async function fetchMarketData(): Promise<MarketDataResult> {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  let role: ProfileRole = null;
+
+  if (authError) {
+    console.error('LOAD AUTH USER ERROR', authError);
+  } else if (authData.user?.id) {
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', authData.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('LOAD PROFILE ROLE ERROR', profileError);
+    } else {
+      role = (profile?.role as ProfileRole) ?? null;
+    }
+  }
+
+  const [{ data: sectionsData, error: sectionsError }, { data: itemsData, error: itemsError }] =
+    await Promise.all([
+      supabase
+        .from('market_sections')
+        .select('*')
+        .order('start_date', { ascending: false, nullsFirst: false })
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true }),
+      supabase.from('v_market_section_items').select('*'),
+    ]);
+
+  if (sectionsError) {
+    console.error('LOAD MARKET SECTIONS ERROR', sectionsError);
+    return {
+      role,
+      sections: null,
+      errorMessage: `Erreur de chargement des sections : ${sectionsError.message}`,
+    };
+  }
+
+  if (itemsError) {
+    console.error('LOAD MARKET ITEMS ERROR', itemsError);
+    return {
+      role,
+      sections: null,
+      errorMessage: `Erreur de chargement des ressources : ${itemsError.message}`,
+    };
+  }
+
+  const sectionMap = new Map<string, SectionWithItems>();
+
+  (sectionsData ?? []).forEach((section) => {
+    sectionMap.set(section.id, {
+      ...(section as MarketSection),
+      items: [],
+    });
+  });
+
+  (itemsData ?? []).forEach((item) => {
+    const section = sectionMap.get(item.section_id);
+    if (section) {
+      section.items.push(item as MarketSectionItemView);
+    }
+  });
+
+  return {
+    role,
+    sections: Array.from(sectionMap.values()).sort(sortSections),
+    errorMessage: null,
+  };
 }
 
 
@@ -602,7 +676,7 @@ export default function MarketPage() {
   const [role, setRole] = useState<ProfileRole>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<MarketViewMode>('calendar');
+  const [viewMode, setViewMode] = useState<MarketViewMode>('sections');
 
 
 const [sections, setSections] = useState<SectionWithItems[]>([]);
@@ -641,6 +715,8 @@ const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSort
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const canEdit = role === 'Administrator' || role === 'Editor';
+  const selectedItemSection = sections.find((section) => section.id === itemForm.sectionId);
+  const isAuctionItemSection = selectedItemSection?.category === 'Ventes aux enchères';
 
   
 
@@ -658,103 +734,29 @@ function getSectionSortMode(section: MarketSection): ItemSortMode {
 }
 
 
-  async function loadRole() {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+  const applyMarketData = useCallback((result: MarketDataResult) => {
+    setRole(result.role);
+    setLoading(false);
 
-    if (authError) {
-      console.error('LOAD AUTH USER ERROR', authError);
-      return null;
-    }
-
-    const userId = authData.user?.id;
-    if (!userId) return null;
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error('LOAD PROFILE ROLE ERROR', profileError);
-      return null;
-    }
-
-    return (profile?.role as ProfileRole) ?? null;
-  }
-
-  async function loadData() {
-    setLoading(true);
-    setErrorMessage(null);
-
-    
-
-    const currentRole = await loadRole();
-    setRole(currentRole);
-
-    const [{ data: sectionsData, error: sectionsError }, { data: itemsData, error: itemsError }] =
-      await Promise.all([
-        supabase
-          .from('market_sections')
-          .select('*')
-          .order('start_date', { ascending: false, nullsFirst: false })
-          .order('position', { ascending: true })
-          .order('created_at', { ascending: true }),
-        supabase.from('v_market_section_items').select('*'),
-      ]);
-
-    if (sectionsError) {
-      console.error('LOAD MARKET SECTIONS ERROR', sectionsError);
-      setErrorMessage(`Erreur de chargement des sections : ${sectionsError.message}`);
-      setLoading(false);
+    if (result.errorMessage) {
+      setErrorMessage(result.errorMessage);
       return;
     }
 
-    if (itemsError) {
-      console.error('LOAD MARKET ITEMS ERROR', itemsError);
-      setErrorMessage(`Erreur de chargement des ressources : ${itemsError.message}`);
-      setLoading(false);
-      return;
-    }
-    
-console.log('sectionsData', sectionsData);
-console.log('sectionsError', sectionsError);
-console.log('itemsData', itemsData);
-console.log('itemsError', itemsError);
-
-
-    const sectionMap = new Map<string, SectionWithItems>();
-
-    (sectionsData ?? []).forEach((section) => {
-      sectionMap.set(section.id, {
-        ...(section as MarketSection),
-        items: [],
-      });
-    });
-
-    (itemsData ?? []).forEach((item) => {
-      const section = sectionMap.get(item.section_id);
-      if (section) {
-        section.items.push(item as MarketSectionItemView);
-      }
-    });
-
-    const merged = Array.from(sectionMap.values()).sort(sortSections);
+    const merged = result.sections ?? [];
     setSections(merged);
 
-    
-setSectionSortModes((prev) => {
-  const next = { ...prev };
+    setSectionSortModes((prev) => {
+      const next = { ...prev };
 
-  merged.forEach((section) => {
-    if (!next[section.id]) {
-      next[section.id] = getDefaultSortMode(section);
-    }
-  });
+      merged.forEach((section) => {
+        if (!next[section.id]) {
+          next[section.id] = getDefaultSortMode(section);
+        }
+      });
 
-  return next;
-});
-
+      return next;
+    });
 
     setExpandedSections((prev) => {
       const next: Record<string, boolean> = { ...prev };
@@ -768,26 +770,44 @@ setSectionSortModes((prev) => {
       return next;
     });
 
-    if (!itemForm.sectionId && merged.length > 0) {
-      setItemForm((prev) => ({
-        ...prev,
-        sectionId: merged[0].id,
-      }));
+    if (merged.length > 0) {
+      setItemForm((prev) => (
+        prev.sectionId ? prev : { ...prev, sectionId: merged[0].id }
+      ));
     }
 
-    setLoading(false);
-  }
+    setErrorMessage(null);
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    applyMarketData(await fetchMarketData());
+  }, [applyMarketData]);
 
   useEffect(() => {
-    void loadData();
-  }, []);
+    let active = true;
+
+    async function loadInitialData() {
+      const result = await fetchMarketData();
+      if (active) applyMarketData(result);
+    }
+
+    void loadInitialData();
+    return () => {
+      active = false;
+    };
+  }, [applyMarketData]);
 
 
 const todayDate = getLocalDateKey(new Date());
 const displaySections = useMemo(() => {
   const sortedSections = sections.map((section) => ({
     ...section,
-    items: sortItems(section.items, getSectionSortMode(section), section.category),
+    items: sortItems(
+      section.items,
+      sectionSortModes[section.id] ?? getDefaultSortMode(section),
+      section.category
+    ),
   }));
 
   const compareByStartDate = (a: SectionWithItems, b: SectionWithItems, descending: boolean) => {
@@ -832,6 +852,8 @@ const calendarEntryCount = calendarSections.reduce(
   (count, section) => count + section.items.length,
   0
 );
+const showCalendarStatusColumn = canEdit &&
+  calendarSections.some((section) => section.category === 'Ventes aux enchères');
 
 
   function toggleSection(sectionId: string) {
@@ -1123,7 +1145,7 @@ const calendarEntryCount = calendarSections.reduce(
         position: 0,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
-        catalogue_status: itemForm.catalogueStatus || null,
+        catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       });
 
       if (error) {
@@ -1171,7 +1193,7 @@ const calendarEntryCount = calendarSections.reduce(
         position: 0,
         auction_house: auctionHouse,
         auction_datetime: auctionDateTime,
-        catalogue_status: itemForm.catalogueStatus || null,
+        catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       })
       .select('id')
       .single();
@@ -1402,21 +1424,28 @@ const calendarEntryCount = calendarSections.reduce(
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table
+            className={`market-calendar-table${canEdit ? ' market-calendar-table-editable' : ''}`}
             aria-label="Auction calendar"
             style={{ width: '100%', minWidth: canEdit ? '940px' : '760px', borderCollapse: 'collapse', textAlign: 'left' }}
           >
+            <colgroup>
+              <col className="market-calendar-date-column" />
+              <col className="market-calendar-time-column" />
+              <col className="market-calendar-house-column" />
+              <col className="market-calendar-sale-column" />
+              {showCalendarStatusColumn ? <col className="market-calendar-status-column" /> : null}
+            </colgroup>
             <thead>
               <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
-                <th scope="col" style={{ padding: '12px 10px' }}>Date</th>
-                <th scope="col" style={{ padding: '12px 10px' }}>Time (local time)</th>
-                <th scope="col" style={{ padding: '12px 10px' }}>Auction house</th>
-                {canEdit ? (
-                  <th scope="col" style={{ padding: '12px 10px' }}>Catalogue</th>
+                <th className="market-calendar-date-cell" scope="col" style={{ padding: '12px 10px' }}>Date</th>
+                <th className="market-calendar-time-cell" scope="col" style={{ padding: '12px 10px' }}>Time<br />(local time)</th>
+                <th className="market-calendar-house-cell" scope="col" style={{ padding: '12px 10px' }}>Auction house</th>
+                <th className="market-calendar-sale-cell" scope="col" style={{ padding: '12px 10px' }}>Sale</th>
+                {showCalendarStatusColumn ? (
+                  <th className="market-calendar-status-cell" scope="col" style={{ padding: '12px 10px' }}>
+                    Catalogue<br />Paddle/Places
+                  </th>
                 ) : null}
-                {canEdit ? (
-                  <th scope="col" style={{ padding: '12px 10px' }}>Paddle/Places</th>
-                ) : null}
-                <th scope="col" style={{ padding: '12px 10px' }}>Sale</th>
               </tr>
             </thead>
             <tbody>
@@ -1424,7 +1453,7 @@ const calendarEntryCount = calendarSections.reduce(
                 <Fragment key={section.id}>
                   <tr>
                     <th
-                      colSpan={canEdit ? 6 : 4}
+                      colSpan={showCalendarStatusColumn ? 5 : 4}
                       scope="colgroup"
                       style={{
                         padding: '12px 10px',
@@ -1442,13 +1471,14 @@ const calendarEntryCount = calendarSections.reduce(
                     const { auctionDate, auctionTime } = parseAuctionDateTimeRaw(item.auction_datetime);
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                        <td className="market-calendar-date-cell" style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                           {formatCalendarDate(auctionDate)}
                         </td>
-                        <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                        <td className="market-calendar-time-cell" style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                           {auctionTime || '—'}
                         </td>
                         <td
+                          className="market-calendar-house-cell"
                           style={{
                             padding: '12px 10px',
                             whiteSpace: 'nowrap',
@@ -1458,44 +1488,7 @@ const calendarEntryCount = calendarSections.reduce(
                         >
                           {item.auction_house || '—'}
                         </td>
-                        {canEdit ? (
-                          <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-                            <select
-                              aria-label={`Catalogue status for ${item.label}`}
-                              value={item.catalogue_status ?? ''}
-                              onChange={(e) =>
-                                void handleCatalogueStatusChange(item.id, e.target.value)
-                              }
-                              disabled={saving}
-                              style={{ ...styles.input, minWidth: '130px' }}
-                            >
-                              <option value="">Not specified</option>
-                              <option value="Yes">Yes</option>
-                              <option value="No">No</option>
-                              <option value="Received">Received</option>
-                              <option value="Printed">Printed</option>
-                            </select>
-                          </td>
-                        ) : null}
-                        {canEdit ? (
-                          <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
-                            <select
-                              aria-label={`Paddle/Places for ${item.label}`}
-                              value={item.paddle_places ?? ''}
-                              onChange={(e) =>
-                                void handlePaddlePlacesChange(item.id, e.target.value)
-                              }
-                              disabled={saving}
-                              style={{ ...styles.input, minWidth: '120px' }}
-                            >
-                              <option value="">Select</option>
-                              <option value="No">No</option>
-                              <option value="Yes 1">Yes 1</option>
-                              <option value="Yes 2">Yes 2</option>
-                            </select>
-                          </td>
-                        ) : null}
-                        <td style={{ padding: '12px 10px', minWidth: '280px' }}>
+                        <td className="market-calendar-sale-cell" style={{ padding: '12px 10px', minWidth: '280px' }}>
                           {href !== '#' ? (
                             <a
                               href={href}
@@ -1508,7 +1501,65 @@ const calendarEntryCount = calendarSections.reduce(
                           ) : (
                             item.label
                           )}
+                          {item.notes ? (
+                            <p
+                              style={{
+                                margin: '4px 0 0',
+                                color: '#475569',
+                                fontSize: '12px',
+                                lineHeight: 1.4,
+                                whiteSpace: 'pre-wrap',
+                              }}
+                            >
+                              <LinkedText text={item.notes} />
+                            </p>
+                          ) : null}
                         </td>
+                        {section.category === 'Ventes aux enchères' && showCalendarStatusColumn ? (
+                          <td className="market-calendar-status-cell" style={{ padding: '8px 10px', minWidth: '160px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <select
+                                className="market-calendar-control"
+                                aria-label={`Catalogue status for ${item.label}`}
+                                value={item.catalogue_status ?? ''}
+                                onChange={(e) =>
+                                  void handleCatalogueStatusChange(item.id, e.target.value)
+                                }
+                                disabled={saving}
+                                style={styles.input}
+                              >
+                                <option value="">Catalogue: Not specified</option>
+                                <option value="Yes">Catalogue: Yes</option>
+                                <option value="No">Catalogue: No</option>
+                                <option value="Received">Catalogue: Received</option>
+                                <option value="Printed">Catalogue: Printed</option>
+                              </select>
+                              <span className="market-calendar-print-value">
+                                Catalogue: {item.catalogue_status || '—'}
+                              </span>
+                              <select
+                                className="market-calendar-control"
+                                aria-label={`Paddle/Places for ${item.label}`}
+                                value={item.paddle_places ?? ''}
+                                onChange={(e) =>
+                                  void handlePaddlePlacesChange(item.id, e.target.value)
+                                }
+                                disabled={saving}
+                                style={styles.input}
+                              >
+                                <option value="">Paddle/Places: Not specified</option>
+                                <option value="No">Paddle/Places: No</option>
+                                <option value="Yes 1">Paddle/Places: Yes 1</option>
+                                <option value="Yes 2">Paddle/Places: Yes 2</option>
+                              </select>
+                              <span className="market-calendar-print-value">
+                                Paddle/Places: {item.paddle_places || '—'}
+                              </span>
+                            </div>
+                          </td>
+                        ) : showCalendarStatusColumn ? (
+                          <td className="market-calendar-status-cell" />
+                        ) : null}
                       </tr>
                     );
                   })}
@@ -1829,12 +1880,13 @@ const calendarEntryCount = calendarSections.reduce(
                                 )}
                               </div>
 
-                              {item.auction_house || item.auction_datetime || (canEdit && item.catalogue_status) ? (
+                              {item.auction_house || item.auction_datetime ||
+                              (section.category === 'Ventes aux enchères' && canEdit && item.catalogue_status) ? (
                                 <div style={styles.itemHeaderRow}>
                                   {item.auction_house ? (
                                     <span style={styles.itemMetaText}>{item.auction_house}</span>
                                   ) : null}
-                                  {canEdit && item.catalogue_status ? (
+                                  {section.category === 'Ventes aux enchères' && canEdit && item.catalogue_status ? (
                                     <span style={styles.itemMetaText}>Catalogue: {item.catalogue_status}</span>
                                   ) : null}
                                   {item.auction_datetime ? (
@@ -1854,6 +1906,7 @@ const calendarEntryCount = calendarSections.reduce(
                             <div style={styles.rightActions}>
                               {canEdit ? (
                                 <>
+                                  {section.category === 'Ventes aux enchères' ? (
                                   <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                       <label
@@ -1903,6 +1956,7 @@ const calendarEntryCount = calendarSections.reduce(
                                       </select>
                                     </div>
                                   </div>
+                                  ) : null}
                                   <button
                                     type="button"
                                     onClick={() => startInlineEdit(item)}
@@ -2027,6 +2081,7 @@ const calendarEntryCount = calendarSections.reduce(
                                 />
                               </div>
 
+                              {section.category === 'Ventes aux enchères' ? (
                               <div>
                                 <label htmlFor={`item-catalogue-${item.id}`} style={styles.label}>Catalogue</label>
                                 <select
@@ -2048,6 +2103,7 @@ const calendarEntryCount = calendarSections.reduce(
                                   <option value="Printed">Printed</option>
                                 </select>
                               </div>
+                              ) : null}
 
                               <div style={twoColumnsResponsiveStyle}>
                                 <div>
@@ -2261,9 +2317,17 @@ const calendarEntryCount = calendarSections.reduce(
                     <label style={styles.label}>Section</label>
                     <select
                       value={itemForm.sectionId}
-                      onChange={(e) =>
-                        setItemForm((prev) => ({ ...prev, sectionId: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        const sectionId = e.target.value;
+                        const selectedSection = sections.find((section) => section.id === sectionId);
+                        setItemForm((prev) => ({
+                          ...prev,
+                          sectionId,
+                          ...(selectedSection?.category === 'Ventes aux enchères'
+                            ? {}
+                            : { catalogueStatus: '' }),
+                        }));
+                      }}
                       style={styles.input}
                     >
                       <option value="">Choisir une section</option>
@@ -2412,6 +2476,7 @@ const calendarEntryCount = calendarSections.reduce(
                     />
                   </div>
 
+                  {isAuctionItemSection ? (
                   <div>
                     <label htmlFor="item-catalogue" style={styles.label}>Catalogue</label>
                     <select
@@ -2432,6 +2497,7 @@ const calendarEntryCount = calendarSections.reduce(
                       <option value="Printed">Printed</option>
                     </select>
                   </div>
+                  ) : null}
 
                   <div style={twoColumnsResponsiveStyle}>
                     <div>
