@@ -127,6 +127,29 @@ function encodePath(path: string): string {
   return path.split('/').map((s) => encodeURIComponent(s).replace(/'/g, '%27')).join('/')
 }
 
+export async function ensureFolderPath(folderPath: string): Promise<void> {
+  const driveId = await getDefaultDriveId()
+  const segments = folderPath.split('/')
+  let path = ''
+  for (const segment of segments) {
+    const parent = path
+    path = parent ? `${parent}/${segment}` : segment
+    let response = await graphFetch(`/drives/${driveId}/root:/${encodePath(path)}`)
+    if (response.status === 404) {
+      const parentPath = parent ? `/root:/${encodePath(parent)}:/children` : '/root/children'
+      response = await graphFetch(`/drives/${driveId}${parentPath}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: segment, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' }),
+      })
+      if (response.status === 409) response = await graphFetch(`/drives/${driveId}/root:/${encodePath(path)}`)
+    }
+    if (!response.ok) throw new Error(`SharePoint folder creation failed (${response.status})`)
+    const item = (await response.json()) as { folder?: object }
+    if (!item.folder) throw new Error('SharePoint path is not a folder')
+  }
+}
+
 function sanitizeFileName(name: string): string {
   const dot = name.lastIndexOf('.')
   const ext = dot > 0 && name.length - dot <= 6 ? name.slice(dot) : ''

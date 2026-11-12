@@ -90,15 +90,33 @@ describe('Blondeau factsheet importer interface', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows the centered bold heading and requested instruction', async () => {
+  it('shows the centered upload-style heading outside the import box', async () => {
     await render()
     const heading = container.querySelector('h4')!
-    expect(heading.textContent).toBe('Import Blondeau factsheet')
+    const section = container.querySelector('section')!
+    expect(heading.textContent).toBe('Upload Fiche Blondeau')
     expect(heading.style.textAlign).toBe('center')
-    expect(heading.style.fontWeight).toBe('bold')
-    expect(container.textContent).toContain('Select or move a factsheet to compare its details.')
+    expect(heading.style.fontSize).toBe('1.2rem')
+    expect(heading.style.fontWeight).toBe('600')
+    expect(heading.style.marginBottom).toBe('12px')
+    expect(heading.nextElementSibling).toBe(section)
+    expect(section.getAttribute('aria-labelledby')).toBe(heading.id)
+    expect(section.style.border).toBe('2px dashed rgb(153, 153, 153)')
+    expect(section.style.cursor).toBe('pointer')
+    expect(section.querySelector('button')!.style.boxShadow).toBe('none')
+    expect(container.textContent).toContain('Drop Fiche Blondeau to compare its details.')
     expect(container.querySelector<HTMLInputElement>('input[type="file"]')!.hidden).toBe(true)
     expect(container.textContent).not.toContain('Select PDF')
+  })
+
+  it('highlights the dashed drop zone while dragging', async () => {
+    await render()
+    const section = container.querySelector('section')!
+    const event = new Event('dragover', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'dataTransfer', { value: { dropEffect: 'none' } })
+    await act(async () => section.dispatchEvent(event))
+    expect(section.style.border).toBe('2px dashed rgb(11, 93, 42)')
+    expect(section.style.background).toBe('rgb(234, 246, 238)')
   })
 
   it('loads a dropped PDF without importing and styles every comparison field', async () => {
@@ -143,6 +161,20 @@ describe('Blondeau factsheet importer interface', () => {
     expect(mocks.getDocument).toHaveBeenCalledTimes(1)
     expect(container.textContent).toContain('PDF: factsheet.pdf')
     expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+
+  it('opens the picker from the drop zone without duplicating button clicks or enabling it while disabled', async () => {
+    await render()
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!
+    const click = vi.spyOn(input, 'click')
+    await act(async () => container.querySelector('section')!.click())
+    expect(click).toHaveBeenCalledTimes(1)
+    await act(async () => container.querySelector('button')!.click())
+    expect(click).toHaveBeenCalledTimes(2)
+    await render(true)
+    expect(container.querySelector('section')!.style.cursor).toBe('not-allowed')
+    await act(async () => container.querySelector('section')!.click())
+    expect(click).toHaveBeenCalledTimes(2)
   })
 
   it('still imports a PDF into an existing artwork', async () => {

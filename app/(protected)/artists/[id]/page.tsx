@@ -181,7 +181,7 @@ export default function ArtistViewPage() {
     setSaving(true)
     setError('')
 
-    const { error: updateError } = await supabase
+    const { data: updatedArtist, error: updateError } = await supabase
       .from('artists')
       .update({
         first_name: form.first_name.trim() || null,
@@ -194,6 +194,8 @@ export default function ArtistViewPage() {
         artist_category_no: toNullableNumber(form.artist_category_no),
       })
       .eq('id', artist.id)
+      .select('id, legacy_no, first_name, last_name, year_of_birth, year_of_death, place_of_birth, place_of_death, notes, artist_category_no, created_at, created_by, source')
+      .maybeSingle()
 
     setSaving(false)
 
@@ -202,6 +204,13 @@ export default function ArtistViewPage() {
       return
     }
 
+    if (!updatedArtist) {
+      setError('Artist was not saved. You may not have permission to edit this record.')
+      return
+    }
+
+    setArtist(updatedArtist)
+    setCategoryLabel(categories.find((category) => category.legacy_no === updatedArtist.artist_category_no)?.description ?? '—')
     router.refresh()
   }
 
@@ -252,6 +261,7 @@ export default function ArtistViewPage() {
       </div>
 
       <section style={{ maxWidth: 900, margin: '0 auto', padding: 30, background: '#fff', border: '1px solid #d7dfda', borderRadius: 12, color: 'black', boxShadow: '0 10px 28px rgba(31,56,46,0.06)' }}>
+        {error && <p role="alert" style={{ color: 'red', marginBottom: 16 }}>{error}</p>}
         <header style={{ marginBottom: 28, paddingBottom: 20, borderBottom: '1px solid #e4e9e6' }}>
           <p style={{ margin: 0, color: '#557067', fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Artists</p>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginTop: 10 }}>

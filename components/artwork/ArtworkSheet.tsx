@@ -913,7 +913,7 @@ const displayTitle = (() => {
 {artwork.certificate === true && (
   <InfoRow
     label="Certificate"
-    value="Yes"
+    value={<>Yes<CertificateLocationHistory artworkId={artwork.id} hideWhenEmpty plain /></>}
   />
 )}
   {(artwork.certificateLocation ||
@@ -932,7 +932,6 @@ const displayTitle = (() => {
       <div>
         <CertificateAddress addressId={artwork.certificate_location_address_id} />
       </div>
-      <CertificateLocationHistory artworkId={artwork.id} hideWhenEmpty />
     </>} />
   )}
 

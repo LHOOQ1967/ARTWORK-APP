@@ -24,6 +24,21 @@ controle en defense supplementaire; RLS reste obligatoire.
 
 ## Schema applicatif
 
+### Market auction PDFs
+
+`20261112183000_add_market_auction_files.sql` was applied atomically and
+recorded in production migration history on 2026-11-12. The rollback-only
+`tests\db\market-auction-files.sql` checks passed before and after application;
+RLS and both tables were verified afterward. The earlier artist-update
+migration `20261112171500` was applied separately afterward.
+
+### Artist referential updates
+
+`20261112171500_add_artists_update_policy.sql` was applied atomically and
+recorded in production migration history on 2026-11-12. The rollback-only
+`tests\db\artist-update.sql` passed before and after application, verifying
+updates by Administrators and Editors and denial for Viewers.
+
 Transport final invoices use a single-file `Add Invoice` picker and the transport
 `Save` action instead of URL entry. Editor/Admin uploads (up to 100 MB) go through
 the same SharePoint drive and `buildArtworkFolderPath` as artwork files. They
@@ -1379,3 +1394,13 @@ existing Buyer was backfilled and no test email was sent.
 An authenticated pg_net probe using a nonexistent Buyer event reached the deployed
 handler and returned `404 Buyer event not found`, verifying the dispatcher,
 secret and event-table routing without delivering a message.
+
+## Artist updates
+
+Apply `20261112171500_add_artists_update_policy.sql` to allow Administrators and
+Editors to update artist records; Viewers remain read-only. The interface also
+reports updates that affect no rows instead of treating them as successful.
+After applying the migration, run
+`npx supabase db query --linked --file tests\db\artist-update.sql` to verify
+the role restrictions. The test rolls back its data, but its artist insert
+advances the artist legacy-number sequence.

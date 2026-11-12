@@ -1623,11 +1623,12 @@ const artworkDocuments = useMemo(
                     <option key={suggestion} value={suggestion} />
                   ))}
                 </datalist>
-                <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>Upload files</h4>
+                <hr style={{ border: 0, borderTop: '3px solid #999', margin: '24px 0' }} />
+                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>Upload files</h4>
                 <ArtworkDocumentUploader
                   key={artwork.id}
                   artworkId={artwork.id}
-                  labelSuggestionsId={NEW_DOCUMENT_LABEL_DATALIST_ID}
+                  labelSuggestions={DOCUMENT_LABEL_SUGGESTIONS}
                   clients={documentClients}
                   disabled={saving || deleting || categorizing}
                   onBusyChange={setUploadingDoc}
@@ -1636,7 +1637,7 @@ const artworkDocuments = useMemo(
                   )}
                 />
                 <hr style={{ border: 0, borderTop: '3px solid #999', margin: '24px 0' }} />
-                <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 12 }}>Add URL link</h4>
+                <h4 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>Add URL link</h4>
                 <div
                   style={{
                     display: 'flex',

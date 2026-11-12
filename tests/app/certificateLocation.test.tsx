@@ -103,8 +103,13 @@ describe('certificate location and history', () => {
 
   it('shows the factsheet button when history exists and still loads the full dialog', async () => {
     mocks.limit.mockResolvedValue({ data: [{ id: 'change-1' }], error: null })
-    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" hideWhenEmpty />))
-    expect(container.querySelector('button')?.textContent).toBe('History')
+    await act(async () => root.render(<CertificateLocationHistory artworkId="artwork-1" hideWhenEmpty plain />))
+    const button = container.querySelector('button')!
+    expect(button.textContent).toBe('History')
+    expect(button.style.border).toBe('0px')
+    expect(button.style.boxShadow).toBe('none')
+    expect(button.style.fontWeight).toBe('400')
+    expect(button.classList.contains('no-print')).toBe(true)
     await act(async () => container.querySelector('button')!.click())
     expect(document.querySelector('dialog')).not.toBeNull()
     expect(mocks.range).toHaveBeenCalledWith(0, 199)

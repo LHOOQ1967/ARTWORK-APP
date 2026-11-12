@@ -15,6 +15,12 @@ vi.mock('@/components/artwork/ArtworkViewerComment', () => ({
   default: () => null,
 }))
 vi.mock('@/lib/supabaseBrowser', () => ({ supabase: {} }))
+vi.mock('@/components/artwork/CertificateLocation', () => ({
+  CertificateAddress: () => null,
+  CertificateLocationHistory: ({ artworkId, hideWhenEmpty, plain }: { artworkId: string; hideWhenEmpty: boolean; plain: boolean }) => (
+    <button aria-label="View certificate location history" data-artwork={artworkId} data-hide-empty={String(hideWhenEmpty)} data-plain={String(plain)}>History</button>
+  ),
+}))
 
 beforeEach(() => {
   session.role = 'Editor'
@@ -42,6 +48,13 @@ describe('factsheet auction prices', () => {
     expect(render({
       certificate_location_address_id: 'address',
     })).toContain('Certificate location')
+  })
+
+  it('places the plain history link beside Certificate Yes, independently of the current location', () => {
+    const html = render({ certificate: true })
+    expect(html).toMatch(/>Certificate<\/div><div[^>]*>Yes<button aria-label="View certificate location history" data-artwork="work" data-hide-empty="true" data-plain="true">History<\/button><\/div>/)
+    expect(html).not.toContain('Certificate location</span>')
+    expect(render({ certificate: false, certificate_location_contact_id: 'contact' })).not.toContain('View certificate location history')
   })
 
   it('displays stored local sale time unchanged rather than converting it to Geneva', () => {

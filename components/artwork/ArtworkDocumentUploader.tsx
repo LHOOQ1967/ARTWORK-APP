@@ -9,8 +9,7 @@ import {
   type DocumentClientOption,
 } from '@/lib/documentVisibility'
 import DocumentVisibilityFields from './DocumentVisibilityFields'
-import DocumentCategorySelect from './DocumentCategorySelect'
-import type { DocumentCategory } from '@/lib/documentCategory'
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from '@/lib/documentCategory'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
 
@@ -37,16 +36,103 @@ function isUploadedDocument(value: unknown, artworkId: string): value is Artwork
     'url' in value && typeof value.url === 'string'
 }
 
+function DocumentLabelInput({ id, fileName, value, suggestions, disabled, onChange }: {
+  id: string
+  fileName: string
+  value: string
+  suggestions: readonly string[]
+  disabled: boolean
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const matches = filter
+    ? suggestions.filter(suggestion => suggestion.toLocaleLowerCase().includes(value.toLocaleLowerCase()))
+    : suggestions
+  const listId = `document-label-options-${id}`
+  const expanded = open && !disabled && matches.length > 0
+
+  useEffect(() => {
+    if (expanded && activeIndex >= 0) {
+      document.getElementById(`${listId}-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' })
+    }
+  }, [activeIndex, expanded, listId])
+
+  function choose(label: string) {
+    onChange(label)
+    setOpen(false)
+    setFilter(false)
+    setActiveIndex(-1)
+  }
+
+  return (
+    <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 0 }}>
+      <input
+        aria-label={`Label for ${fileName}`}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={expanded}
+        aria-controls={expanded ? listId : undefined}
+        aria-activedescendant={expanded && activeIndex >= 0 && activeIndex < matches.length ? `${listId}-${activeIndex}` : undefined}
+        placeholder="Select a label or name the document"
+        value={value}
+        disabled={disabled}
+        onFocus={() => { setOpen(true); setFilter(false); setActiveIndex(-1) }}
+        onClick={() => setOpen(true)}
+        onBlur={() => { setOpen(false); setFilter(false); setActiveIndex(-1) }}
+        onChange={event => {
+          onChange(event.target.value)
+          setFilter(true)
+          setOpen(true)
+          setActiveIndex(-1)
+        }}
+        onKeyDown={event => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            if (matches.length === 0) return
+            event.preventDefault()
+            setOpen(true)
+            setActiveIndex(current => event.key === 'ArrowDown'
+              ? Math.min(current + 1, matches.length - 1)
+              : current <= 0 ? matches.length - 1 : current - 1)
+          } else if (event.key === 'Enter' && expanded && activeIndex >= 0 && matches[activeIndex]) {
+            event.preventDefault()
+            choose(matches[activeIndex])
+          } else if (event.key === 'Escape' && open) {
+            event.preventDefault()
+            setOpen(false)
+            setActiveIndex(-1)
+          }
+        }}
+        style={{ width: '100%', minWidth: 0, padding: '6px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.95rem', backgroundColor: 'white', boxSizing: 'border-box' }}
+      />
+      {expanded && (
+        <div id={listId} role="listbox" aria-label={`Suggested labels for ${fileName}`}
+          style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40, maxHeight: 'min(260px, 60vh)', overflowY: 'auto', background: 'white', border: '1px solid #ccc', borderRadius: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.12)' }}>
+          {matches.map((suggestion, index) => (
+            <div key={suggestion} id={`${listId}-${index}`} role="option" aria-selected={index === activeIndex}
+              onPointerDown={event => event.preventDefault()}
+              onClick={() => choose(suggestion)}
+              style={{ padding: '4px 8px', fontSize: '0.9rem', lineHeight: 1.3, background: index === activeIndex ? '#eaf3ff' : 'white', cursor: 'pointer' }}>
+              {suggestion}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ArtworkDocumentUploader({
   artworkId,
-  labelSuggestionsId,
+  labelSuggestions = [],
   clients = [],
   disabled = false,
   onUploaded,
   onBusyChange,
 }: {
   artworkId: string
-  labelSuggestionsId?: string
+  labelSuggestions?: readonly string[]
   clients?: DocumentClientOption[]
   disabled?: boolean
   onUploaded: (document: ArtworkDocument) => void
@@ -54,16 +140,26 @@ export default function ArtworkDocumentUploader({
 }) {
   const [queue, setQueue] = useState<QueuedDocument[]>([])
   const [uploading, setUploading] = useState(false)
-  const [dragging, setDragging] = useState(false)
-  const [batchAccess, setBatchAccess] = useState<DocumentAccess>(DEFAULT_DOCUMENT_ACCESS)
-  const [batchCategory, setBatchCategory] = useState<DocumentCategory>('general')
+  const [dragging, setDragging] = useState<DocumentCategory | null>(null)
+  const [categoryAccess, setCategoryAccess] = useState<Record<DocumentCategory, DocumentAccess>>({
+    general: { ...DEFAULT_DOCUMENT_ACCESS },
+    images: { ...DEFAULT_DOCUMENT_ACCESS },
+    exhibitions_literature: { ...DEFAULT_DOCUMENT_ACCESS },
+  })
   const [validationError, setValidationError] = useState('')
+  const [confirmFilenames, setConfirmFilenames] = useState(false)
   const busyRef = useRef(false)
+  const confirmDialogRef = useRef<HTMLDialogElement>(null)
   const locked = disabled || uploading
   const unfinished = queue.some(item => item.status !== 'uploaded')
   const uploadable = queue.filter(item => item.status !== 'uploaded' && !fileError(item.file))
   const uploadedCount = queue.filter(item => item.status === 'uploaded').length
   const failedCount = queue.filter(item => item.status === 'error').length
+  const generalLabelHints = labelSuggestions.filter(label => label !== 'Fiche Blondeau')
+
+  useEffect(() => {
+    if (confirmFilenames) confirmDialogRef.current?.showModal()
+  }, [confirmFilenames])
 
   useEffect(() => {
     if (!unfinished) return
@@ -75,16 +171,16 @@ export default function ArtworkDocumentUploader({
     return () => window.removeEventListener('beforeunload', warn)
   }, [unfinished])
 
-  function addFiles(files: FileList | File[]) {
+  function addFiles(files: FileList | File[], category: DocumentCategory) {
     if (disabled || busyRef.current) return
     const additions = Array.from(files, file => {
       const error = fileError(file)
       return {
         id: crypto.randomUUID(),
         file,
-        label: file.name,
-        access: { ...batchAccess },
-        category: batchCategory,
+        label: '',
+        access: { ...categoryAccess[category] },
+        category,
         status: error ? 'error' as const : 'queued' as const,
         error,
       }
@@ -99,8 +195,12 @@ export default function ArtworkDocumentUploader({
     setQueue(previous => previous.map(item => item.id === id ? { ...item, ...change } : item))
   }
 
-  async function upload() {
+  async function upload(useFilenames = false) {
     if (disabled || busyRef.current || uploadable.length === 0) return
+    if (!useFilenames && uploadable.some(item => !item.label.trim())) {
+      setConfirmFilenames(true)
+      return
+    }
     for (const item of uploadable) {
       const result = parseDocumentAccess(item.access)
       if ('error' in result) {
@@ -109,6 +209,13 @@ export default function ArtworkDocumentUploader({
       }
     }
     setValidationError('')
+    if (useFilenames) {
+      setQueue(previous => previous.map(item =>
+        item.status !== 'uploaded' && !fileError(item.file) && !item.label.trim()
+          ? { ...item, label: item.file.name }
+          : item
+      ))
+    }
     busyRef.current = true
     setUploading(true)
     onBusyChange(true)
@@ -163,119 +270,109 @@ export default function ArtworkDocumentUploader({
 
   return (
     <div style={{ marginTop: 12 }}>
-      <label
-        onDragOver={event => {
-          event.preventDefault()
-          if (!locked) setDragging(true)
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={event => {
-          event.preventDefault()
-          setDragging(false)
-          addFiles(event.dataTransfer.files)
-        }}
-        style={{
-          display: 'block',
-          cursor: locked ? 'not-allowed' : 'pointer',
-          padding: 14,
-          borderRadius: 6,
-          border: `2px dashed ${dragging ? '#0b5d2a' : '#999'}`,
-          backgroundColor: dragging ? '#eaf6ee' : '#fff',
-        }}
-      >
-        Drop files here or click to select multiple files
-        <input
-          type="file"
-          aria-label="Select documents"
-          multiple
-          disabled={locked}
-          style={{ display: 'block', marginTop: 8, maxWidth: '100%' }}
-          onChange={event => {
-            if (event.target.files) addFiles(event.target.files)
-            event.target.value = ''
-          }}
-        />
-      </label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 12 }}>
-        <DocumentCategorySelect
-          label="Upload batch category"
-          value={batchCategory}
-          disabled={locked}
-          onChange={category => {
-            setBatchCategory(category)
-            setQueue(previous => previous.map(item => item.status === 'uploaded' ? item : { ...item, category }))
-          }}
-        />
-        <DocumentVisibilityFields
-          label="Upload batch"
-          value={batchAccess}
-          clients={clients}
-          disabled={locked}
-          onChange={access => {
-            setBatchAccess(access)
-            setValidationError('')
-            setQueue(previous => previous.map(item =>
-              item.status === 'uploaded' ? item : { ...item, access: { ...access } }
-            ))
-          }}
-        />
-      </div>
-      <p style={{ fontSize: 13, marginTop: 6 }}>
-        Batch category and visibility apply to all remaining files and new selections. You can adjust individual files below.
-      </p>
-      <p style={{ fontSize: 13, marginTop: 6 }}>
-        Maximum 100 MB per file. Files are saved to SharePoint immediately, independently of Save.
-        You can edit each label before uploading.
-      </p>
+      {DOCUMENT_CATEGORIES.map(category => {
+        const categoryLabel = DOCUMENT_CATEGORY_LABELS[category]
+        const items = queue.filter(item => item.category === category)
+        return (
+          <section key={category} aria-label={`${categoryLabel} documents`} style={{ marginBottom: 20 }}>
+            <h5 style={{ fontSize: '1.14rem', fontWeight: 600, margin: '0 0 8px' }}>
+              {categoryLabel}
+              {category === 'general' && generalLabelHints.length > 0 && (
+                <span style={{ fontWeight: 400, fontSize: '0.8em' }}> ({generalLabelHints.join(', ')}, etc.)</span>
+              )}
+            </h5>
+            <DocumentVisibilityFields
+              label={categoryLabel}
+              value={categoryAccess[category]}
+              clients={clients}
+              disabled={locked}
+              onChange={access => {
+                setCategoryAccess(previous => ({ ...previous, [category]: access }))
+                setValidationError('')
+                setQueue(previous => previous.map(item =>
+                  item.category !== category || item.status === 'uploaded' ? item : { ...item, access: { ...access } }
+                ))
+              }}
+            />
+            <label
+              className="artwork-document-drop-zone"
+              onDragOver={event => {
+                event.preventDefault()
+                if (!locked) setDragging(category)
+              }}
+              onDragLeave={event => {
+                if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDragging(null)
+              }}
+              onDrop={event => {
+                event.preventDefault()
+                setDragging(null)
+                addFiles(event.dataTransfer.files, category)
+              }}
+              style={{
+                display: 'block',
+                cursor: locked ? 'not-allowed' : 'pointer',
+                marginTop: 12,
+                padding: 14,
+                borderRadius: 6,
+                border: `2px dashed ${dragging === category ? '#0b5d2a' : '#999'}`,
+                backgroundColor: dragging === category ? '#eaf6ee' : '#fff',
+              }}
+            >
+              Drop files here or click to select multiple files
+              <input
+                type="file"
+                aria-label={`Select ${categoryLabel} documents`}
+                multiple
+                disabled={locked}
+                style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}
+                onChange={event => {
+                  if (event.target.files) addFiles(event.target.files, category)
+                  event.target.value = ''
+                }}
+              />
+            </label>
+            {items.length > 0 && (
+              <ul style={{ listStyle: 'none', padding: 0 }}>
+                {items.map(item => (
+                  <li key={item.id} style={{ padding: '8px 0', borderBottom: '1px solid #ccc' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                      <span style={{ overflowWrap: 'anywhere' }}><strong>File:</strong> {item.file.name}</span>
+                      <DocumentLabelInput
+                        id={item.id}
+                        fileName={item.file.name}
+                        value={item.label}
+                        disabled={locked || item.status === 'uploaded'}
+                        suggestions={labelSuggestions}
+                        onChange={label => updateItem(item.id, { label })}
+                      />
+                      {item.status !== 'queued' && (
+                        <span>
+                          {item.status === 'uploading' ? 'Uploading...' :
+                            item.status === 'uploaded' ? 'Uploaded' : 'Failed'}
+                        </span>
+                      )}
+                      {item.status !== 'uploaded' && (
+                        <button
+                          type="button"
+                          className="edit-button"
+                          aria-label={`Remove ${item.file.name}`}
+                          disabled={locked}
+                          onClick={() => setQueue(previous => previous.filter(entry => entry.id !== item.id))}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    {item.error && <p role="alert" style={{ color: '#a00000', margin: '4px 0' }}>{item.error}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )
+      })}
       {queue.length > 0 && (
         <>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {queue.map(item => (
-              <li key={item.id} style={{ padding: '8px 0', borderBottom: '1px solid #ccc' }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                  <span style={{ overflowWrap: 'anywhere' }}>{item.file.name}</span>
-                  <input
-                    aria-label={`Label for ${item.file.name}`}
-                    list={labelSuggestionsId}
-                    value={item.label}
-                    disabled={locked || item.status === 'uploaded'}
-                    onChange={event => updateItem(item.id, { label: event.target.value })}
-                    style={{ flex: '1 1 180px', minWidth: 0, padding: 6 }}
-                  />
-                  <span>
-                    {item.status === 'queued' ? 'Ready' :
-                      item.status === 'uploading' ? 'Uploading...' :
-                        item.status === 'uploaded' ? 'Uploaded' : 'Failed'}
-                  </span>
-                  {item.status !== 'uploaded' && (
-                    <button
-                      type="button"
-                      className="edit-button"
-                      aria-label={`Remove ${item.file.name}`}
-                      disabled={locked}
-                      onClick={() => setQueue(previous => previous.filter(entry => entry.id !== item.id))}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <DocumentVisibilityFields
-                  label={item.file.name}
-                  value={item.access}
-                  clients={clients}
-                  disabled={locked || item.status === 'uploaded'}
-                  onChange={access => updateItem(item.id, { access })}
-                />
-                <DocumentCategorySelect
-                  label={`Category for ${item.file.name}`}
-                  value={item.category}
-                  disabled={locked || item.status === 'uploaded'}
-                  onChange={category => updateItem(item.id, { category })}
-                />
-                {item.error && <p role="alert" style={{ color: '#a00000', margin: '4px 0' }}>{item.error}</p>}
-              </li>
-            ))}
-          </ul>
           {validationError && <p role="alert" style={{ color: '#a00000' }}>{validationError}</p>}
           <p role="status" aria-live="polite">
             {uploadedCount} of {queue.length} files uploaded.
@@ -286,8 +383,9 @@ export default function ArtworkDocumentUploader({
             <button
               type="button"
               className="edit-button"
+              style={{ zoom: 1.3 }}
               disabled={locked || uploadable.length === 0}
-              onClick={upload}
+              onClick={() => void upload()}
             >
               {uploading ? 'Uploading...' : failedCount > 0 ? 'Upload / retry remaining files' : 'Upload files'}
             </button>
@@ -301,6 +399,21 @@ export default function ArtworkDocumentUploader({
             </button>
           </div>
         </>
+      )}
+      {confirmFilenames && (
+        <dialog ref={confirmDialogRef} role="alertdialog" aria-labelledby="empty-document-labels-title"
+          aria-describedby="empty-document-labels-message" onCancel={() => setConfirmFilenames(false)}
+          style={{ margin: 'auto', padding: 24, borderRadius: 8, maxWidth: '90vw' }}>
+          <h2 id="empty-document-labels-title">Missing document labels</h2>
+          <p id="empty-document-labels-message">Some documents have no label. Return to enter labels, or use the filenames for those documents.</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button type="button" className="edit-button" autoFocus onClick={() => setConfirmFilenames(false)}>Return to labels</button>
+            <button type="button" className="edit-button" onClick={() => {
+              setConfirmFilenames(false)
+              void upload(true)
+            }}>Use filenames</button>
+          </div>
+        </dialog>
       )}
     </div>
   )

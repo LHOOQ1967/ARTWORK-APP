@@ -3,6 +3,30 @@
 Validated on 2026-11-08: isolated dependency installation and production build
 through the Manager Builder, followed by a site execution-path switch.
 
+## Latest deployment: 2026-11-11
+
+- Deployed source: `main`, commit `fe88a6b97a9862a7610f8c31e5a16adb4a8143d9`.
+- Active Manager path: `/artmuse-release-20261111-qMKcBX`.
+- Active SSH path: `/srv/customer/artmuse-release-20261111-qMKcBX`.
+- Previous Manager path retained for rollback: `/artmuse-release-mobile-FN1lZ9`.
+- Complete previous-release backup:
+  `/srv/customer/artmuse-backup-20261111-yFUE6y/active-release.tar`.
+  An off-server copy was verified against SHA256
+  `78aa5dacec1fb6bf12beeaf96cccdb06efc94ac970556952585ae1e23d6c1c8c`.
+- Source ZIP SHA256:
+  `4bf68581918ecb6d3c6b6e379a1bc0afbd9a4b5a6a5deb720ddaed5689921b65`.
+- Builder installation and compilation completed with `STAGING_INSTALL_OK`
+  and `STAGING_BUILD_OK`. Candidate `/login` returned HTTP 200 on port 3001;
+  the candidate test process was then stopped.
+- Runtime retained: Node 20, `node server.js`, port 3000.
+  Build command was instructed to be restored to `true` before switching.
+- The user confirmed the production restart succeeded.
+  `https://artmuse.ch/login` independently returned HTTP 200 after the switch.
+  This does not independently verify authenticated business workflows.
+
+Recheck the active path in the Manager before the next deployment. Never install
+dependencies or rebuild in the active directory listed above.
+
 ## Safety rules
 
 - Never install dependencies or build in the active release directory.

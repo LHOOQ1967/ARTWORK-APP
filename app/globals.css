@@ -198,6 +198,11 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+.artwork-document-drop-zone:focus-within {
+  outline: 3px solid rgba(0, 96, 57, 0.25);
+  outline-offset: 2px;
+}
+
 .users-sort-button,
 .artwork-index-reset-button {
   min-height: 0;

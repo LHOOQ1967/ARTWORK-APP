@@ -429,8 +429,13 @@ export default function BlondeauSheetImporter({
     normalizeText(fields[key]) !== normalizeText(artwork?.[key] as string | null | undefined)
 
   return (
+    <>
+    {!onPrepared && <h4 id="blondeau-import-heading" style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>Upload Fiche Blondeau</h4>}
     <section
       aria-labelledby={onPrepared ? 'blondeau-import-instruction' : 'blondeau-import-heading'}
+      onClick={event => {
+        if (!onPrepared && !busy && event.target === event.currentTarget) fileInput.current?.click()
+      }}
       onDragOver={event => {
         event.preventDefault()
         event.dataTransfer.dropEffect = busy ? 'none' : 'copy'
@@ -450,17 +455,16 @@ export default function BlondeauSheetImporter({
         }
         void extractPdf(files[0])
       }}
-      style={{ margin: '16px 0', padding: 16, background: dragging && !busy ? '#f0f7f2' : '#fff', border: dragging && !busy ? '1px dashed #0b5d2a' : '1px solid #999', borderRadius: 6 }}
+      style={{ margin: onPrepared ? '16px 0' : '0 0 16px', padding: 16, background: dragging && !busy ? (onPrepared ? '#f0f7f2' : '#eaf6ee') : '#fff', border: onPrepared ? (dragging && !busy ? '1px dashed #0b5d2a' : '1px solid #999') : `2px dashed ${dragging && !busy ? '#0b5d2a' : '#999'}`, borderRadius: 6, cursor: onPrepared ? undefined : busy ? 'not-allowed' : 'pointer' }}
     >
-      {!onPrepared && <h4 id="blondeau-import-heading" style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center' }}>Import Blondeau factsheet</h4>}
       <button
         id="blondeau-import-instruction"
         type="button"
         disabled={busy}
         onClick={() => fileInput.current?.click()}
-        style={{ display: 'block', width: onPrepared ? '100%' : undefined, margin: '0 0 12px', padding: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', textAlign: onPrepared ? 'center' : 'left', cursor: busy ? 'not-allowed' : 'pointer' }}
+        style={{ display: 'block', width: onPrepared ? '100%' : undefined, margin: '0 0 12px', padding: 0, border: 0, boxShadow: 'none', minHeight: 0, background: 'transparent', color: 'inherit', font: 'inherit', textAlign: onPrepared ? 'center' : 'left', cursor: busy ? 'not-allowed' : 'pointer' }}
       >
-        {onPrepared ? 'Select or move a factsheet to create a new artwork.' : 'Select or move a factsheet to compare its details.'}
+        {onPrepared ? 'Select or move a factsheet to create a new artwork.' : 'Drop Fiche Blondeau to compare its details.'}
       </button>
         <input
           ref={fileInput}
@@ -661,5 +665,6 @@ export default function BlondeauSheetImporter({
         </>
       )}
     </section>
+    </>
   )
 }

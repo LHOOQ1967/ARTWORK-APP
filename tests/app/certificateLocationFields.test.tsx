@@ -1,7 +1,9 @@
 import { Children, isValidElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { ArtworkFieldsLayout } from '@/components/artwork/ArtworkFieldsLayout'
-import type { ArtworkForm } from '@/app/(protected)/types/artwork'
+import { ArtworkSection } from '@/components/artwork/ArtworkSection'
+import type { ArtworkForm, ArtworkWithRelations } from '@/app/(protected)/types/artwork'
 import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
 
 vi.mock('@/lib/supabaseBrowser', () => ({ supabase: {} }))
@@ -29,6 +31,7 @@ describe('certificate location creation fields', () => {
     expect(setArtwork).toHaveBeenCalledWith({
       ...artwork, certificate_location_contact_id: 'new-contact', certificate_location_address_id: null,
     })
+
   })
   it('offers addresses only for the certificate contact and persists the chosen address', () => {
     const setArtwork = vi.fn()
@@ -42,5 +45,14 @@ describe('certificate location creation fields', () => {
     expect(address.props.disabled).toBe(true)
     address.props.onChange('certificate-address')
     expect(setArtwork).toHaveBeenCalledWith({ ...artwork, certificate_location_address_id: 'certificate-address' })
+  })
+})
+
+describe('certificate location editing', () => {
+  it.each([true, false])('places history next to the certificate selector (certificate: %s)', certificate => {
+    const artwork = { id: 'work', certificate } as ArtworkWithRelations
+    const html = renderToStaticMarkup(<ArtworkSection artwork={artwork} setArtwork={vi.fn()} isEditing />)
+    expect(html).toMatch(/>Certificate<\/div><div style="display:flex;align-items:center"><select[^>]*>[\s\S]*?<\/select><button[^>]*aria-label="View certificate location history"[^>]*>History<\/button><\/div>/)
+    expect(html.match(/aria-label="View certificate location history"/g)).toHaveLength(1)
   })
 })

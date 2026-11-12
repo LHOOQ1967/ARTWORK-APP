@@ -38,9 +38,10 @@ export function CertificateAddress({ addressId }: { addressId?: string | null })
   return <span role={result.error ? 'alert' : undefined}>{result.error ?? result.label}</span>
 }
 
-export function CertificateLocationHistory({ artworkId, hideWhenEmpty = false }: {
+export function CertificateLocationHistory({ artworkId, hideWhenEmpty = false, plain = false }: {
   artworkId?: string | null
   hideWhenEmpty?: boolean
+  plain?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [changes, setChanges] = useState<LocationChange[]>([])
@@ -102,7 +103,10 @@ export function CertificateLocationHistory({ artworkId, hideWhenEmpty = false }:
   }
   return <>
     <button type="button" className="no-print" aria-label="View certificate location history"
-      aria-haspopup="dialog" style={{ marginLeft: 8, textDecoration: 'underline', fontSize: 12 }}
+      aria-haspopup="dialog" style={{
+        marginLeft: 8, textDecoration: 'underline', fontSize: 12,
+        ...(plain ? { minHeight: 0, padding: 0, border: 0, background: 'transparent', boxShadow: 'none', fontWeight: 400 } : {}),
+      }}
       onClick={() => setOpen(true)}>History</button>
     {open && createPortal(
       <dialog ref={dialogRef} aria-label="Certificate location history" onClose={() => setOpen(false)}

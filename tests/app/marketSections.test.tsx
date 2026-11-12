@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   sections: [] as Record<string, unknown>[],
   items: [] as Record<string, unknown>[],
+  files: [] as Record<string, unknown>[],
+  links: [] as Record<string, unknown>[],
+  role: 'Editor',
 }))
 
 vi.mock('@/lib/supabaseBrowser', () => ({
@@ -68,10 +71,15 @@ describe('Art Market section auction fields', () => {
       item('auction-item', 'auction', 'Auction lot'),
       item('fair-item', 'fair', 'Fair resource'),
     ]
+    mocks.files = []
+    mocks.links = []
+    mocks.role = 'Editor'
     mocks.from.mockImplementation((table: string) => {
       const result = table === 'profiles'
-        ? { data: { role: 'Editor' }, error: null }
-        : { data: table === 'market_sections' ? mocks.sections : mocks.items, error: null }
+        ? { data: { role: mocks.role }, error: null }
+        : { data: table === 'market_sections' ? mocks.sections
+          : table === 'market_auction_files' ? mocks.files
+          : table === 'market_auction_file_links' ? mocks.links : mocks.items, error: null }
       const chain = {
         select: vi.fn(() => chain),
         eq: vi.fn(() => chain),
@@ -130,5 +138,60 @@ describe('Art Market section auction fields', () => {
       sectionSelect.dispatchEvent(new Event('change', { bubbles: true }))
     })
     expect(container.querySelector('#item-catalogue')).toBeNull()
+  })
+
+  it('shows PDFs and offers only catalogues from the same section', async () => {
+    mocks.items.push(item('auction-item-2', 'auction', 'Second lot'))
+    mocks.files = [
+      { id: 'cat', section_id: 'auction', kind: 'catalogue', file_name: 'sale.pdf' },
+      { id: 'result', section_id: 'auction', kind: 'result', file_name: 'result.pdf' },
+      { id: 'other', section_id: 'fair', kind: 'catalogue', file_name: 'other.pdf' },
+    ]
+    mocks.links = [
+      { item_id: 'auction-item', section_id: 'auction', kind: 'catalogue', file_id: 'cat' },
+      { item_id: 'auction-item', section_id: 'auction', kind: 'result', file_id: 'result' },
+    ]
+    await renderPage()
+    await act(async () => container.querySelectorAll<HTMLButtonElement>('button[aria-label="Déplier la section"]').forEach(button => button.click()))
+    expect(container.querySelector('a[href="/api/market/auction-files/cat"]')?.textContent).toBe('sale.pdf')
+    expect(container.querySelector('a[href="/api/market/auction-files/result"]')?.textContent).toBe('result.pdf')
+    const select = container.querySelector<HTMLSelectElement>('[aria-label="Choose existing catalogue for Second lot"]')!
+    expect([...select.options].map(option => option.value)).toEqual(['', 'cat'])
+    expect(container.querySelector('[aria-label="Upload Result PDF for Fair resource"]')).toBeNull()
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    vi.stubGlobal('fetch', fetchMock)
+    await act(async () => {
+      select.value = 'cat'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(fetchMock).toHaveBeenCalledWith('/api/market/items/auction-item-2/auction-files', expect.objectContaining({
+      method: 'PUT', body: JSON.stringify({ fileId: 'cat' }),
+    }))
+  })
+
+  it('confirms a shared catalogue replacement and allows viewers to open files without editing', async () => {
+    mocks.items.push(item('auction-item-2', 'auction', 'Second lot'))
+    mocks.files = [{ id: 'cat', section_id: 'auction', kind: 'catalogue', file_name: 'sale.pdf' }]
+    mocks.links = ['auction-item', 'auction-item-2'].map(itemId => ({
+      item_id: itemId, section_id: 'auction', kind: 'catalogue', file_id: 'cat',
+    }))
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await renderPage()
+    await act(async () => container.querySelectorAll<HTMLButtonElement>('button[aria-label="Déplier la section"]').forEach(button => button.click()))
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Upload Catalogue PDF for Auction lot"]')!
+    Object.defineProperty(input, 'files', { value: [new File(['%PDF-'], 'new.pdf')], configurable: true })
+    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
+    expect(confirm).toHaveBeenCalledWith('Replace this shared catalogue for all linked sales?')
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    mocks.role = 'Viewer'
+    await renderPage()
+    await act(async () => container.querySelectorAll<HTMLButtonElement>('button[aria-label="Déplier la section"]').forEach(button => button.click()))
+    expect(container.querySelector('a[href="/api/market/auction-files/cat"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Upload Catalogue PDF for Auction lot"]')).toBeNull()
   })
 })

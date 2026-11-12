@@ -1704,20 +1704,23 @@ async function handleAddProposal() {
         </EditRow>
 
         <EditRow label="Certificate">
-          <select
-            value={artwork.certificate ? 'yes' : 'no'}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                certificate: e.target.value === 'yes',
-              })
-            }
-            style={{ ...editInputStyle, width: 90 }}
-            disabled={!isEditing}
-          >
-            <option value="no">No</option>
-            <option value="yes">Yes</option>
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <select
+              value={artwork.certificate ? 'yes' : 'no'}
+              onChange={(e) =>
+                setArtwork({
+                  ...artwork,
+                  certificate: e.target.value === 'yes',
+                })
+              }
+              style={{ ...editInputStyle, width: 90 }}
+              disabled={!isEditing}
+            >
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+            <CertificateLocationHistory artworkId={artwork.id} />
+          </div>
         </EditRow>
 
         {artwork.certificate && (
@@ -1756,8 +1759,6 @@ async function handleAddProposal() {
             />
           </EditRow>
         )}
-        <CertificateLocationHistory artworkId={artwork.id} />
-
       </SectionBlock>
 
       {/* ===================== */}

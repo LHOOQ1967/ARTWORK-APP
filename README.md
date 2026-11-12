@@ -412,12 +412,13 @@ This navigation state is independent of the 60-second data-cache lifetime.
 ## Multiple artwork documents
 
 In an artwork's edit view, the Documents section accepts multiple files through
-the file picker or drag and drop. Further selections append to the upload list.
-Each file has an editable label, initially its original filename. Empty labels
-also use the filename. URL documents remain available through **Add link**.
-The file uploader appears first, followed by **Add URL link** and then
-**Organize links** when documents exist. Thick dividers separate these workflows.
-Category and Visibility share a wrapping row, below the drop zone for uploads.
+the picker or drag and drop in separate category zones. Further selections append
+to the upload list. Each file has an initially empty editable label. Before
+uploading files with empty labels, choose whether to enter labels or use their
+filenames. URL documents remain available through **Add URL link**.
+The Blondeau importer appears first, followed by the file uploader, **Add URL
+link** and then **Organize links** when documents exist. Thick dividers separate
+these workflows.
 In **Organize links**, select documents to change their category or apply
 **All artwork clients**, **Internal only**, or **Selected client** visibility.
 Visibility changes save immediately and do not change categories. If some updates
@@ -448,11 +449,20 @@ the access; it is not restricted to one individual user. Artwork access must
 also remain valid, and removing the client's proposal revokes access unless
 the client remains an eligible buyer with artwork access.
 
-The upload batch selector applies to remaining files and later selections;
-individual files can override it before upload. Existing documents have a
+Each upload category has its own visibility selector, applied to all remaining
+files and later selections in that category; confirmed uploads are unchanged.
+One upload action sends files from all three categories. Existing documents have a
 **Save visibility** action, saved independently of the artwork's **Save**.
 New URL links have their own visibility selector. Gallery images and Market
 documents retain their existing default visibility.
+
+Auction sales in Market Sections can have a Catalogue PDF and a Result PDF
+(up to 100 MB each), stored in SharePoint. A catalogue can be selected from
+another sale in the same section; results are individual. Replacing or deleting
+a shared catalogue affects every linked sale, and deleting a sale also deletes
+its shared catalogue for all linked sales. Editors and Administrators manage
+these files; authenticated users can open them. Apply the
+`20261112183000_add_market_auction_files.sql` migration before deploying this UI.
 
 Deploy `20261025173000_add_document_visibility.sql` before the updated UI/API.
 It defaults every existing document to `all_clients` and adds recipient
@@ -517,8 +527,8 @@ Categories describe the content, not its format: catalogue scans can belong to
 Exhibitions & Literature even when they are JPGs. The main artwork image gallery
 is separate and unchanged.
 
-New links and uploaded files default to General. Choose a category for a batch,
-override it per file, or change an existing link's category in edit mode.
+New URL links default to General. Uploaded files take the category of their
+drop zone. Change an existing link's category in edit mode.
 Use the checkboxes and **Move selected links** to reclassify several links.
 Successful moves appear immediately; any failed moves remain selected for retry.
 Category changes save immediately and do not change visibility or recipients.

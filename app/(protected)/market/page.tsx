@@ -15,6 +15,19 @@ type PaddlePlacesStatus = 'No' | 'Yes 1' | 'Yes 2';
 type ItemSortMode = 'label_asc' | 'created_desc' | 'auction_datetime_asc';
 type MarketViewMode = 'sections' | 'calendar';
 
+type AuctionFile = {
+  id: string;
+  section_id: string;
+  kind: 'catalogue' | 'result';
+  file_name: string;
+};
+
+type AuctionFileLink = {
+  item_id: string;
+  section_id: string;
+  kind: 'catalogue' | 'result';
+  file_id: string;
+};
 
 type MarketSection = {
   id: string;
@@ -50,6 +63,8 @@ type MarketSectionItemView = {
 
 type SectionWithItems = MarketSection & {
   items: MarketSectionItemView[];
+  auctionFiles: AuctionFile[];
+  auctionFileLinks: AuctionFileLink[];
 };
 
 type MarketDataResult = {
@@ -203,7 +218,12 @@ async function fetchMarketData(): Promise<MarketDataResult> {
     }
   }
 
-  const [{ data: sectionsData, error: sectionsError }, { data: itemsData, error: itemsError }] =
+  const [
+    { data: sectionsData, error: sectionsError },
+    { data: itemsData, error: itemsError },
+    { data: filesData, error: filesError },
+    { data: linksData, error: linksError },
+  ] =
     await Promise.all([
       supabase
         .from('market_sections')
@@ -212,6 +232,8 @@ async function fetchMarketData(): Promise<MarketDataResult> {
         .order('position', { ascending: true })
         .order('created_at', { ascending: true }),
       supabase.from('v_market_section_items').select('*'),
+      supabase.from('market_auction_files').select('id, section_id, kind, file_name'),
+      supabase.from('market_auction_file_links').select('item_id, section_id, kind, file_id'),
     ]);
 
   if (sectionsError) {
@@ -232,12 +254,19 @@ async function fetchMarketData(): Promise<MarketDataResult> {
     };
   }
 
+  if (filesError || linksError) {
+    console.error('LOAD AUCTION DOCUMENTS ERROR', filesError || linksError);
+    return { role, sections: null, errorMessage: 'Unable to load auction documents.' };
+  }
+
   const sectionMap = new Map<string, SectionWithItems>();
 
   (sectionsData ?? []).forEach((section) => {
     sectionMap.set(section.id, {
       ...(section as MarketSection),
       items: [],
+      auctionFiles: [],
+      auctionFileLinks: [],
     });
   });
 
@@ -246,6 +275,13 @@ async function fetchMarketData(): Promise<MarketDataResult> {
     if (section) {
       section.items.push(item as MarketSectionItemView);
     }
+  });
+
+  (filesData ?? []).forEach((file) => {
+    sectionMap.get(file.section_id)?.auctionFiles.push(file as AuctionFile);
+  });
+  (linksData ?? []).forEach((link) => {
+    sectionMap.get(link.section_id)?.auctionFileLinks.push(link as AuctionFileLink);
   });
 
   return {
@@ -995,6 +1031,73 @@ const showCalendarStatusColumn = canEdit &&
     await loadData();
   }
 
+  async function changeAuctionFile(itemId: string, init: RequestInit) {
+    if (!canEdit || saving) return;
+    setSaving(true);
+    setMessage(null);
+    setErrorMessage(null);
+    let failure: string | null = null;
+    try {
+      const response = await fetch(`/api/market/items/${itemId}/auction-files`, { ...init, credentials: 'include' });
+      if (!response.ok) {
+        const body: unknown = await response.json();
+        failure = body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+          ? body.error : 'Unable to save the auction document.';
+      }
+    } catch (error) {
+      console.error('SAVE AUCTION DOCUMENT ERROR', error);
+      failure = 'Unable to save the auction document.';
+    }
+    await loadData();
+    if (failure) setErrorMessage(failure);
+    else setMessage('Auction document saved.');
+    setSaving(false);
+  }
+
+  function uploadAuctionFile(section: SectionWithItems, item: MarketSectionItemView, kind: AuctionFile['kind'], file: File) {
+    const link = section.auctionFileLinks.find(entry => entry.item_id === item.id && entry.kind === kind);
+    const shared = link && section.auctionFileLinks.filter(entry => entry.file_id === link.file_id).length > 1;
+    if (shared && !window.confirm('Replace this shared catalogue for all linked sales?')) return;
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', file);
+    void changeAuctionFile(item.id, { method: 'POST', body: form });
+  }
+
+  async function removeAuctionFiles(files: AuctionFile[]) {
+    for (const file of files) {
+      try {
+        const response = await fetch(`/api/market/auction-files/${file.id}`, {
+          method: 'DELETE', credentials: 'include',
+        });
+        if (!response.ok) {
+          const body: unknown = await response.json();
+          return body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+            ? body.error : 'Unable to delete the auction document.';
+        }
+      } catch (error) {
+        console.error('DELETE AUCTION DOCUMENT ERROR', error);
+        return 'Unable to delete the auction document.';
+      }
+    }
+    return null;
+  }
+
+  async function deleteAuctionFile(file: AuctionFile) {
+    if (!canEdit || saving || !window.confirm(
+      file.kind === 'catalogue'
+        ? 'Delete this catalogue for all linked sales?'
+        : 'Delete this result PDF?'
+    )) return;
+    setSaving(true);
+    setErrorMessage(null);
+    const failure = await removeAuctionFiles([file]);
+    await loadData();
+    if (failure) setErrorMessage(failure);
+    else setMessage('Auction document deleted.');
+    setSaving(false);
+  }
+
   async function handleCreateSection(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canEdit) return;
@@ -1286,17 +1389,34 @@ const showCalendarStatusColumn = canEdit &&
   async function handleDeleteItem(itemId: string) {
     if (!canEdit) return;
 
-    const ok = window.confirm('Supprimer cette ressource ?');
+    const section = sections.find(s => s.items.some(item => item.id === itemId));
+    const fileIds = new Set(section?.auctionFileLinks.filter(link => link.item_id === itemId).map(link => link.file_id) ?? []);
+    const auctionFiles = section?.auctionFiles.filter(file => fileIds.has(file.id)) ?? [];
+    const hasSharedCatalogue = section?.auctionFileLinks.some(link =>
+      fileIds.has(link.file_id) && link.kind === 'catalogue' && link.item_id !== itemId
+    );
+    const ok = window.confirm(hasSharedCatalogue
+      ? 'Delete this sale and its documents? Its shared catalogue will also be deleted for all linked sales.'
+      : 'Delete this resource and its auction documents?');
     if (!ok) return;
 
     setSaving(true);
     setMessage(null);
     setErrorMessage(null);
 
+    const auctionFileError = await removeAuctionFiles(auctionFiles);
+    if (auctionFileError) {
+      setSaving(false);
+      await loadData();
+      setErrorMessage(`${auctionFileError} Some documents may already have been deleted.`);
+      return;
+    }
+
     const target = sections.flatMap((s) => s.items).filter((i) => i.id === itemId);
     if (!(await removeSharePointFiles(target))) {
-      setErrorMessage('Impossible de supprimer le fichier SharePoint.');
       setSaving(false);
+      await loadData();
+      setErrorMessage('Unable to delete the SharePoint file. Some auction documents may already have been deleted.');
       return;
     }
 
@@ -1304,8 +1424,9 @@ const showCalendarStatusColumn = canEdit &&
 
     if (error) {
       console.error('DELETE MARKET ITEM ERROR', error);
-      setErrorMessage(`Impossible de supprimer la ressource : ${error.message}`);
       setSaving(false);
+      await loadData();
+      setErrorMessage(`Unable to delete the resource: ${error.message}. Its documents may already have been deleted.`);
       return;
     }
 
@@ -1318,7 +1439,7 @@ const showCalendarStatusColumn = canEdit &&
     if (!canEdit) return;
 
     const ok = window.confirm(
-      'Supprimer cette section ? Les ressources et documents liés seront également supprimés.'
+      'Delete this section? All linked resources and auction documents will also be deleted.'
     );
     if (!ok) return;
 
@@ -1327,9 +1448,18 @@ const showCalendarStatusColumn = canEdit &&
     setErrorMessage(null);
 
     const sectionItems = sections.find((s) => s.id === sectionId)?.items ?? [];
-    if (!(await removeSharePointFiles(sectionItems))) {
-      setErrorMessage('Impossible de supprimer les fichiers SharePoint.');
+    const auctionFiles = sections.find((s) => s.id === sectionId)?.auctionFiles ?? [];
+    const auctionFileError = await removeAuctionFiles(auctionFiles);
+    if (auctionFileError) {
       setSaving(false);
+      await loadData();
+      setErrorMessage(`${auctionFileError} Some documents may already have been deleted.`);
+      return;
+    }
+    if (!(await removeSharePointFiles(sectionItems))) {
+      setSaving(false);
+      await loadData();
+      setErrorMessage('Unable to delete the SharePoint files. Some auction documents may already have been deleted.');
       return;
     }
 
@@ -1337,8 +1467,9 @@ const showCalendarStatusColumn = canEdit &&
 
     if (error) {
       console.error('DELETE MARKET SECTION ERROR', error);
-      setErrorMessage(`Impossible de supprimer la section : ${error.message}`);
       setSaving(false);
+      await loadData();
+      setErrorMessage(`Unable to delete the section: ${error.message}. Its documents may already have been deleted.`);
       return;
     }
 
@@ -1857,6 +1988,7 @@ const showCalendarStatusColumn = canEdit &&
                   {section.items.map((item) => {
                     const href = getItemHref(item);
                     const canOpen = href !== '#';
+                    const itemLinks = section.auctionFileLinks.filter(link => link.item_id === item.id);
                     const isEditing =
                       editingItemId === item.id && editState?.id === item.id;
 
@@ -1978,6 +2110,61 @@ const showCalendarStatusColumn = canEdit &&
                                 </>
                               ) : null}
                             </div>
+                            {section.category === 'Ventes aux enchères' ? (
+                              <div style={{ flex: '1 1 100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {(['catalogue', 'result'] as const).map(kind => {
+                                  const link = itemLinks.find(entry => entry.kind === kind);
+                                  const file = section.auctionFiles.find(entry => entry.id === link?.file_id);
+                                  const label = kind === 'catalogue' ? 'Catalogue PDF' : 'Result PDF';
+                                  return (
+                                    <div key={kind} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                      <strong>{label}:</strong>
+                                      {file ? (
+                                        <a href={`/api/market/auction-files/${file.id}`} target="_blank" rel="noreferrer">{file.file_name}</a>
+                                      ) : <span>None</span>}
+                                      {canEdit ? (
+                                        <>
+                                          <input
+                                            type="file"
+                                            accept=".pdf,application/pdf"
+                                            aria-label={`Upload ${label} for ${item.label}`}
+                                            disabled={saving}
+                                            onChange={event => {
+                                              const selected = event.target.files?.[0];
+                                              event.target.value = '';
+                                              if (selected) uploadAuctionFile(section, item, kind, selected);
+                                            }}
+                                          />
+                                          {file ? (
+                                            <button type="button" disabled={saving} onClick={() => void deleteAuctionFile(file)}>
+                                              Delete {label}
+                                            </button>
+                                          ) : kind === 'catalogue' && section.auctionFiles.some(entry => entry.kind === 'catalogue') ? (
+                                            <select
+                                              aria-label={`Choose existing catalogue for ${item.label}`}
+                                              value=""
+                                              disabled={saving}
+                                              onChange={event => {
+                                                if (event.target.value) void changeAuctionFile(item.id, {
+                                                  method: 'PUT',
+                                                  headers: { 'Content-Type': 'application/json' },
+                                                  body: JSON.stringify({ fileId: event.target.value }),
+                                                });
+                                              }}
+                                            >
+                                              <option value="">Select an existing catalogue</option>
+                                              {section.auctionFiles.filter(entry => entry.kind === 'catalogue').map(entry => (
+                                                <option key={entry.id} value={entry.id}>{entry.file_name}</option>
+                                              ))}
+                                            </select>
+                                          ) : null}
+                                        </>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
                           </>
                         ) : editState ? (
                           <div style={{ width: '100%' }}>
