@@ -87,6 +87,21 @@ describe('active proposal list layout', () => {
     expect(cells[1]).toContain('Private Client')
     expect(cells[3]).not.toContain('Private Client')
   })
+
+  it('displays auction date-only values without shifting the calendar day', () => {
+    const previousTimezone = process.env.TZ
+    process.env.TZ = 'America/Los_Angeles'
+    try {
+      const { cells } = render({
+        mode: 'auction',
+        artworks: [{ ...artwork, sale_date: '2026-11-17' }],
+      })
+      expect(cells[1]).toContain('17/11/26')
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ
+      else process.env.TZ = previousTimezone
+    }
+  })
 })
 
 describe('proposal location label', () => {

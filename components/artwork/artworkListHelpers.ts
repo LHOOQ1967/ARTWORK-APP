@@ -114,7 +114,13 @@ export function formatDateFr2(value: string | null | undefined): string {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value)
+  return date.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    ...(dateOnly ? { timeZone: 'UTC' } : {}),
+  })
 }
 
 export function getProposedByText(artwork: ArtworkListItem): string {
