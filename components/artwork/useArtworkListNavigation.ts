@@ -12,10 +12,14 @@ export type ArtworkTableState = {
 export const DEFAULT_ARTWORK_TABLE_STATE: ArtworkTableState = {
   sortKey: null, sortDirection: 'asc', showAll: false,
 }
+export const ARTWORK_PROPOSAL_SORT_KEYS = ['status', 'priority'] as const
+export const ARTWORK_PROPOSAL_SORT_PRECEDENCE = ['priority', 'status'] as const
+export type ArtworkProposalSort = typeof ARTWORK_PROPOSAL_SORT_KEYS[number]
 
 type Filters = {
   artistId: string
   marketType: string
+  proposalSort: string
   search: string
   fromDate: string
 }
@@ -26,17 +30,24 @@ const sortKeys: ArtworkSortKey[] = [
   'sold_premium', 'cost', 'priority', 'quality', 'status',
 ]
 const filterDefaults: Filters = {
-  artistId: 'all', marketType: 'all', search: '', fromDate: '',
+  artistId: 'all', marketType: 'all', proposalSort: '', search: '', fromDate: '',
 }
 function isSortKey(value: unknown): value is ArtworkSortKey | null {
   return value === null || sortKeys.some(key => key === value)
 }
 
-function readNavigation(scope: string, query?: string): NavigationState {
+function readNavigation(scope: string, query?: string, defaultProposalSort = ''): NavigationState {
   const filters = { ...filterDefaults }
   const params = new URLSearchParams(query ?? (typeof window === 'undefined' ? '' : window.location.search))
   for (const key of Object.keys(filters) as (keyof Filters)[]) {
-    filters[key] = params.get(key) ?? filters[key]
+    filters[key] = key === 'proposalSort'
+      ? params.get(key) ?? defaultProposalSort
+      : params.get(key) ?? filters[key]
+  }
+  if (filters.proposalSort && filters.proposalSort !== 'none') {
+    const selectedSorts = new Set(filters.proposalSort.split(','))
+    filters.proposalSort = ARTWORK_PROPOSAL_SORT_PRECEDENCE
+      .filter(key => selectedSorts.has(key)).join(',') || 'none'
   }
   if (typeof window === 'undefined') return { filters, tables: {}, scrollY: 0 }
   const saved = window.history.state?.[historyKey]
@@ -57,12 +68,20 @@ function readNavigation(scope: string, query?: string): NavigationState {
       }
     }
   }
+  if (filters.proposalSort) {
+    for (const table of Object.values(tables)) {
+      table.sortKey = null
+      table.sortDirection = 'asc'
+    }
+  }
   return { filters, tables, scrollY: saved?.scope === scope &&
     Number.isFinite(saved.scrollY) && saved.scrollY >= 0 ? saved.scrollY : 0 }
 }
 
-export function useArtworkListNavigation(scope: string, ready: boolean, query?: string) {
-  const [state, setState] = useState(() => readNavigation(scope, query))
+export function useArtworkListNavigation(
+  scope: string, ready: boolean, query?: string, defaultProposalSort = '',
+) {
+  const [state, setState] = useState(() => readNavigation(scope, query, defaultProposalSort))
   const current = useRef(state)
   const restored = useRef(false)
   const entryUrl = useRef(typeof window === 'undefined' ? '' : window.location.href)
@@ -73,20 +92,21 @@ export function useArtworkListNavigation(scope: string, ready: boolean, query?: 
 
   useEffect(() => {
     if (query === undefined) return
-    const next = readNavigation(scope, query)
+    const next = readNavigation(scope, query, defaultProposalSort)
     if (JSON.stringify(next.filters) === JSON.stringify(current.current.filters)) return
     current.current = next
     entryUrl.current = window.location.href
     restored.current = false
     setState(next)
-  }, [query, scope])
+  }, [query, scope, defaultProposalSort])
 
   function persist(next: NavigationState, updateUrl = false) {
     if (entryUrl.current && window.location.href !== entryUrl.current) return
     const url = new URL(window.location.href)
     if (updateUrl) {
       for (const key of Object.keys(filterDefaults) as (keyof Filters)[]) {
-        if (next.filters[key] === filterDefaults[key]) url.searchParams.delete(key)
+        const defaultValue = key === 'proposalSort' ? defaultProposalSort : filterDefaults[key]
+        if (next.filters[key] === defaultValue) url.searchParams.delete(key)
         else url.searchParams.set(key, next.filters[key])
       }
       url.searchParams.delete('proposedTo')
@@ -101,7 +121,8 @@ export function useArtworkListNavigation(scope: string, ready: boolean, query?: 
 
   function updateFilters(change: Partial<Filters>) {
     const tables = Object.fromEntries(Object.entries(current.current.tables).map(([id, table]) =>
-      [id, { ...table, loadedCount: 20 }]))
+      [id, { ...table, ...(change.proposalSort
+        ? { sortKey: null, sortDirection: 'asc' as const } : {}), loadedCount: 20 }]))
     const next = { ...current.current, filters: { ...current.current.filters, ...change }, tables, scrollY: 0 }
     current.current = next
     persist(next, true)

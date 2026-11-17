@@ -329,9 +329,7 @@ const isAuction = !!artwork.auctions
 
 const displayDateText = (() => {
   if (isAuction) {
-    const datePart = artwork.sale_date
-      ? new Date(artwork.sale_date).toLocaleDateString('fr-CH')
-      : '—'
+    const datePart = formatLocalSaleDateTime(artwork.sale_date ?? null)
 
     // sale_time peut être "14:30", "14:30:00", etc.
     const timePart =

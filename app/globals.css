@@ -396,6 +396,10 @@ button:focus-visible {
   font-size: 14px;
 }
 
+.artwork-index-order-checkbox {
+  font-size: 14px;
+}
+
 .artwork-index-market-filter label {
   display: inline-flex;
   align-items: center;

@@ -179,6 +179,31 @@ const compareStrings = (left: string, right: string, direction: SortDirection) =
   return direction === 'asc' ? result : -result
 }
 
+function compareArtworkDates(
+  left: ArtworkListItem, right: ArtworkListItem, mode: ArtworkListMode, direction: SortDirection,
+) {
+  if (mode !== 'auction') {
+    return compareNumbers(getDateSortMs(left, mode), getDateSortMs(right, mode), direction)
+  }
+  const dateResult = compareNumbers(safeDateMs(left.sale_date), safeDateMs(right.sale_date), direction)
+  if (dateResult !== 0) return dateResult
+  const leftTime = left.sale_time?.trim()
+  const rightTime = right.sale_time?.trim()
+  if (!leftTime || !rightTime) {
+    if (leftTime) return -1
+    if (rightTime) return 1
+    const leftLot = left.lot?.trim()
+    const rightLot = right.lot?.trim()
+    if (!leftLot || !rightLot) {
+      if (leftLot) return -1
+      if (rightLot) return 1
+      return 0
+    }
+    return leftLot.localeCompare(rightLot, 'fr-CH', { numeric: true, sensitivity: 'base' })
+  }
+  return compareNumbers(getDateSortMs(left, mode), getDateSortMs(right, mode), direction)
+}
+
 export function sortArtworkItems(
   artworks: ArtworkListItem[],
   mode: ArtworkListMode,
@@ -203,8 +228,10 @@ export function sortArtworkItems(
         rightValue = right.title ?? ''
         break
       case 'date':
-        leftValue = getDateSortMs(left, mode)
-        rightValue = getDateSortMs(right, mode)
+        {
+          const dateResult = compareArtworkDates(left, right, mode, effectiveDirection)
+          if (dateResult !== 0) return dateResult
+        }
         break
       case 'proposed_to':
         leftValue = getProposedToText(left)
@@ -251,7 +278,7 @@ export function sortArtworkItems(
     if (result !== 0) return result
 
     if (effectiveKey !== 'date') {
-      const dateResult = compareNumbers(getDateSortMs(left, mode), getDateSortMs(right, mode), defaultSort.dir)
+      const dateResult = compareArtworkDates(left, right, mode, defaultSort.dir)
       if (dateResult !== 0) return dateResult
     }
 

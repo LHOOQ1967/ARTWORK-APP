@@ -45,7 +45,7 @@ function CategoryFactsheets({ query }: { query: string }) {
           throw new Error('Invalid category sorting.')
         }
         const filters = Object.fromEntries([...params.entries()].filter(([key]) =>
-          ['status', 'artistId', 'search', 'fromDate', 'marketType', 'proposedTo'].includes(key)))
+          ['status', 'artistId', 'search', 'fromDate', 'marketType', 'proposedTo', 'proposalSort'].includes(key)))
         if (selectedClientId) filters.client = selectedClientId
         const result = await supabase.rpc('artwork_category_ids', {
           p_category: category, p_filters: filters, p_tables: tables,

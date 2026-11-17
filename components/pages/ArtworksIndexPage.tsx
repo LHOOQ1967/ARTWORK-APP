@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import ArtworkList from '@/components/artwork/ArtworkList'
 import {
-  DEFAULT_ARTWORK_TABLE_STATE, useArtworkListNavigation, type ArtworkTableState,
+  ARTWORK_PROPOSAL_SORT_KEYS, ARTWORK_PROPOSAL_SORT_PRECEDENCE,
+  DEFAULT_ARTWORK_TABLE_STATE, useArtworkListNavigation, type ArtworkProposalSort, type ArtworkTableState,
 } from '@/components/artwork/useArtworkListNavigation'
 import { usePaginatedArtworks } from '@/components/artwork/usePaginatedArtworks'
 import { artworkPageFilters } from '@/lib/paginatedArtworkLists'
@@ -39,6 +40,28 @@ function groupLabel(id: string) {
   return `${market === 'auction' ? 'Auctions' : 'Private market'} — ${priority}${kind === 'drafts' ? ' Not viewed yet' : ''}`
 }
 
+function activeGroupLabel(
+  id: string,
+  artwork: { priority?: string | null; status?: string | null } | undefined,
+  selectedSorts: ReadonlySet<ArtworkProposalSort>,
+) {
+  const labels = [id.startsWith('auction') ? 'Auctions' : 'Private market']
+  if (selectedSorts.has('priority')) {
+    const priority = artwork?.priority?.trim().toLowerCase() ?? ''
+    const priorityLabels: Record<string, string> = {
+      high: 'High', medium: 'Medium', low: 'Low', information: 'Information',
+    }
+    labels.push(priorityLabels[priority] ?? 'Other')
+  }
+  if (selectedSorts.has('status')) labels.push(artwork?.status?.trim() || 'Unknown')
+  return labels.join(' — ')
+}
+
+function priorityGroupRank(priority?: string | null) {
+  const order: Record<string, number> = { high: 0, medium: 1, low: 2, information: 3 }
+  return order[priority?.trim().toLowerCase() ?? ''] ?? 4
+}
+
 const groupOrder = [
   ...['market', 'auction'].flatMap(market =>
     ['High', 'Medium', 'Low', 'Information', 'Other'].flatMap(priority =>
@@ -53,9 +76,14 @@ function ArtworksIndexContent({
   const { selectedClientId } = useClientFilter()
   const query = useSearchParams().toString()
   const [ready, setReady] = useState(false)
-  const navigation = useArtworkListNavigation(navigationScope, ready, query)
+  const defaultProposalSort = forcedStatus === 'Active'
+    ? ARTWORK_PROPOSAL_SORT_PRECEDENCE.join(',') : ''
+  const navigation = useArtworkListNavigation(navigationScope, ready, query, defaultProposalSort)
   const { filters, tables } = navigation
-  const requestFilters = artworkPageFilters(filters, forcedStatus, selectedClientId, fixedProposedToId)
+  const requestFilters = artworkPageFilters(
+    filters.proposalSort === 'none' ? { ...filters, proposalSort: '' } : filters,
+    forcedStatus, selectedClientId, fixedProposedToId,
+  )
   const { data, loading, refreshing, error, refresh } = usePaginatedArtworks(navigationScope, requestFilters, tables)
   const isReady = !loading && !refreshing && !error
   useEffect(() => { setReady(isReady) }, [isReady])
@@ -70,6 +98,15 @@ function ArtworksIndexContent({
 
   function updateMarketType(market: boolean, auctions: boolean) {
     navigation.updateFilters({ marketType: market ? auctions ? 'all' : 'market' : auctions ? 'auction' : 'none' })
+  }
+
+  function updateProposalSort(sort: ArtworkProposalSort, checked: boolean) {
+    const selected = new Set((filters.proposalSort === 'none' ? '' : filters.proposalSort).split(',').filter(Boolean))
+    if (checked) selected.add(sort)
+    else selected.delete(sort)
+    navigation.updateFilters({
+      proposalSort: ARTWORK_PROPOSAL_SORT_PRECEDENCE.filter(key => selected.has(key)).join(',') || 'none',
+    })
   }
 
   async function updateArtwork(id: string, field: 'status' | 'quality' | 'priority', value: string | number | null) {
@@ -109,8 +146,29 @@ function ArtworksIndexContent({
     </div>
   </main>
 
-  const groups = [...(data?.groups ?? [])].sort((a, b) => groupOrder.indexOf(a.id) - groupOrder.indexOf(b.id))
-  const sectionTotals = (prefix: string) => groups.filter(group => group.id.startsWith(prefix))
+  const orderByMarketType = forcedStatus === 'Active'
+  const selectedProposalSorts = new Set(
+    ARTWORK_PROPOSAL_SORT_KEYS.filter(sort => filters.proposalSort.split(',').includes(sort)),
+  )
+  const groups = [...(data?.groups ?? [])].sort((a, b) => {
+    if (!orderByMarketType) return groupOrder.indexOf(a.id) - groupOrder.indexOf(b.id)
+    const sectionRank = (id: string) => id === 'market' || id.startsWith('market-') ? 0
+      : id === 'auction' || id.startsWith('auction-') ? 1 : 2
+    const sectionDifference = sectionRank(a.id) - sectionRank(b.id)
+    if (sectionDifference !== 0) return sectionDifference
+    if (selectedProposalSorts.has('priority')) {
+      const priorityDifference = priorityGroupRank(a.rows[0]?.priority) - priorityGroupRank(b.rows[0]?.priority)
+      if (priorityDifference !== 0) return priorityDifference
+    }
+    if (selectedProposalSorts.has('status')) {
+      const statusDifference = (a.rows[0]?.status ?? '').localeCompare(
+        b.rows[0]?.status ?? '', 'fr-CH', { sensitivity: 'base' })
+      if (statusDifference !== 0) return statusDifference
+    }
+    return a.id.localeCompare(b.id)
+  })
+  const sectionTotals = (section: string) => groups.filter(group =>
+    group.id === section || group.id.startsWith(`${section}-`))
     .reduce((total, group) => total + group.total, 0)
   const categoryCount = (category: string, total: number) => (
     <Link className="artwork-index-category-count"
@@ -154,6 +212,13 @@ function ArtworksIndexContent({
                     onChange={event => updateMarketType(includesMarket, event.target.checked)} />
                   Auctions
                 </label>
+                {orderByMarketType && ARTWORK_PROPOSAL_SORT_KEYS.map(sort => (
+                  <label key={sort} className="artwork-index-order-checkbox">
+                    <input type="checkbox" checked={selectedProposalSorts.has(sort)}
+                      onChange={event => updateProposalSort(sort, event.target.checked)} />
+                    {sort === 'status' ? 'Sort by status' : 'Sort by priority'}
+                  </label>
+                ))}
               </div>
             </fieldset>
           )}
@@ -177,26 +242,33 @@ function ArtworksIndexContent({
         <div className="artwork-index-filter-actions">
           <button type="button" className="artwork-index-reset-button" onClick={() =>
             navigation.updateFilters({ artistId: 'all',
-              marketType: 'all', search: '', fromDate: '' })
+              marketType: 'all', proposalSort: defaultProposalSort, search: '', fromDate: '' })
           }>Reset filters</button>
         </div>
       </section>
       {inlineError && <p role="alert">{inlineError}</p>}
       {inlineSuccess && <div className="ux-inline-success" role="status">{inlineSuccess}</div>}
       {groups.map((group, index) => {
-        const section = group.id.startsWith('market-') ? 'market' : group.id.startsWith('auction-') ? 'auction'
+        const section = group.id === 'market' || group.id.startsWith('market-') ? 'market'
+          : group.id === 'auction' || group.id.startsWith('auction-') ? 'auction'
           : group.id === 'bought' ? 'bought' : 'archived'
         const previousId = groups[index - 1]?.id
-        const sectionStart = index === 0 || !previousId?.startsWith(section === 'archived' ? 'archived-' : `${section}-`)
+        const previousSection = previousId === 'market' || previousId?.startsWith('market-') ? 'market'
+          : previousId === 'auction' || previousId?.startsWith('auction-') ? 'auction'
+          : previousId === 'bought' ? 'bought' : 'archived'
+        const sectionStart = index === 0 || section !== previousSection
         const table = tables[group.id] ?? DEFAULT_ARTWORK_TABLE_STATE
+        const showSubgroup = !orderByMarketType || selectedProposalSorts.size > 0
+        const subgroupLabel = orderByMarketType
+          ? activeGroupLabel(group.id, group.rows[0], selectedProposalSorts) : groupLabel(group.id)
         return <section key={group.id} style={{ marginTop: 16 }}>
           {sectionStart && <div style={sectionHeaderStyle}><h2 style={{ fontSize: '1.6rem', fontWeight: 500, margin: 0 }}>
             {section === 'market' ? 'Private market' : section === 'auction' ? 'Auctions'
               : section === 'bought' ? 'Bought' : 'Archived'}{' '}
-            {categoryCount(section, section === 'bought' ? group.total : sectionTotals(`${section}-`))}
+            {categoryCount(section, section === 'bought' ? group.total : sectionTotals(section))}
           </h2></div>}
-          {group.id !== 'bought' && <h3 style={{ fontSize: '1.1rem', fontWeight: 400, marginBottom: 6 }}>
-            {groupLabel(group.id)} {categoryCount(group.id, group.total)}
+          {group.id !== 'bought' && showSubgroup && <h3 style={{ fontSize: '1.1rem', fontWeight: 400, marginBottom: 6 }}>
+            {subgroupLabel} {orderByMarketType ? `(${group.total})` : categoryCount(group.id, group.total)}
           </h3>}
           <ArtworkList artworks={group.rows} mode={section === 'bought' ? 'bought' : group.id.includes('auction') ? 'auction' : 'market'}
             section={section === 'archived' ? 'archived' : 'active'} tableState={table}

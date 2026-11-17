@@ -35,19 +35,30 @@ describe('home dashboard layout', () => {
       '/referentials', '/admin/users', '/market', '/library']) {
       expect(home.querySelector(`a[href="${path}"]`)).not.toBeNull()
     }
-    for (const path of ['calculate.php', 'auction_time.php']) {
+    const commissionCalculator = home.querySelector('a[href="https://buyerspremium.blondeau.ch/blondeau.php"]')
+    expect(commissionCalculator?.textContent).toContain('Blondeau Commission Calculator')
+    expect(commissionCalculator?.getAttribute('target')).toBe('_blank')
+    expect(commissionCalculator?.getAttribute('rel')).toBe('noopener noreferrer')
+
+    for (const path of ['auction_time.php']) {
       const link = home.querySelector(`a[href="https://buyerspremium.blondeau.ch/${path}"]`)
       expect(link?.getAttribute('target')).toBe('_blank')
       expect(link?.getAttribute('rel')).toBe('noopener noreferrer')
     }
   })
 
-  it('preserves the Viewer layout and does not expose Management links', () => {
+  it.each([false, true])('includes Updates under Management (viewer: %s)', viewer => {
+    const home = dashboard(viewer)
+    const section = [...home.querySelectorAll('section')].find(item => item.querySelector('h2')?.textContent === 'Management')
+    expect(section?.querySelector('a[href="/updates"]')?.textContent).toContain('Updates')
+  })
+
+  it('preserves the Viewer destinations without exposing staff Management links', () => {
     const home = dashboard(true)
-    expect(Array.from(home.querySelectorAll('h2')).map(heading => heading.textContent)).toEqual(['Proposals', 'Collection', 'Tools'])
+    expect(Array.from(home.querySelectorAll('h2')).map(heading => heading.textContent)).toEqual(['Proposals', 'Collection', 'Management', 'Tools'])
     const shell = home.querySelector(`.${styles.shell}`)!
     expect(shell.children[1].querySelector(`.${styles.collectionGrid}`)?.querySelectorAll('a')).toHaveLength(8)
-    expect(shell.children[2].querySelectorAll(`.${styles.linkList}`)).toHaveLength(1)
+    expect(shell.children[2].querySelectorAll(`.${styles.linkList}`)).toHaveLength(2)
     expect(home.querySelector('a[href="/admin/users"]')).toBeNull()
     expect(home.querySelector('a[href="/artworks/new"]')).toBeNull()
   })

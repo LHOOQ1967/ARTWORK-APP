@@ -72,6 +72,7 @@ function resolvePageSection(pathname: string) {
     pathname.startsWith('/related-names') ||
     pathname.startsWith('/types') ||
     pathname.startsWith('/artist-categories') ||
+    pathname.startsWith('/updates') ||
     pathname.startsWith('/admin')
   ) {
     return 'management'

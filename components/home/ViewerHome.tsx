@@ -65,6 +65,12 @@ export default function ViewerHome() {
         </section>
 
         <div className={styles.sectionGrid}>
+          <section className={`${styles.section} ${styles.managementSection}`}>
+            <SectionHeading title="Management" description="Application news" />
+            <div className={styles.linkList}>
+              <DashboardCard item={{ href: '/updates', title: 'Updates', subtitle: 'Latest application improvements' }} compact />
+            </div>
+          </section>
           <section className={`${styles.section} ${styles.toolsSection}`}>
             <SectionHeading title="Tools" description="Market and auction utilities" />
             <div className={styles.linkList}>

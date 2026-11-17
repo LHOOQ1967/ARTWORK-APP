@@ -30,6 +30,7 @@ const collection: DashboardLink[] = [
 ]
 
 const management: DashboardLink[] = [
+  { href: '/updates', title: 'Updates', subtitle: 'Latest application improvements' },
   { href: '/artworks/import-label', title: 'Import', subtitle: 'Import artwork labels' },
   { href: '/artworks/new', title: 'Add proposal', subtitle: 'Create a new artwork' },
   { href: '/buyer-searches', title: 'Buyer searches', subtitle: 'Track collector requests' },
@@ -41,8 +42,8 @@ const tools: DashboardLink[] = [
   { href: '/market', title: 'Market', subtitle: 'Fairs and auctions' },
   { href: '/library', title: 'Library', subtitle: 'Blondeau & Cie' },
   {
-    href: 'https://buyerspremium.blondeau.ch/calculate.php',
-    title: 'Buyers premium',
+    href: 'https://buyerspremium.blondeau.ch/blondeau.php',
+    title: 'Blondeau Commission Calculator',
     subtitle: 'Open calculator',
     external: true,
   },

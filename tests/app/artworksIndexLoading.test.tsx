@@ -31,9 +31,14 @@ const rows = Array.from({ length: 45 }, (_, index) => ({
   artist: { id: 'artist', first_name: 'Jane', last_name: 'Painter' },
 }))
 
-function response(offset = 0) {
+function response(offset = 0, active = false, proposalSort = '') {
+  const selectedSorts = new Set(proposalSort.split(','))
+  const activeGroupId = `market${selectedSorts.has('priority') ? '-priority-high' : ''}${
+    selectedSorts.has('status') ? '-status-viewed' : ''}`
   return {
-    total: 45, groups: [{ id: 'market-High-others', total: 45, rows: rows.slice(offset, offset + 20) }],
+    total: 45, groups: [{
+      id: active ? activeGroupId : 'market-High-others', total: 45, rows: rows.slice(offset, offset + 20),
+    }],
     artists: [{ id: 'artist', label: 'Painter' }], proposers: [], recipients: [], statuses: ['Viewed'],
   }
 }
@@ -63,7 +68,9 @@ describe('server-paginated artwork index', () => {
     mocks.role = 'Editor'
     mocks.userId = 'editor'
     mocks.clientId = null
-    mocks.rpc.mockImplementation(async (_name, args) => ({ data: response(args.p_offset), error: null }))
+    mocks.rpc.mockImplementation(async (_name, args) => ({
+      data: response(args.p_offset, args.p_filters.status === 'Active', args.p_filters.proposalSort), error: null,
+    }))
     container = document.createElement('div')
     document.body.append(container)
     root = createRoot(container)
@@ -88,7 +95,7 @@ describe('server-paginated artwork index', () => {
     await render({ forcedStatus: 'Active' })
     expect(mocks.rpc).toHaveBeenCalledTimes(1)
     expect(mocks.rpc).toHaveBeenCalledWith('artwork_list_page', expect.objectContaining({
-      p_filters: { status: 'Active' }, p_offset: 0, p_group: null,
+      p_filters: { status: 'Active', proposalSort: 'priority,status' }, p_offset: 0, p_group: null,
     }))
     expect(container.querySelectorAll('tbody tr')).toHaveLength(20)
     expect(container.textContent).toContain('45 proposals')
@@ -114,14 +121,11 @@ describe('server-paginated artwork index', () => {
     expect(container.querySelector('[aria-label="Proposed by"]')).toBeNull()
   })
 
-  it('links section and group counts to their complete category factsheets', async () => {
+  it('shows the active proposal subgroup headings and section count', async () => {
     await render({ forcedStatus: 'Active' })
     const section = container.querySelector<HTMLAnchorElement>('h2 a')!
-    const group = container.querySelector<HTMLAnchorElement>('h3 a')!
     expect(new URL(section.href).searchParams.get('category')).toBe('market')
-    expect(new URL(group.href).searchParams.get('category')).toBe('market-High-others')
-    expect(new URL(group.href).searchParams.get('status')).toBe('Active')
-    expect(group.textContent).toBe('(45)')
+    expect(container.querySelector('h3')?.textContent).toBe('Private market — High — Viewed (45)')
   })
   it('loads only the next 20 rows of the selected group and then the final five', async () => {
     await render()
@@ -181,6 +185,71 @@ describe('server-paginated artwork index', () => {
     expect(container.querySelector<HTMLInputElement>('.artwork-index-market-filter input[type="checkbox"]')!.checked).toBe(false)
   })
 
+  it('restores active proposal subgroups and applies cumulative status/priority sorts', async () => {
+    await render({ forcedStatus: 'Active' })
+    expect(container.querySelector('h3')?.textContent).toBe('Private market — High — Viewed (45)')
+    const [statusCheckbox, priorityCheckbox] = container.querySelectorAll<HTMLInputElement>(
+      '.artwork-index-order-checkbox input')
+    expect([statusCheckbox, priorityCheckbox]).toHaveLength(2)
+    expect(statusCheckbox.checked).toBe(true)
+    expect(priorityCheckbox.checked).toBe(true)
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Active', proposalSort: 'priority,status' },
+      p_tables: {},
+    }))
+
+    await act(async () => container.querySelector<HTMLElement>('[title="Sort by title"]')!.click())
+    await settle()
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_tables: { 'market-priority-high-status-viewed': { sortKey: 'title', sortDirection: 'asc' } },
+    }))
+    const factsheets = new URL(container.querySelector<HTMLAnchorElement>('h2 a')!.href)
+    expect(factsheets.searchParams.get('proposalSort')).toBe('priority,status')
+    expect(JSON.parse(factsheets.searchParams.get('tables')!)).toEqual({
+      'market-priority-high-status-viewed': { sortKey: 'title', sortDirection: 'asc', showAll: false, loadedCount: 20 },
+    })
+
+    await act(async () => priorityCheckbox.click())
+    await settle()
+    expect(statusCheckbox.checked).toBe(true)
+    expect(priorityCheckbox.checked).toBe(false)
+    expect(container.querySelector('h3')?.textContent).toBe('Private market — Viewed (45)')
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Active', proposalSort: 'status' },
+      p_tables: {},
+    }))
+    expect(new URL(window.location.href).searchParams.get('proposalSort')).toBe('status')
+
+    await act(async () => priorityCheckbox.click())
+    await settle()
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Active', proposalSort: 'priority,status' },
+      p_tables: {},
+    }))
+    expect(new URL(window.location.href).searchParams.has('proposalSort')).toBe(false)
+
+    await act(async () => statusCheckbox.click())
+    await settle()
+    expect(container.querySelector('h3')?.textContent).toBe('Private market — High (45)')
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Active', proposalSort: 'priority' },
+      p_tables: {},
+    }))
+
+    await act(async () => priorityCheckbox.click())
+    await settle()
+    expect(statusCheckbox.checked).toBe(false)
+    expect(priorityCheckbox.checked).toBe(false)
+    expect(container.querySelector('h3')).toBeNull()
+    expect(new URL(window.location.href).searchParams.get('proposalSort')).toBe('none')
+    expect(new URL(container.querySelector<HTMLAnchorElement>('h2 a')!.href)
+      .searchParams.has('proposalSort')).toBe(false)
+    expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
+      p_filters: { status: 'Active' },
+      p_tables: {},
+    }))
+  })
+
   it('can uncheck both market types to show no artworks', async () => {
     await render()
     const marketCheckbox = container.querySelector<HTMLInputElement>('.artwork-index-market-filter input[type="checkbox"]')!
@@ -222,7 +291,10 @@ describe('server-paginated artwork index', () => {
     window.history.replaceState(null, '', '/artworks/active?marketType=auction&artistId=artist&search=bronze&fromDate=2026-01-01')
     await render({ forcedStatus: 'Active' })
     expect(mocks.rpc).toHaveBeenLastCalledWith('artwork_list_page', expect.objectContaining({
-      p_filters: { status: 'Active', marketType: 'auction', artistId: 'artist', search: 'bronze', fromDate: '2026-01-01' },
+      p_filters: {
+        status: 'Active', marketType: 'auction', artistId: 'artist', search: 'bronze',
+        fromDate: '2026-01-01', proposalSort: 'priority,status',
+      },
     }))
     expect(container.querySelector<HTMLInputElement>('#artwork-search')!.value).toBe('bronze')
     expect(container.querySelector<HTMLInputElement>('#artwork-from-date')!.value).toBe('2026-01-01')

@@ -217,4 +217,213 @@ BEGIN
   END IF;
 END;
 $$;
+UPDATE public.artworks SET auctions = true, sale_date = '2025-12-31', sale_time = '13:00'
+WHERE id = (SELECT id FROM page_test_works WHERE n = 3);
+UPDATE public.artworks SET auctions = true, sale_date = '2026-01-01', sale_time = '11:30'
+WHERE id = (SELECT id FROM page_test_works WHERE n = 4);
+UPDATE public.artworks SET auctions = true, sale_date = '2026-01-01', sale_time = '10:00'
+WHERE id = (SELECT id FROM page_test_works WHERE n = 5);
+DO $$
+DECLARE
+  filters jsonb := jsonb_build_object(
+    'artistId', (SELECT id FROM page_test_ids WHERE name = 'artist'),
+    'status', 'Active',
+    'proposalSort', 'priority,status'
+  );
+  result jsonb;
+BEGIN
+  result := public.artwork_list_page(filters);
+  IF jsonb_array_length(result->'groups') <> 3
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'market-priority-high-status-viewed')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-high-status-viewed')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-low-status-draft') THEN
+    RAISE EXCEPTION 'Default active proposal sort must create market, priority, and status tables';
+  END IF;
+  result := public.artwork_list_page(filters - 'proposalSort');
+  IF jsonb_array_length(result->'groups') <> 2
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'market')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'auction') THEN
+    RAISE EXCEPTION 'Active proposals without subgroup sorting must remain grouped only by market type';
+  END IF;
+  result := public.artwork_list_page(filters || '{"proposalSort":"priority"}');
+  IF jsonb_array_length(result->'groups') <> 3
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'market-priority-high')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'auction-priority-high')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'auction-priority-low') THEN
+    RAISE EXCEPTION 'Priority sorting must create distinct priority tables';
+  END IF;
+  result := public.artwork_list_page(filters || '{"proposalSort":"status"}');
+  IF jsonb_array_length(result->'groups') <> 3
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'market-status-viewed')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'auction-status-viewed')
+    OR NOT EXISTS (SELECT 1 FROM jsonb_array_elements(result->'groups') g WHERE g->>'id' = 'auction-status-draft') THEN
+    RAISE EXCEPTION 'Status sorting must create distinct status tables';
+  END IF;
+  result := public.artwork_list_page(filters);
+  IF (SELECT g->>'total' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'market-priority-high-status-viewed') <> '40'
+    OR (SELECT g->>'total' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-high-status-viewed') <> '2'
+    OR (SELECT g->>'total' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-low-status-draft') <> '1' THEN
+    RAISE EXCEPTION 'Priority/status grouping changed active proposal totals';
+  END IF;
+  IF (SELECT g#>>'{rows,0,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'market-priority-high-status-viewed')
+      <> 'Pagination fixture 045' THEN
+    RAISE EXCEPTION 'Private market proposals must be ordered by proposal date';
+  END IF;
+  IF (SELECT g#>>'{rows,0,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-high-status-viewed')
+      <> 'Pagination fixture 005'
+    OR (SELECT g#>>'{rows,1,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-high-status-viewed')
+      <> 'Pagination fixture 004'
+    OR (SELECT g#>>'{rows,0,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-low-status-draft')
+      <> 'Pagination fixture 003' THEN
+    RAISE EXCEPTION 'Date/time ordering must be preserved within priority/status tables';
+  END IF;
+END;
+$$;
+UPDATE public.artworks SET status = 'Draft', priority = 'High', date_proposition = '2025-01-01'
+WHERE id = (SELECT id FROM page_test_works WHERE n = 43);
+UPDATE public.artworks SET status = 'Viewed', priority = 'High', date_proposition = '2026-02-14'
+WHERE id = (SELECT id FROM page_test_works WHERE n = 44);
+UPDATE public.artworks SET status = 'Draft', priority = 'Low', date_proposition = '2026-02-15'
+WHERE id = (SELECT id FROM page_test_works WHERE n = 45);
+DO $$
+DECLARE
+  filters jsonb := jsonb_build_object(
+    'artistId', (SELECT id FROM page_test_ids WHERE name = 'artist'),
+    'status', 'Active',
+    'proposalSort', 'priority,status'
+  );
+  result jsonb;
+BEGIN
+  result := public.artwork_list_page(filters);
+  IF (SELECT g#>>'{rows,0,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'market-priority-high-status-draft')
+      <> 'Pagination fixture 043'
+    OR (SELECT g#>>'{rows,0,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'market-priority-high-status-viewed')
+      <> 'Pagination fixture 044' THEN
+    RAISE EXCEPTION 'Priority/status tables must be grouped by both selected criteria';
+  END IF;
+  IF (SELECT g#>>'{rows,0,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-high-status-viewed')
+      <> 'Pagination fixture 005'
+    OR (SELECT g#>>'{rows,1,title}' FROM jsonb_array_elements(result->'groups') g
+      WHERE g->>'id' = 'auction-priority-high-status-viewed')
+      <> 'Pagination fixture 004' THEN
+    RAISE EXCEPTION 'Sale date and time ordering must be preserved within auction tables';
+  END IF;
+END;
+$$;
+UPDATE public.artworks a SET auctions = true, status = 'Viewed', priority = 'High',
+  title = 'Auction ordering fixture ' || w.n,
+  sale_date = CASE WHEN w.n = 6 THEN '2026-11-16'::date
+    WHEN w.n = 32 THEN '2026-11-18'::date ELSE '2026-11-17'::date END,
+  sale_time = CASE WHEN w.n IN (7, 32) THEN '00:00'::time
+    WHEN w.n = 8 THEN '23:59'::time ELSE NULL END,
+  lot = CASE WHEN w.n BETWEEN 9 AND 30 THEN (w.n - 8)::text
+    WHEN w.n = 8 THEN '1000' ELSE NULL END
+FROM page_test_works w WHERE a.id = w.id AND w.n BETWEEN 6 AND 32;
+DO $$
+DECLARE
+  filters jsonb := jsonb_build_object(
+    'artistId', (SELECT id FROM page_test_ids WHERE name = 'artist'),
+    'status', 'Active', 'search', 'Auction ordering fixture'
+  );
+  first_page jsonb;
+  second_page jsonb;
+  actual uuid[];
+  expected uuid[];
+BEGIN
+  first_page := public.artwork_list_page(filters);
+  second_page := public.artwork_list_page(filters, '{}', 'auction', 20);
+  SELECT array_agg((r->>'id')::uuid ORDER BY page, position) INTO actual
+  FROM (VALUES (0, first_page), (1, second_page)) pages(page, data),
+    LATERAL jsonb_array_elements(data->'groups') g,
+    LATERAL jsonb_array_elements(g->'rows') WITH ORDINALITY rows(r, position);
+  SELECT array_agg(id ORDER BY n) INTO expected FROM page_test_works WHERE n BETWEEN 6 AND 32;
+  IF actual IS DISTINCT FROM expected THEN
+    RAISE EXCEPTION 'Auction date/time/lot ordering must be global across page boundaries';
+  END IF;
+  IF public.artwork_category_ids('auction', filters) IS DISTINCT FROM expected THEN
+    RAISE EXCEPTION 'Auction factsheets must preserve ascending sale order beyond the first page';
+  END IF;
+  first_page := public.artwork_list_page(filters,
+    '{"auction":{"sortKey":"date","sortDirection":"desc"}}');
+  second_page := public.artwork_list_page(filters,
+    '{"auction":{"sortKey":"date","sortDirection":"desc"}}', 'auction', 20);
+  SELECT array_agg((r->>'id')::uuid ORDER BY page, position) INTO actual
+  FROM (VALUES (0, first_page), (1, second_page)) pages(page, data),
+    LATERAL jsonb_array_elements(data->'groups') g,
+    LATERAL jsonb_array_elements(g->'rows') WITH ORDINALITY rows(r, position);
+  SELECT array_agg(id ORDER BY CASE n WHEN 32 THEN 0 WHEN 8 THEN 1 WHEN 7 THEN 2
+    WHEN 6 THEN 100 ELSE n END) INTO expected
+  FROM page_test_works WHERE n BETWEEN 6 AND 32;
+  IF actual IS DISTINCT FROM expected THEN
+    RAISE EXCEPTION 'Descending auction dates must still put missing times last and sort lots numerically';
+  END IF;
+  IF public.artwork_category_ids('auction', filters,
+    '{"auction":{"sortKey":"date","sortDirection":"desc"}}') IS DISTINCT FROM expected THEN
+    RAISE EXCEPTION 'Auction factsheets must preserve descending sale order beyond the first page';
+  END IF;
+END;
+$$;
+UPDATE public.artworks a SET title = 'Category ordering fixture ' || w.n,
+  auctions = w.n % 2 = 0,
+  status = CASE WHEN w.n % 3 = 0 THEN 'Draft' ELSE 'Viewed' END,
+  priority = CASE WHEN w.n % 4 < 2 THEN 'High' ELSE 'Low' END,
+  sale_date = '2026-11-17', sale_time = CASE WHEN w.n % 3 = 0 THEN NULL ELSE '10:00'::time END,
+  lot = w.n::text
+FROM page_test_works w WHERE a.id = w.id AND w.n BETWEEN 33 AND 42;
+DO $$
+DECLARE
+  filters jsonb := jsonb_build_object(
+    'artistId', (SELECT id FROM page_test_ids WHERE name = 'artist'),
+    'status', 'Active', 'search', 'Category ordering fixture'
+  );
+  mode text;
+  category text;
+  custom_sort boolean;
+  tables jsonb;
+  result jsonb;
+  expected uuid[];
+BEGIN
+  FOREACH mode IN ARRAY ARRAY['priority,status', 'priority', 'status', ''] LOOP
+    filters := filters || jsonb_build_object('proposalSort', mode);
+    FOREACH custom_sort IN ARRAY ARRAY[false, true] LOOP
+      tables := '{}'::jsonb;
+      IF custom_sort THEN
+        result := public.artwork_list_page(filters);
+        SELECT jsonb_object_agg(g->>'id', '{"sortKey":"title","sortDirection":"desc"}'::jsonb)
+          INTO tables FROM jsonb_array_elements(result->'groups') g;
+      END IF;
+      result := public.artwork_list_page(filters, tables);
+      FOREACH category IN ARRAY ARRAY['market', 'auction'] LOOP
+        SELECT array_agg((r->>'id')::uuid ORDER BY
+          CASE WHEN strpos(mode, 'priority') > 0 THEN CASE g#>>'{rows,0,priority}'
+            WHEN 'High' THEN 0 WHEN 'Low' THEN 2 ELSE 4 END END,
+          (CASE WHEN strpos(mode, 'status') > 0 THEN g#>>'{rows,0,status}' END)
+            COLLATE pg_catalog."fr-CH-x-icu",
+          position)
+        INTO expected
+        FROM jsonb_array_elements(result->'groups') g,
+          LATERAL jsonb_array_elements(g->'rows') WITH ORDINALITY rows(r, position)
+        WHERE g->>'id' = category OR starts_with(g->>'id', category || '-');
+        IF public.artwork_category_ids(category, filters, tables) IS DISTINCT FROM expected THEN
+          RAISE EXCEPTION 'Factsheet order differs from Active list: category %, sorting %, custom %',
+            category, mode, custom_sort;
+        END IF;
+      END LOOP;
+    END LOOP;
+  END LOOP;
+END;
+$$;
 ROLLBACK;

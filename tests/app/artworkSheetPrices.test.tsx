@@ -61,6 +61,12 @@ describe('factsheet auction prices', () => {
     const html = render({ sale_date: '2026-11-17', sale_time: '18:30:00' })
     expect(html).toContain('17.11.2026 at 18:30 (local time)')
   })
+  it.each(['10:00:00', null])('keeps the auction header date consistent with the metadata (time: %s)', sale_time => {
+    const html = render({ sale_date: '2026-11-17', sale_time })
+    const header = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/)![1]
+    expect(header).toBe(sale_time ? '17.11.2026 at 10:00' : '17.11.2026')
+    expect(html).toContain(sale_time ? '17.11.2026 at 10:00 (local time)' : '17.11.2026')
+  })
   it('separates left-side badges from right-side actions', () => {
     const html = render({ priority: 'High', quality: 8, status: 'Viewed' })
     const badges = html.match(/aria-label="Artwork priority, rating and status"[^>]*>([\s\S]*?)<\/div>/)?.[1]

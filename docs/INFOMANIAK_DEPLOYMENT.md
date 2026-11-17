@@ -3,26 +3,77 @@
 Validated on 2026-11-08: isolated dependency installation and production build
 through the Manager Builder, followed by a site execution-path switch.
 
-## Latest deployment: 2026-11-11
+## Latest deployment: 2026-11-15 (2026-11-16 UTC)
 
-- Deployed source: `main`, commit `fe88a6b97a9862a7610f8c31e5a16adb4a8143d9`.
-- Active Manager path: `/artmuse-release-20261111-qMKcBX`.
-- Active SSH path: `/srv/customer/artmuse-release-20261111-qMKcBX`.
-- Previous Manager path retained for rollback: `/artmuse-release-mobile-FN1lZ9`.
+- Deployed source: the current `main` worktree, including uncommitted changes
+  and new files, based on `011e4688062c55df74e588d1e42ebbb908ae13f8`.
+  `git archive HEAD` alone does not reproduce this release. Retain the source ZIP.
+- Active Manager path, confirmed by the user:
+  `/artmuse-staging-20261115-kCLsXz`.
+- Active SSH path: `/srv/customer/artmuse-staging-20261115-kCLsXz`.
+- Previous Manager path retained for rollback:
+  `/artmuse-staging-20261114-OelyVn`.
 - Complete previous-release backup:
-  `/srv/customer/artmuse-backup-20261111-yFUE6y/active-release.tar`.
+  `/srv/customer/artmuse-backup-20261115-5V97KV/active-release.tar`.
+  The private off-server copy at
+  `%USERPROFILE%\ArtMuse-private-backups\20261115-b50ef3b3\active-release.tar`
+  matched SHA256
+  `c266f4ab41b19ac253b6306bce93b2d6f9c51fd30a624bea304783c2186c9661`.
+  Archive readability and required environment, dependency and build entries
+  were checked before proceeding.
+- Source archive: `artmuse-worktree-20261115.zip`, containing 473 source files,
+  including the new Updates page and migrations, without environment files or
+  generated dependencies/build output. Local and uploaded ZIP SHA256 matched:
+  `85da05dc5b2e40ad8bf8b657b11d326931204cb6cd36ec987ab9e56ec5ad1100`.
+  The tested local source files still matched the packaging manifest.
+- Builder installation and compilation reported `STAGING_INSTALL_OK` and
+  `STAGING_BUILD_OK`. The user confirmed automatic reinstallation was **No**
+  for both commands, with `exit 1` preventing an active-site restart.
+  Logs are in the private backup directory as `candidate-install.log` and
+  `candidate-build.log`.
+- Candidate startup was verified through an SSH tunnel on port 3001. Its login
+  and application page shells returned HTTP 200; `/api/me` reported
+  `loggedIn: false` without credentials, as implemented.
+  The user validated grouping, factsheet order, auction dates and images.
+- An Administrator reviewed and saved Updates before switching; persistence was
+  independently verified at `2026-11-16 03:06:14.046756+00`.
+  The user confirmed a non-administrator could read it without edit controls.
+- Runtime retained: Node 20, `node server.js`, port 3000. The user confirmed
+  restoring the build command to `true`, explicitly approved the switch, then
+  confirmed saving the new path and restarting once.
+- Production HTTPS login returned HTTP 200. The live Updates bundle
+  `page-9440d55eb4b9d1fd.js` matched the candidate's SHA256:
+  `f92d8bc102a24e42fb065c5cc02447b9c32b46fbb1b496068725a34d332d7d51`.
+  The user confirmed production sign-in, Updates, proposal/factsheet sorting,
+  images, filters and navigation checks. The test server was stopped;
+  a remote connection to port 3001 was independently refused.
+- Release checks: 77 focused tests, TypeScript and `git diff --check` passed.
+  Supabase migrations had already been applied separately before this file
+  deployment; restoring the previous release path does not revert them.
+
+The directory above is now active production. Never reinstall dependencies or
+rebuild there. Preserve the previous release and backup for rollback.
+
+## Previous deployment: 2026-11-14
+
+- Deployed source: `main`, commit `011e4688062c55df74e588d1e42ebbb908ae13f8`.
+- Active Manager path, as confirmed by the user: `/artmuse-staging-20261114-OelyVn`.
+- Active SSH path: `/srv/customer/artmuse-staging-20261114-OelyVn`.
+- Previous Manager path retained for rollback: `/artmuse-staging-20261112-iiQUtU`.
+- Complete previous-release backup:
+  `/srv/customer/artmuse-backup-20261114-pXt6Fq/active-release.tar`.
   An off-server copy was verified against SHA256
-  `78aa5dacec1fb6bf12beeaf96cccdb06efc94ac970556952585ae1e23d6c1c8c`.
+  `0de4c1b93c203d7d5c374f291ce6b09134255475685f62be4220ac8e7bc00347`.
 - Source ZIP SHA256:
-  `4bf68581918ecb6d3c6b6e379a1bc0afbd9a4b5a6a5deb720ddaed5689921b65`.
-- Builder installation and compilation completed with `STAGING_INSTALL_OK`
+  `84300373f2eb4620372ea00e89f3e4dc10e0fbf86cc0a29fd6694ff91c58998c`.
+- Builder installation and compilation reported `STAGING_INSTALL_OK`
   and `STAGING_BUILD_OK`. Candidate `/login` returned HTTP 200 on port 3001;
   the candidate test process was then stopped.
-- Runtime retained: Node 20, `node server.js`, port 3000.
-  Build command was instructed to be restored to `true` before switching.
-- The user confirmed the production restart succeeded.
-  `https://artmuse.ch/login` independently returned HTTP 200 after the switch.
-  This does not independently verify authenticated business workflows.
+- Runtime retained: Node 20, `node server.js`, port 3000. The user confirmed
+  the build command was restored to `true` before switching.
+- The user confirmed the production restart, sign-in, images and the corrected
+  sale date. `https://artmuse.ch/login` independently returned HTTP 200 after
+  the switch. Other authenticated business workflows were not verified.
 
 Recheck the active path in the Manager before the next deployment. Never install
 dependencies or rebuild in the active directory listed above.
@@ -184,6 +235,22 @@ Stop only the candidate process with Ctrl+C in its terminal. Do not use Manager
 Stop, which controls the active site.
 
 ## 5. Switch production with explicit approval
+
+**Mandatory before every production release:** an Administrator must open
+**Home > Management > Updates**, review the single shared page in English,
+correct or complete the release notes prepared from verified candidate changes,
+and save it. If no notes have been prepared, draft them from those changes first.
+Verify the saved content and Last updated timestamp, and confirm a non-administrator can
+read it without edit controls. Include relevant user actions or known limitations.
+Do not switch production until this step is complete. This is an operator
+checklist requirement, not an automated deployment gate.
+
+For the first release introducing Updates, apply
+`20261115211000_add_application_updates.sql` separately before testing the
+candidate. Populate and verify `/updates` on the authenticated candidate before
+switching, since the current production UI does not yet include this page.
+The content is shared through Supabase, so subsequent edits are visible
+immediately to users who open or reload Updates, independently of release rollback.
 
 Schedule a possible short interruption. Record the previous execution path for
 rollback before changing any settings.

@@ -28,6 +28,7 @@ const rows = Array.from({ length: 21 }, (_, index) => ({ id: `work-${index}` }))
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.query = 'category=market&status=Active&search=bronze'
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.rpc.mockResolvedValue({ data: rows.map(row => row.id), error: null })
   mocks.fetchRows.mockImplementation(async (_key, ids: string[]) => ({
@@ -69,4 +70,22 @@ describe('category factsheets page', () => {
       log.mockRestore()
     }
   })
+
+  it.each(['priority,status', 'priority', 'status', ''])(
+    'passes selected Active proposal sorting and table overrides to the complete category query: %s', async proposalSort => {
+      const tables = { 'auction-priority-high-status-viewed': { sortKey: 'title', sortDirection: 'desc' } }
+      const params = new URLSearchParams({
+        category: 'auction', status: 'Active', tables: JSON.stringify(tables),
+        ...(proposalSort ? { proposalSort } : {}),
+      })
+      mocks.query = params.toString()
+      await act(async () => root.render(<CategoryFactsheetsPage />))
+      expect(mocks.rpc).toHaveBeenCalledWith('artwork_category_ids', {
+        p_category: 'auction',
+        p_filters: { status: 'Active', client: 'client', ...(proposalSort ? { proposalSort } : {}) },
+        p_tables: tables,
+      })
+      expect([...container.querySelectorAll('article')].map(node => node.textContent)).toEqual(rows.map(row => row.id))
+    },
+  )
 })

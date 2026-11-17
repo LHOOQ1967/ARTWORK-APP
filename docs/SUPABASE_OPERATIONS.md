@@ -64,6 +64,9 @@ RLS-scoped existence check confirms a history entry. Empty history hides the
 button; lookup failures are reported rather than treated as empty history.
 Factsheets display the edition value after the signature without an `Edition:`
 prefix; creation/editing field labels are unchanged.
+Auction factsheet headers and Auction Date metadata display the same stored
+sale date without browser timezone conversion; the sale time stays local to
+the auction.
 
 Lors de la creation d'une oeuvre (y compris depuis un import) et lors de sa
 modification, choisir une Auction House renseigne aussi `proposed_by_id`
@@ -103,6 +106,86 @@ relation sans rechercher son nom dans le code: les jointures PostgREST
 nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
+
+### Category factsheets follow Active Proposals sorting
+
+`20261115211500_match_category_factsheets_to_active_sort.sql` updates
+`artwork_category_ids` to use the Active list's selected priority/status
+groups, per-table column sorts and date ordering. Category count links
+include `proposalSort`, and the factsheet page forwards it to the RPC.
+Private-market and auction factsheets retain the complete category order,
+including rows beyond the first page and auction date/time/lot tie-breakers.
+Existing non-Active grouping, role-scoped sources and privileges are retained.
+Validate with `tests\db\paginated-artwork-lists.sql` in a rollback transaction.
+
+Applied to production on 2026-11-15 with explicit operator approval. The
+rollback-only regression suite failed on the previous category function and
+passed before and after deployment with the correction. It compares all four
+checkbox combinations and per-table title sorting for both market types, plus
+auction date/time/lot ordering across page boundaries. The application change
+that forwards `proposalSort` still requires its release deployment.
+
+### Shared application Updates page
+
+`20261115211000_add_application_updates.sql` creates a singleton
+`application_updates` row for `/updates`. Every signed-in user can read it;
+only Administrators can update its content. Authenticated users cannot insert
+or delete rows or modify the timestamp. A database trigger maintains Last
+updated; optimistic timestamp checks prevent silently overwriting another
+administrator's edit.
+
+The migration creates an empty page. English release notes can be prefilled
+from verified application changes, then reviewed and corrected by an Administrator
+through the candidate UI before its first production release. Before every
+subsequent release, update this same page as required by the Infomaniak
+deployment checklist. Content is plain text with preserved line breaks.
+Validate permissions with `tests\db\application-updates.sql` (rollback only).
+Application rollback can leave this independent table in place; do not drop
+published content as part of a file rollback.
+
+Applied to production on 2026-11-15 with explicit operator approval.
+The rollback-only permission tests passed before and after application:
+Administrator edits succeeded, Editor/Viewer edits were denied, and Viewers
+could read the saved content. RLS is enabled, no fixture users remain and no
+migrations are pending. The application UI still requires its release deployment.
+
+On 2026-11-15 the shared content was prefilled, at the operator's request,
+with English notes covering the upcoming Active Proposals grouping, auction
+date/time/lot ordering, factsheet date correction and Updates page. The write
+required the original empty content and timestamp, preserving any concurrent
+administrator edits. An Administrator must review these notes before release.
+
+### Auction date, time and lot ordering
+
+`20261115204500_order_auction_sales_by_date_time_lot.sql` updates the paginated
+artwork list RPC. Auction rows are ordered by sale date, then sale time with
+missing times last within each date. Rows without a time are ordered by the
+numeric lot prefix, then the lot label; missing lots come last. This applies
+within the selected priority/status groups and before pagination.
+Private-market and Collection date ordering are unchanged. The migration
+does not modify artwork data, policies or privileges.
+
+Applied to production on 2026-11-15 with explicit operator approval. The
+rollback-only pagination SQL suite failed on the previous function and passed
+with the correction both before and after deployment, including ascending and
+descending ordering across a 20-row page boundary. Both email dispatch
+triggers were disabled only inside the rolled-back test transactions and
+verified enabled afterward. No test artworks or users remain, and the final
+migration dry-run reported no pending migrations.
+
+### Active proposal subgroup correction
+
+`20261115203300_restore_active_proposal_subgroups.sql` was applied to the
+linked production project on 2026-11-15 with explicit operator approval.
+It replaces `artwork_list_page` so the selected priority/status criteria
+create separate paginated tables within each market type. Existing data,
+RLS policies, indexes and function privileges are unchanged.
+
+A read-only transaction verified all four modes against the deployed RPC:
+13 groups with both criteria, 9 with priority, 4 with status and 2 with
+neither. All modes retained the same 72 proposals and every returned row
+matched its group. A subsequent migration dry-run reported no pending
+migrations. This check is not a browser or role-isolation test.
 
 ### Market catalogue status
 
