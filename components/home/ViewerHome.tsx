@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { fetchPendingInvoiceDestinationCount } from '@/lib/pendingInvoiceDestination'
 import styles from './HomeDashboard.module.css'
 
 type DashboardLink = {
@@ -47,9 +49,36 @@ const tools: DashboardLink[] = [
 ]
 
 export default function ViewerHome() {
+  const [pendingInvoiceCount, setPendingInvoiceCount] = useState(0)
+
+  useEffect(() => {
+    let disposed = false
+
+    const load = async () => {
+      const count = await fetchPendingInvoiceDestinationCount('Viewer')
+      if (!disposed) setPendingInvoiceCount(count)
+    }
+
+    void load()
+
+    return () => {
+      disposed = true
+    }
+  }, [])
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
+        {pendingInvoiceCount > 0 && (
+          <Link href="/artworks/updated" className={styles.pendingInvoiceBanner}>
+            <span>
+              ⚠️ {pendingInvoiceCount} artwork{pendingInvoiceCount > 1 ? 's' : ''} awaiting
+              invoice destination
+            </span>
+            <span className={styles.arrow}>→</span>
+          </Link>
+        )}
+
         <section className={`${styles.section} ${styles.proposalsSection}`}>
           <SectionHeading title="Proposals" description="Review and follow every proposal" />
           <div className={styles.primaryGrid}>

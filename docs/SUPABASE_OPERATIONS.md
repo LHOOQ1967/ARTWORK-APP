@@ -195,6 +195,17 @@ release. It adds the nullable `catalogue_status` field, constrains it to
 `v_market_section_items`. Existing market resources remain valid with a null
 status.
 
+### Market auction city
+
+Apply `20261122191000_add_market_auction_city.sql` with the matching Art Market
+release. It adds the nullable free-text `auction_city` field and exposes it
+through `v_market_section_items` (appended as the last view column). The city
+identifies the sale's timezone so the per-sale Outlook meeting button can
+convert the local sale time to each attendee's timezone; the button is hidden
+for sales without a recognised city. Existing resources remain valid with a
+null value. Rollback: drop the column and restore the previous view definition
+from `20261109120000_add_market_paddle_places.sql`.
+
 ### Market Paddle/Places
 
 Apply `20261109120000_add_market_paddle_places.sql` with the matching Art Market

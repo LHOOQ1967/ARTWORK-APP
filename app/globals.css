@@ -221,9 +221,10 @@ button:focus-visible {
   left: 0;
   z-index: 1000;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 8px 24px;
   min-height: 60px;
   padding: 10px 24px;
   border-bottom: 1px solid rgba(255,255,255,0.12);
@@ -703,20 +704,6 @@ button:focus-visible {
     box-shadow: 0 5px 14px rgba(0,96,57,0.18);
   }
 
-  .market-page-eyebrow {
-    margin-bottom: 7px;
-    color: #557067;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .market-page-subtitle {
-    margin: 10px 0 0;
-    color: #62736c;
-  }
-
   .market-page-count {
     padding: 8px 13px;
     border-radius: 999px;
@@ -1136,11 +1123,65 @@ button:focus-visible {
 .app-header-actions {
   flex-shrink: 0;
   gap: 10px;
+  margin-left: auto;
 }
 
 .app-header-nav a:hover {
   color: #fff !important;
   background: rgba(255,255,255,0.10) !important;
+}
+
+.app-header-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 4px;
+  width: 42px;
+  height: 38px;
+  padding: 10px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.app-header-burger-bar {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: #ffffff;
+}
+
+.app-header-mobile-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 14px;
+  background: #006b42;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 14px 28px rgba(15, 48, 36, 0.25);
+}
+
+.app-header-mobile-link {
+  padding: 12px 10px;
+  border-radius: 8px;
+  color: rgba(255,255,255,0.85);
+  font-weight: 700;
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.app-header-mobile-link-active {
+  color: #ffffff;
+  background: rgba(255,255,255,0.14);
 }
 
 .app-header-actions .edit-button {
@@ -1687,6 +1728,18 @@ button:focus-visible {
     scrollbar-width: none;
   }
 
+  .app-header-nav > a {
+    display: none;
+  }
+
+  .app-header-burger {
+    display: inline-flex;
+  }
+
+  .app-header-mobile-menu {
+    display: flex;
+  }
+
   .app-header-nav::-webkit-scrollbar {
     display: none;
   }
@@ -1702,40 +1755,13 @@ button:focus-visible {
     font-size: 0.82rem;
   }
 
-  @media screen {
-  .app-header:has(.app-header-client-filter) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    column-gap: 10px;
-    row-gap: 8px;
+  .app-header-actions {
+    flex-shrink: 1;
+    min-width: 0;
   }
 
-  .app-header:has(.app-header-client-filter) .app-header-nav {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .app-header:has(.app-header-client-filter) .app-header-actions {
-    display: contents;
-  }
-
-  .app-header:has(.app-header-client-filter) .app-header-actions > :not(.app-header-client-filter) {
-    grid-row: 1;
-  }
-
-  .app-header-client-filter {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: end;
-  }
-
-  body:has(.app-header-client-filter) .protected-page-shell {
-    padding-top: calc(48px + env(safe-area-inset-top, 0px));
-  }
-
-  body:has(.app-header-client-filter) .artwork-action-bar {
-    top: calc(116px + env(safe-area-inset-top, 0px)) !important;
-  }
+  .app-header-client-filter select {
+    max-width: 150px;
   }
 
   .artwork-action-bar {

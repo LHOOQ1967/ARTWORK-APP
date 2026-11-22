@@ -153,8 +153,10 @@ describe('Art Market section auction fields', () => {
     ]
     await renderPage()
     await act(async () => container.querySelectorAll<HTMLButtonElement>('button[aria-label="Déplier la section"]').forEach(button => button.click()))
-    expect(container.querySelector('a[href="/api/market/auction-files/cat"]')?.textContent).toBe('sale.pdf')
-    expect(container.querySelector('a[href="/api/market/auction-files/result"]')?.textContent).toBe('result.pdf')
+    expect(container.querySelector('a[href="/api/market/auction-files/cat"]')?.textContent).toBe('Catalogue PDF')
+    expect(container.querySelector('a[href="/api/market/auction-files/result"]')?.textContent).toBe('Result PDF')
+    // Items that already have a file no longer offer an Upload control.
+    expect(container.querySelector('[aria-label="Upload Catalogue PDF for Auction lot"]')).toBeNull()
     const select = container.querySelector<HTMLSelectElement>('[aria-label="Choose existing catalogue for Second lot"]')!
     expect([...select.options].map(option => option.value)).toEqual(['', 'cat'])
     expect(container.querySelector('[aria-label="Upload Result PDF for Fair resource"]')).toBeNull()
@@ -169,22 +171,17 @@ describe('Art Market section auction fields', () => {
     }))
   })
 
-  it('confirms a shared catalogue replacement and allows viewers to open files without editing', async () => {
+  it('hides the Upload control when a catalogue exists and lets viewers open files without editing', async () => {
     mocks.items.push(item('auction-item-2', 'auction', 'Second lot'))
     mocks.files = [{ id: 'cat', section_id: 'auction', kind: 'catalogue', file_name: 'sale.pdf' }]
     mocks.links = ['auction-item', 'auction-item-2'].map(itemId => ({
       item_id: itemId, section_id: 'auction', kind: 'catalogue', file_id: 'cat',
     }))
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
     await renderPage()
     await act(async () => container.querySelectorAll<HTMLButtonElement>('button[aria-label="Déplier la section"]').forEach(button => button.click()))
-    const input = container.querySelector<HTMLInputElement>('[aria-label="Upload Catalogue PDF for Auction lot"]')!
-    Object.defineProperty(input, 'files', { value: [new File(['%PDF-'], 'new.pdf')], configurable: true })
-    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })))
-    expect(confirm).toHaveBeenCalledWith('Replace this shared catalogue for all linked sales?')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(container.querySelector('[aria-label="Upload Catalogue PDF for Auction lot"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Upload Catalogue PDF for Second lot"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Upload Result PDF for Auction lot"]')).not.toBeNull()
 
     await act(async () => root.unmount())
     root = createRoot(container)
@@ -192,6 +189,6 @@ describe('Art Market section auction fields', () => {
     await renderPage()
     await act(async () => container.querySelectorAll<HTMLButtonElement>('button[aria-label="Déplier la section"]').forEach(button => button.click()))
     expect(container.querySelector('a[href="/api/market/auction-files/cat"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Upload Catalogue PDF for Auction lot"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Upload Result PDF for Auction lot"]')).toBeNull()
   })
 })

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 import ArtworkListUpdated from '@/components/artwork/ArtworkListUpdated'
+import { PENDING_INVOICE_BUYER_ID } from '@/lib/pendingInvoiceDestination'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 
 type UpdatedArtworkItem = ArtworkListItem & {
@@ -70,7 +71,7 @@ type AcquisitionEvent = {
   created_at: string
 }
 
-const SPECIAL_BUYER_ID = '7c944786-75ff-4630-9851-e1ac0105b9b5'
+const SPECIAL_BUYER_ID = PENDING_INVOICE_BUYER_ID
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 function getUpdatedMs(item: UpdatedArtworkItem): number {
@@ -248,14 +249,33 @@ export default function ArtworksUpdatedPage() {
         console.log('[updated] source =', source)
 
         const acquisitionThreshold = new Date(thresholdMs).toISOString()
-        const [res, acquisitionsResult] = await Promise.all([
-          supabase.from(source).select('*'),
-          supabase
-            .from('artwork_acquisition_events')
-            .select('artwork_id, created_at')
-            .gte('created_at', acquisitionThreshold)
-            .order('created_at', { ascending: false }),
-        ])
+        const acquisitionsResult = await supabase
+          .from('artwork_acquisition_events')
+          .select('artwork_id, created_at')
+          .gte('created_at', acquisitionThreshold)
+          .order('created_at', { ascending: false })
+
+        // Only fetch the rows the page can actually display: recent changes,
+        // recent creations, recent acquisitions and the pending-invoice queue.
+        // This keeps the heavy aggregate view queries fast enough.
+        const recentlyAcquiredIds = [
+          ...new Set(
+            ((acquisitionsResult.data as AcquisitionEvent[] | null) ?? []).map(
+              (event) => event.artwork_id
+            )
+          ),
+        ]
+        const orFilters = [
+          `updated_at.gte.${acquisitionThreshold}`,
+          `last_changed_at.gte.${acquisitionThreshold}`,
+          `created_at.gte.${acquisitionThreshold}`,
+          `buyer_contact_id.eq.${SPECIAL_BUYER_ID}`,
+        ]
+        if (recentlyAcquiredIds.length > 0) {
+          orFilters.push(`id.in.(${recentlyAcquiredIds.join(',')})`)
+        }
+
+        const res = await supabase.from(source).select('*').or(orFilters.join(','))
 
         if (res.error) {
           console.error('[updated] load error =', res.error)
@@ -403,6 +423,10 @@ const nonCreatedUpdates = useMemo(() => {
     const status = normalizeStatus(a.status)
 
     if (newlyAcquiredIds.has(a.id)) return false
+
+    // ✅ toutes les sections "Updated" : uniquement les modifications
+    // effectuées dans les 7 derniers jours
+    if (!(updatedMs > 0 && updatedMs >= recentThresholdMs)) return false
 
     // ✅ Bought / Archived doivent toujours rester dans les updates
     if (status === 'bought' || status === 'archived') {

@@ -3,6 +3,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { LinkedText } from '@/components/ui/LinkedText';
+import { AUCTION_CITY_OPTIONS, buildOutlookEventUrl } from '@/lib/outlookEvent';
 import { supabase } from '@/lib/supabaseBrowser';
 
 type ProfileRole = 'Administrator' | 'Editor' | 'Viewer' | null;
@@ -54,6 +55,7 @@ type MarketSectionItemView = {
   updated_at: string;
   auction_house: string | null;
   auction_datetime: string | null;
+  auction_city: string | null;
   catalogue_status: CatalogueStatus | null;
   paddle_places: PaddlePlacesStatus | null;
   document_id: string | null;
@@ -82,6 +84,7 @@ type EditState = {
   notes: string;
   documentType: string;
   auctionHouse: string;
+  auctionCity: string;
   auctionDate: string;
   auctionTime: string;
   catalogueStatus: CatalogueStatus | '';
@@ -344,6 +347,7 @@ function makeEditState(item: MarketSectionItemView): EditState {
     notes: item.notes ?? '',
     documentType: item.document_type ?? 'market_pdf',
     auctionHouse: item.auction_house ?? '',
+    auctionCity: item.auction_city ?? '',
     auctionDate,
     auctionTime,
     catalogueStatus: item.catalogue_status ?? '',
@@ -374,7 +378,7 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     color: '#143b2d',
     fontSize: 'clamp(2rem, 4vw, 3.25rem)',
-    fontWeight: 700,
+    fontWeight: 400,
     lineHeight: 1,
     letterSpacing: '-0.035em',
   },
@@ -557,7 +561,7 @@ const styles: Record<string, CSSProperties> = {
   sectionTitleText: {
     margin: 0,
     fontSize: '21px',
-    fontWeight: 600,
+    fontWeight: 400,
   },
   metaRow: {
     display: 'flex',
@@ -589,9 +593,10 @@ const styles: Record<string, CSSProperties> = {
     gap: '12px',
   },
   itemCard: {
-    border: '1px solid #e2e8f0',
+    border: '1px solid #9db5a7',
     borderRadius: '10px',
     padding: '8px',
+    background: '#e9f3ec',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
@@ -599,7 +604,7 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: 'wrap',
   },
   itemContent: {
-    flex: '1 1 600px',
+    flex: '1 1 0%',
     minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
@@ -618,14 +623,16 @@ const styles: Record<string, CSSProperties> = {
     textUnderlineOffset: '4px',
     fontFamily: 'inherit',
     fontSize: '18px',
-    fontWeight: 400,
+    // 700 maps to the real Akzidenz-Grotesk BQ Bold face (no synthetic bold).
+    fontWeight: 700,
     lineHeight: 1.6,
   },
   itemLinkInactive: {
     color: '#0f172a',
     fontFamily: 'inherit',
     fontSize: '18px',
-    fontWeight: 400,
+    // 700 maps to the real Akzidenz-Grotesk BQ Bold face (no synthetic bold).
+    fontWeight: 700,
     lineHeight: 1.6,
   },
   itemMetaText: {
@@ -634,6 +641,20 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '18px',
     fontWeight: 500,
     lineHeight: 1.6,
+  },
+  outlookButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '2px 10px',
+    borderRadius: '999px',
+    border: '1px solid #b9d6c6',
+    background: '#e5f0ea',
+    color: '#006039',
+    fontSize: '13px',
+    fontWeight: 600,
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
   },
   itemSecondaryText: {
     margin: 0,
@@ -689,9 +710,9 @@ sortButton: {
 },
 
 sortButtonActive: {
-  background: '#0b66c3',
+  background: '#006039',
   color: '#fff',
-  border: '1px solid #0b66c3',
+  border: '1px solid #006039',
 },
 
 
@@ -743,6 +764,7 @@ const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSort
     notes: '',
     documentType: 'market_pdf',
     auctionHouse: '',
+    auctionCity: '',
     auctionDate: '',
     auctionTime: '',
     catalogueStatus: '',
@@ -935,6 +957,7 @@ const showCalendarStatusColumn = canEdit &&
     }
 
     const auctionHouse = editState.auctionHouse.trim() || null;
+    const auctionCity = editState.auctionCity.trim() || null;
     const auctionDateTime = buildAuctionDateTime(editState.auctionDate, editState.auctionTime);
     const notes = editState.notes.trim() || null;
     const addedAt = editState.addedAt || item.added_at;
@@ -946,6 +969,7 @@ const showCalendarStatusColumn = canEdit &&
         added_at: addedAt,
         notes,
         auction_house: auctionHouse,
+        auction_city: auctionCity,
         auction_datetime: auctionDateTime,
         catalogue_status: editState.catalogueStatus || null,
         ...(item.item_type === 'web_link' ? { url } : {}),
@@ -1215,6 +1239,7 @@ const showCalendarStatusColumn = canEdit &&
     const notes = itemForm.notes.trim() || null;
     const addedAt = itemForm.addedAt || new Date().toISOString().slice(0, 10);
     const auctionHouse = itemForm.auctionHouse.trim() || null;
+    const auctionCity = itemForm.auctionCity.trim() || null;
     const auctionDateTime = buildAuctionDateTime(itemForm.auctionDate, itemForm.auctionTime);
 
     if (!sectionId) {
@@ -1247,6 +1272,7 @@ const showCalendarStatusColumn = canEdit &&
         notes,
         position: 0,
         auction_house: auctionHouse,
+        auction_city: auctionCity,
         auction_datetime: auctionDateTime,
         catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       });
@@ -1266,6 +1292,7 @@ const showCalendarStatusColumn = canEdit &&
         addedAt: new Date().toISOString().slice(0, 10),
         documentType: 'market_pdf',
         auctionHouse: '',
+        auctionCity: '',
         auctionDate: '',
         auctionTime: '',
         catalogueStatus: '',
@@ -1295,6 +1322,7 @@ const showCalendarStatusColumn = canEdit &&
         notes,
         position: 0,
         auction_house: auctionHouse,
+        auction_city: auctionCity,
         auction_datetime: auctionDateTime,
         catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       })
@@ -1364,6 +1392,7 @@ const showCalendarStatusColumn = canEdit &&
       addedAt: new Date().toISOString().slice(0, 10),
       documentType: 'market_pdf',
       auctionHouse: '',
+      auctionCity: '',
       auctionDate: '',
       auctionTime: '',
       catalogueStatus: '',
@@ -1492,16 +1521,14 @@ const showCalendarStatusColumn = canEdit &&
         paddingRight: 10,
         paddingBottom: 56,
         minHeight: "100vh",
-        background: "#f3f5f1",
+        background: "#f4f5f4",
       }}
     >
     <div style={styles.page}>
       <div style={styles.pageInner}>
         <div style={styles.topBar}>
           <div>
-            <div className="market-page-eyebrow">Research & opportunities</div>
             <h1 style={styles.title}>Art Market</h1>
-            <p className="market-page-subtitle">Previews, fairs and auction catalogues in one workspace.</p>
           </div>
 
           <div style={styles.pillRow}>
@@ -1600,6 +1627,17 @@ const showCalendarStatusColumn = canEdit &&
                   {section.items.map((item) => {
                     const href = getItemHref(item);
                     const { auctionDate, auctionTime } = parseAuctionDateTimeRaw(item.auction_datetime);
+                    const outlookUrl =
+                      section.category === 'Ventes aux enchères'
+                        ? buildOutlookEventUrl({
+                            title: item.label,
+                            auctionHouse: item.auction_house,
+                            city: item.auction_city,
+                            auctionDateTime: item.auction_datetime,
+                            url: href !== '#' ? href : null,
+                            notes: item.notes,
+                          })
+                        : null;
                     return (
                       <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                         <td className="market-calendar-date-cell" style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
@@ -1618,6 +1656,11 @@ const showCalendarStatusColumn = canEdit &&
                           }}
                         >
                           {item.auction_house || '—'}
+                          {item.auction_city ? (
+                            <div style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>
+                              {item.auction_city}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="market-calendar-sale-cell" style={{ padding: '12px 10px', minWidth: '280px' }}>
                           {href !== '#' ? (
@@ -1632,6 +1675,18 @@ const showCalendarStatusColumn = canEdit &&
                           ) : (
                             item.label
                           )}
+                          {outlookUrl ? (
+                            <a
+                              href={outlookUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ ...styles.outlookButton, marginLeft: '10px' }}
+                              title="Create an Outlook meeting for this auction"
+                              aria-label={`Create an Outlook meeting for ${item.label}`}
+                            >
+                              📅
+                            </a>
+                          ) : null}
                           {item.notes ? (
                             <p
                               style={{
@@ -1739,12 +1794,10 @@ const showCalendarStatusColumn = canEdit &&
           <h2
             style={{
               margin: sectionIsPast ? 0 : '8px 0 0',
-              background: '#143b2d',
-              color: '#ffffff',
-              borderRadius: '8px',
-              padding: '10px 16px',
-              fontSize: '28px',
-              fontWeight: 700,
+              fontSize: '1.92rem',
+              fontWeight: 500,
+              paddingBottom: '12px',
+              borderBottom: '1px solid rgba(0,96,57,0.18)',
               textAlign: 'center',
             }}
           >
@@ -1752,7 +1805,7 @@ const showCalendarStatusColumn = canEdit &&
           </h2>
         ) : null}
         <div style={{ ...styles.card, background: '#f5f6f5' }}>
-          <div style={styles.cardHeader}>
+          <div style={{ ...styles.cardHeader, background: '#f5f6f5' }}>
             <div style={styles.sectionHeaderRow}>
               <div style={{ minWidth: 0 }}>
                 <div style={styles.sectionTitleRow}>
@@ -1768,7 +1821,7 @@ const showCalendarStatusColumn = canEdit &&
                   <h2 style={styles.sectionTitleText}>{section.title}</h2>
                 </div>
 
-                <div style={{ ...styles.metaRow, marginTop: '8px' }}>
+                <div style={{ ...styles.metaRow, marginTop: '8px', paddingLeft: '28px' }}>
                   <span>{formatDateRange(section.start_date, section.end_date)}</span>
                   <span>
                     📁 {section.items.length} ressource{section.items.length > 1 ? 's' : ''}
@@ -1984,10 +2037,27 @@ const showCalendarStatusColumn = canEdit &&
               {section.items.length === 0 ? (
                 <div style={styles.emptyBox}>No resources in this section.</div>
               ) : (
-                <div style={styles.itemList}>
+                <div
+                  style={
+                    section.category === 'Foire'
+                      ? { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px' }
+                      : styles.itemList
+                  }
+                >
                   {section.items.map((item) => {
                     const href = getItemHref(item);
                     const canOpen = href !== '#';
+                    const outlookUrl =
+                      section.category === 'Ventes aux enchères'
+                        ? buildOutlookEventUrl({
+                            title: item.label,
+                            auctionHouse: item.auction_house,
+                            city: item.auction_city,
+                            auctionDateTime: item.auction_datetime,
+                            url: canOpen ? href : null,
+                            notes: item.notes,
+                          })
+                        : null;
                     const itemLinks = section.auctionFileLinks.filter(link => link.item_id === item.id);
                     const isEditing =
                       editingItemId === item.id && editState?.id === item.id;
@@ -2003,34 +2073,61 @@ const showCalendarStatusColumn = canEdit &&
                                     href={href}
                                     target="_blank"
                                     rel="noreferrer"
-                                    style={styles.itemLinkActive}
+                                    style={
+                                      section.category === 'Foire'
+                                        ? { ...styles.itemLinkActive, fontWeight: 400 }
+                                        : styles.itemLinkActive
+                                    }
                                   >
                                     {item.label}
                                   </a>
                                 ) : (
-                                  <div style={styles.itemLinkInactive}>{item.label}</div>
+                                  <div
+                                    style={
+                                      section.category === 'Foire'
+                                        ? { ...styles.itemLinkInactive, fontWeight: 400 }
+                                        : styles.itemLinkInactive
+                                    }
+                                  >
+                                    {item.label}
+                                  </div>
                                 )}
                               </div>
 
-                              {item.auction_house || item.auction_datetime ||
-                              (section.category === 'Ventes aux enchères' && canEdit && item.catalogue_status) ? (
+                              {item.auction_house || item.auction_city || item.auction_datetime || item.notes ? (
                                 <div style={styles.itemHeaderRow}>
-                                  {item.auction_house ? (
-                                    <span style={styles.itemMetaText}>{item.auction_house}</span>
-                                  ) : null}
-                                  {section.category === 'Ventes aux enchères' && canEdit && item.catalogue_status ? (
-                                    <span style={styles.itemMetaText}>Catalogue: {item.catalogue_status}</span>
-                                  ) : null}
                                   {item.auction_datetime ? (
                                     <span style={styles.itemMetaText}>
                                       {formatAuctionDateTimeLocal(item.auction_datetime)}
                                     </span>
                                   ) : null}
+                                  {item.auction_datetime && item.auction_house ? (
+                                    <span style={styles.itemMetaText}>—</span>
+                                  ) : null}
+                                  {item.auction_house ? (
+                                    <span style={{ ...styles.itemMetaText, color: getAuctionHouseColor(item.auction_house), fontWeight: 700 }}>
+                                      {item.auction_house}
+                                    </span>
+                                  ) : null}
+                                  {item.auction_city ? (
+                                    <span style={styles.itemMetaText}>{item.auction_city}</span>
+                                  ) : null}
+                                  {item.notes ? (
+                                    <span style={styles.itemSecondaryText}><LinkedText text={item.notes} /></span>
+                                  ) : null}
+                                  {outlookUrl ? (
+                                    <a
+                                      href={outlookUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={styles.outlookButton}
+                                      title="Create an Outlook meeting for this auction"
+                                      aria-label={`Create an Outlook meeting for ${item.label}`}
+                                    >
+                                      📅
+                                    </a>
+                                  ) : null}
                                 </div>
-                              ) : null}
-
-                              {item.notes ? (
-                                <p style={styles.itemSecondaryText}><LinkedText text={item.notes} /></p>
                               ) : null}
 
                             </div>
@@ -2038,8 +2135,113 @@ const showCalendarStatusColumn = canEdit &&
                             <div style={styles.rightActions}>
                               {canEdit ? (
                                 <>
-                                  {section.category === 'Ventes aux enchères' ? (
-                                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => startInlineEdit(item)}
+                                    disabled={saving}
+                                    style={getButtonStyle('secondary', saving)}
+                                    aria-label={`Edit ${item.label}`}
+                                  >
+                                    ✏️
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteItem(item.id)}
+                                    disabled={saving}
+                                    style={getButtonStyle('danger', saving)}
+                                  >
+                                    🗑
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                            {section.category === 'Ventes aux enchères' ? (
+                              <div style={{ flex: '1 1 100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 24px' }}>
+                                {(['catalogue', 'result'] as const).map(kind => {
+                                  const link = itemLinks.find(entry => entry.kind === kind);
+                                  const file = section.auctionFiles.find(entry => entry.id === link?.file_id);
+                                  const label = kind === 'catalogue' ? 'Catalogue PDF' : 'Result PDF';
+                                  return (
+                                    <div key={kind} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                      {file ? (
+                                        <>
+                                          <a
+                                            href={`/api/market/auction-files/${file.id}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ ...styles.itemLinkActive, fontSize: '16.2px', fontWeight: 400 }}
+                                          >
+                                            {label}
+                                          </a>
+                                          {canEdit ? (
+                                            <button
+                                              type="button"
+                                              disabled={saving}
+                                              onClick={() => void deleteAuctionFile(file)}
+                                              style={getButtonStyle('danger', saving)}
+                                              title={`Delete ${label}`}
+                                              aria-label={`Delete ${label} for ${item.label}`}
+                                            >
+                                              🗑
+                                            </button>
+                                          ) : null}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span>{label}:</span>
+                                          <span>None</span>
+                                          {canEdit ? (
+                                            <>
+                                              <label
+                                                style={{
+                                                  ...getButtonStyle('secondary', saving),
+                                                  cursor: saving ? 'not-allowed' : 'pointer',
+                                                }}
+                                                title={`Upload ${label}`}
+                                              >
+                                                ⬆️
+                                                <input
+                                                  type="file"
+                                                  hidden
+                                                  accept=".pdf,application/pdf"
+                                                  aria-label={`Upload ${label} for ${item.label}`}
+                                                  disabled={saving}
+                                                  onChange={event => {
+                                                    const selected = event.target.files?.[0];
+                                                    event.target.value = '';
+                                                    if (selected) uploadAuctionFile(section, item, kind, selected);
+                                                  }}
+                                                />
+                                              </label>
+                                              {kind === 'catalogue' && section.auctionFiles.some(entry => entry.kind === 'catalogue') ? (
+                                                <select
+                                                  aria-label={`Choose existing catalogue for ${item.label}`}
+                                                  value=""
+                                                  disabled={saving}
+                                                  onChange={event => {
+                                                    if (event.target.value) void changeAuctionFile(item.id, {
+                                                      method: 'PUT',
+                                                      headers: { 'Content-Type': 'application/json' },
+                                                      body: JSON.stringify({ fileId: event.target.value }),
+                                                    });
+                                                  }}
+                                                >
+                                                  <option value="">Select an existing catalogue</option>
+                                                  {section.auctionFiles.filter(entry => entry.kind === 'catalogue').map(entry => (
+                                                    <option key={entry.id} value={entry.id}>{entry.file_name}</option>
+                                                  ))}
+                                                </select>
+                                              ) : null}
+                                            </>
+                                          ) : null}
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                {canEdit ? (
+                                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                       <label
                                         htmlFor={`catalogue-status-${item.id}`}
@@ -2088,81 +2290,7 @@ const showCalendarStatusColumn = canEdit &&
                                       </select>
                                     </div>
                                   </div>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => startInlineEdit(item)}
-                                    disabled={saving}
-                                    style={getButtonStyle('secondary', saving)}
-                                    aria-label={`Edit ${item.label}`}
-                                  >
-                                    ✏️ 
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteItem(item.id)}
-                                    disabled={saving}
-                                    style={getButtonStyle('danger', saving)}
-                                  >
-                                    🗑 
-                                  </button>
-                                </>
-                              ) : null}
-                            </div>
-                            {section.category === 'Ventes aux enchères' ? (
-                              <div style={{ flex: '1 1 100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {(['catalogue', 'result'] as const).map(kind => {
-                                  const link = itemLinks.find(entry => entry.kind === kind);
-                                  const file = section.auctionFiles.find(entry => entry.id === link?.file_id);
-                                  const label = kind === 'catalogue' ? 'Catalogue PDF' : 'Result PDF';
-                                  return (
-                                    <div key={kind} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                                      <strong>{label}:</strong>
-                                      {file ? (
-                                        <a href={`/api/market/auction-files/${file.id}`} target="_blank" rel="noreferrer">{file.file_name}</a>
-                                      ) : <span>None</span>}
-                                      {canEdit ? (
-                                        <>
-                                          <input
-                                            type="file"
-                                            accept=".pdf,application/pdf"
-                                            aria-label={`Upload ${label} for ${item.label}`}
-                                            disabled={saving}
-                                            onChange={event => {
-                                              const selected = event.target.files?.[0];
-                                              event.target.value = '';
-                                              if (selected) uploadAuctionFile(section, item, kind, selected);
-                                            }}
-                                          />
-                                          {file ? (
-                                            <button type="button" disabled={saving} onClick={() => void deleteAuctionFile(file)}>
-                                              Delete {label}
-                                            </button>
-                                          ) : kind === 'catalogue' && section.auctionFiles.some(entry => entry.kind === 'catalogue') ? (
-                                            <select
-                                              aria-label={`Choose existing catalogue for ${item.label}`}
-                                              value=""
-                                              disabled={saving}
-                                              onChange={event => {
-                                                if (event.target.value) void changeAuctionFile(item.id, {
-                                                  method: 'PUT',
-                                                  headers: { 'Content-Type': 'application/json' },
-                                                  body: JSON.stringify({ fileId: event.target.value }),
-                                                });
-                                              }}
-                                            >
-                                              <option value="">Select an existing catalogue</option>
-                                              {section.auctionFiles.filter(entry => entry.kind === 'catalogue').map(entry => (
-                                                <option key={entry.id} value={entry.id}>{entry.file_name}</option>
-                                              ))}
-                                            </select>
-                                          ) : null}
-                                        </>
-                                      ) : null}
-                                    </div>
-                                  );
-                                })}
+                                ) : null}
                               </div>
                             ) : null}
                           </>
@@ -2267,6 +2395,31 @@ const showCalendarStatusColumn = canEdit &&
                                   style={styles.input}
                                 />
                               </div>
+
+                              {section.category === 'Ventes aux enchères' ? (
+                              <div>
+                                <label htmlFor={`item-city-${item.id}`} style={styles.label}>Sale city (timezone)</label>
+                                <select
+                                  id={`item-city-${item.id}`}
+                                  value={editState.auctionCity}
+                                  onChange={(e) =>
+                                    setEditState((prev) =>
+                                      prev ? { ...prev, auctionCity: e.target.value } : prev
+                                    )
+                                  }
+                                  style={styles.input}
+                                >
+                                  <option value="">Not specified</option>
+                                  {editState.auctionCity &&
+                                  !AUCTION_CITY_OPTIONS.includes(editState.auctionCity) ? (
+                                    <option value={editState.auctionCity}>{editState.auctionCity}</option>
+                                  ) : null}
+                                  {AUCTION_CITY_OPTIONS.map((city) => (
+                                    <option key={city} value={city}>{city}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              ) : null}
 
                               {section.category === 'Ventes aux enchères' ? (
                               <div>
@@ -2662,6 +2815,26 @@ const showCalendarStatusColumn = canEdit &&
                       style={styles.input}
                     />
                   </div>
+
+                  {isAuctionItemSection ? (
+                  <div>
+                    <label htmlFor="item-auction-city" style={styles.label}>Sale city (timezone)</label>
+                    <select
+                      id="item-auction-city"
+                      value={itemForm.auctionCity}
+                      onChange={(e) =>
+                        setItemForm((prev) => ({ ...prev, auctionCity: e.target.value }))
+                      }
+                      style={styles.input}
+                    >
+                      <option value="">Not specified</option>
+                      {AUCTION_CITY_OPTIONS.map((city) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+                    <p style={styles.helperText}>Used by the Outlook button to convert the sale time to each attendee&apos;s timezone.</p>
+                  </div>
+                  ) : null}
 
                   {isAuctionItemSection ? (
                   <div>

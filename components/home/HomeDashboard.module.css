@@ -13,6 +13,27 @@
   margin: 0 auto;
 }
 
+.pendingInvoiceBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border: 1px solid #ecc98a;
+  border-radius: 12px;
+  background: #fdf4e3;
+  color: #8a5a00;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(138, 90, 0, 0.08);
+}
+
+.pendingInvoiceBanner:hover {
+  background: #fbecd0;
+}
+
 .section {
   --section-accent: #317055;
   --section-soft: #e5efe8;

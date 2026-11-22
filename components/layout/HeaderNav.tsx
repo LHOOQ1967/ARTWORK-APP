@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
+import { fetchPendingInvoiceDestinationCount } from '@/lib/pendingInvoiceDestination'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { useClientFilter } from '@/contexts/ClientFilterContext'
 
@@ -81,6 +82,8 @@ export default function HeaderNav() {
   const notifications = notificationScope === currentNotificationScope ? storedNotifications : []
   const unreadCount = notificationScope === currentNotificationScope ? storedUnreadCount : 0
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [pendingInvoiceCount, setPendingInvoiceCount] = useState(0)
   const seenVersionsRef = useRef<Record<string, string>>({})
   const notificationMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -88,6 +91,27 @@ export default function HeaderNav() {
     pathname === href || pathname.startsWith(href + '/')
 
   const isLoggedIn = !!role
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (loading || !user?.id) return
+
+    let disposed = false
+
+    const loadPendingInvoiceCount = async () => {
+      const count = await fetchPendingInvoiceDestinationCount(role)
+      if (!disposed) setPendingInvoiceCount(count)
+    }
+
+    void loadPendingInvoiceCount()
+
+    return () => {
+      disposed = true
+    }
+  }, [loading, user?.id, role, pathname])
 
   useEffect(() => {
     if (loading || !user?.id) return
@@ -317,6 +341,44 @@ export default function HeaderNav() {
 
       {/* LEFT NAV */}
       <nav className="app-header-nav">
+        {isLoggedIn && (
+          <button
+            type="button"
+            className="app-header-burger"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="app-header-mobile-menu"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+          >
+            <span className="app-header-burger-bar" />
+            <span className="app-header-burger-bar" />
+            <span className="app-header-burger-bar" />
+          </button>
+        )}
+
+        {isLoggedIn && mobileMenuOpen && (
+          <div id="app-header-mobile-menu" className="app-header-mobile-menu">
+            {[
+              { href: '/', label: 'Home', active: pathname === '/' },
+              { href: '/artworks/active', label: 'Active', active: isActive('/artworks/active') },
+              { href: '/artworks/updated', label: 'Updated', active: isActive('/artworks/updated') },
+              { href: '/artworks/bought', label: 'Collection', active: isActive('/artworks/bought') },
+              { href: '/market', label: 'Market', active: isActive('/market') },
+              { href: '/artworks', label: 'All', active: pathname === '/artworks' },
+            ].map((entry) => (
+              <Link
+                key={entry.href}
+                href={entry.href}
+                prefetch={false}
+                className={`app-header-mobile-link${entry.active ? ' app-header-mobile-link-active' : ''}`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {entry.label}
+              </Link>
+            ))}
+          </div>
+        )}
+
         {/* ✅ Home : seulement si logué */}
         {isLoggedIn && (
           <Link
@@ -338,18 +400,7 @@ export default function HeaderNav() {
           </Link>
         )}
 
-                {isLoggedIn && (
-          <Link
-            href="/artworks"
-            prefetch={false}
-            style={navLink(pathname === '/artworks')}
-          >
-            All
-          </Link>
-        )}
-
-
-          {isLoggedIn && (
+        {isLoggedIn && (
           <Link
             href="/artworks/updated"
             prefetch={false}
@@ -361,21 +412,41 @@ export default function HeaderNav() {
 
         {isLoggedIn && (
           <Link
-            href="/artworks/import-label"
+            href="/artworks/bought"
             prefetch={false}
-            style={navLink(isActive('/artworks/import-label'))}
+            style={navLink(isActive('/artworks/bought'))}
           >
-            Import
+            Collection
           </Link>
         )}
 
         {isLoggedIn && (
           <Link
-            href="/library"
+            href="/market"
             prefetch={false}
-            style={navLink(isActive('/library'))}
+            style={navLink(isActive('/market'))}
           >
-            Library
+            Market
+          </Link>
+        )}
+
+        {isLoggedIn && (
+          <Link
+            href="/artworks"
+            prefetch={false}
+            style={navLink(pathname === '/artworks')}
+          >
+            All
+          </Link>
+        )}
+
+        {isLoggedIn && (
+          <Link
+            href="/artworks/import-label"
+            prefetch={false}
+            style={navLink(isActive('/artworks/import-label'))}
+          >
+            Import
           </Link>
         )}
 
@@ -447,6 +518,14 @@ export default function HeaderNav() {
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               ) : null}
+              {pendingInvoiceCount > 0 ? (
+                <span
+                  style={pendingInvoiceBadgeStyle}
+                  title={`${pendingInvoiceCount} artwork${pendingInvoiceCount > 1 ? 's' : ''} awaiting invoice destination`}
+                >
+                  {pendingInvoiceCount > 99 ? '99+' : pendingInvoiceCount}
+                </span>
+              ) : null}
             </button>
 
             {notificationsOpen ? (
@@ -459,6 +538,17 @@ export default function HeaderNav() {
                       : 'Recent activity'}
                   </span>
                 </div>
+
+                {pendingInvoiceCount > 0 ? (
+                  <Link
+                    href="/artworks/updated"
+                    onClick={() => setNotificationsOpen(false)}
+                    style={pendingInvoiceAlertStyle}
+                  >
+                    ⚠️ {pendingInvoiceCount} artwork{pendingInvoiceCount > 1 ? 's' : ''} awaiting
+                    invoice destination
+                  </Link>
+                ) : null}
 
                 {notifications.length === 0 ? (
                   <p style={emptyNotificationsStyle}>No recent activity.</p>
@@ -528,13 +618,30 @@ export default function HeaderNav() {
         {!loading && isLoggedIn && (
           <button
             className="edit-button"
+            title="Log out"
+            aria-label="Log out"
             onClick={async () => {
               await supabase.auth.signOut()
               // 🔥 force un nouveau cycle serveur (vide le cache Next)
               window.location.href = '/login'
             }}
           >
-            Logout
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              style={{ display: 'block' }}
+            >
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
           </button>
         )}
       </div>
@@ -613,6 +720,35 @@ const notificationBadgeStyle: React.CSSProperties = {
   color: '#fff',
   fontSize: 10,
   fontWeight: 700,
+}
+
+const pendingInvoiceBadgeStyle: React.CSSProperties = {
+  position: 'absolute',
+  bottom: -6,
+  right: -6,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 18,
+  height: 18,
+  padding: '0 4px',
+  border: '2px solid #006b42',
+  borderRadius: 10,
+  background: '#e8930c',
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 700,
+}
+
+const pendingInvoiceAlertStyle: React.CSSProperties = {
+  display: 'block',
+  padding: '11px 14px',
+  borderBottom: '1px solid #f3dfc0',
+  background: '#fdf4e3',
+  color: '#8a5a00',
+  fontSize: 13,
+  fontWeight: 700,
+  textDecoration: 'none',
 }
 
 const notificationPanelStyle: React.CSSProperties = {
