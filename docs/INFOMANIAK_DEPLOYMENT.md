@@ -3,7 +3,51 @@
 Validated on 2026-11-08: isolated dependency installation and production build
 through the Manager Builder, followed by a site execution-path switch.
 
-## Latest deployment: 2026-11-15 (2026-11-16 UTC)
+## Latest deployment: 2026-11-22
+
+- Deployed source: `main`, commit `c5d7f4e` (clean worktree; `git archive HEAD`
+  reproduces the release source).
+- Active Manager path, confirmed by the user:
+  `/artmuse-staging-20261122-R3OUOz`.
+- Active SSH path: `/srv/customer/artmuse-staging-20261122-R3OUOz`.
+- Previous Manager path retained for rollback:
+  `/artmuse-staging-20261115-kCLsXz`.
+- Complete previous-release backup:
+  `/srv/customer/artmuse-backup-20261122-vSYG1q/active-release.tar`.
+  The private off-server copy at
+  `%USERPROFILE%\ArtMuse-private-backups\20261122\active-release.tar`
+  matched SHA256
+  `acf105dfc4dfa355fb72c13633b552b9313312409360a93d8c07d22571ba9f00`.
+  Archive readability and required environment, dependency and build entries
+  were checked before proceeding.
+- Source archive: `artmuse-worktree-20261122.zip`, 644 source files (Outlook
+  auction meetings, Art Market layout, header nav, pending-invoice alerts,
+  Updated page 7-day filter), without environment files or generated output.
+  Local and uploaded ZIP SHA256 matched:
+  `661a8a919e3c627a7067c82c126ed8702b0cf41fc80401af67f31fbd7ca254c9`.
+- Builder installation (645 packages, ~2 min) and compilation reported
+  `STAGING_INSTALL_OK` and `STAGING_BUILD_OK`. The user confirmed automatic
+  reinstallation was **No** for both commands, with `exit 1` preventing an
+  active-site restart. Logs are in the backup directory as
+  `candidate-install.log` and `candidate-build.log`.
+- Candidate startup was verified on port 3001 (`/login` HTTP 200) and the user
+  validated the application visually through an SSH tunnel (Art Market Outlook
+  button, menus, bell badge, Home banner, Updated page).
+- An Administrator reviewed and saved the English release notes on
+  Home > Management > Updates before switching.
+- Runtime retained: Node 20, `node server.js`, port 3000. The user restored the
+  build command to `true`, switched the site location, restarted once and
+  confirmed production sign-in and key pages over HTTPS.
+- Release checks: 993 tests, TypeScript and `git diff --check` passed; a local
+  production build succeeded. The Supabase migration
+  `20261122191000_add_market_auction_city.sql` had been applied separately
+  before this file deployment; restoring the previous release path does not
+  revert it.
+
+The directory above is now active production. Never reinstall dependencies or
+rebuild there. Preserve the previous release and backup for rollback.
+
+## Previous deployment: 2026-11-15 (2026-11-16 UTC)
 
 - Deployed source: the current `main` worktree, including uncommitted changes
   and new files, based on `011e4688062c55df74e588d1e42ebbb908ae13f8`.
@@ -51,8 +95,8 @@ through the Manager Builder, followed by a site execution-path switch.
   Supabase migrations had already been applied separately before this file
   deployment; restoring the previous release path does not revert them.
 
-The directory above is now active production. Never reinstall dependencies or
-rebuild there. Preserve the previous release and backup for rollback.
+This directory was replaced as production by the 2026-11-22 release above.
+It is retained as the rollback target; do not reinstall or rebuild in it.
 
 ## Previous deployment: 2026-11-14
 
