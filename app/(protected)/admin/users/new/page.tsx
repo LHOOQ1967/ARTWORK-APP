@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 
+const ALL_CLIENTS = '__all_clients__'
+
 export default function NewUserPage() {
   const router = useRouter()
 
   const [contacts, setContacts] = useState<any[]>([])
-2
 const [contactId, setContactId] = useState('')
 
   const [email, setEmail] = useState('')
@@ -17,9 +18,7 @@ const [contactId, setContactId] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-2
 loadContacts()
-3
 }, [])
   async function createUser() {
     if (!email.trim()) {
@@ -51,7 +50,8 @@ loadContacts()
 body: JSON.stringify({
   email,
   role,
-  contact_id: contactId || null,
+  contact_id: contactId && contactId !== ALL_CLIENTS ? contactId : null,
+  all_clients: role === 'Viewer' && contactId === ALL_CLIENTS,
 }),
         }
       )
@@ -137,6 +137,7 @@ body: JSON.stringify({
     <option value="">
       -- Select company --
     </option>
+    <option value={ALL_CLIENTS}>All clients (including future clients)</option>
 
     {contacts.map(contact => (
       <option

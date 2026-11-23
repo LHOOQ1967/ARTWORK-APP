@@ -69,6 +69,17 @@ reverse-proxy internal addresses such as `localhost:3000` are not sent to the br
 
 Authorization is enforced in API route handlers. Supabase Row Level Security must remain enabled as a second layer of protection.
 
+Administrators can give a Viewer access to **All clients (including future
+clients)** when inviting the user or editing access in Users. This includes
+contacts marked as clients, including contacts marked later; unmarking a client
+removes its all-client access. The Viewer keeps Viewer permissions and client
+document/comment restrictions. Switching back to one client replaces the
+all-client grant; changing the user's role also removes it.
+
+Deploy migration `20261123170000_viewer_all_clients.sql` before the application
+release. Validate it with the rollback-only `tests\db\viewer-all-clients.sql`
+and the existing client-comment and document-visibility SQL tests.
+
 ## Blondeau factsheet import
 
 The **Import** page includes **4. Import Blondeau Factsheet** directly above the

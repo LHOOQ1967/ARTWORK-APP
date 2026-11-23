@@ -110,6 +110,7 @@ describe('user invitations', () => {
       response: null,
       role: 'Administrator',
       userId: 'administrator-1',
+      supabase: { rpc: vi.fn().mockResolvedValue({ error: null }) },
     })
     mocks.supabaseAdmin.auth.admin.inviteUserByEmail.mockResolvedValue({
       data: { user: { id: 'invited-user-1' } },
@@ -203,6 +204,53 @@ describe('user invitations', () => {
     )
     expect(profileUpdate).toHaveBeenCalledWith({ role: 'Editor' })
     expect(mocks.supabaseAdmin.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('invites an all-client Viewer without requiring a selected contact', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null })
+    mocks.requireRole.mockResolvedValue({
+      response: null, role: 'Administrator', userId: 'administrator-1', supabase: { rpc },
+    })
+    const profileUpdate = vi.fn(() => ({
+      eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'invited-user-1' }, error: null }) }) }),
+    }))
+    mocks.supabaseAdmin.from.mockReturnValueOnce({ update: profileUpdate })
+
+    const response = await createUser(new Request('http://localhost/api/admin/users/create', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'viewer@example.com', role: 'Viewer', all_clients: true }),
+    }))
+
+    expect(response.status).toBe(200)
+    expect(rpc).toHaveBeenCalledWith('set_viewer_client_access', {
+      p_user_id: 'invited-user-1', p_all_clients: true,
+    })
+    expect(mocks.supabaseAdmin.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes the invited user when all-client access fails', async () => {
+    mocks.requireRole.mockResolvedValue({
+      response: null, role: 'Administrator', userId: 'administrator-1',
+      supabase: { rpc: vi.fn().mockResolvedValue({ error: { message: 'Access failed' } }) },
+    })
+    mocks.supabaseAdmin.from.mockReturnValueOnce({
+      update: () => ({ eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: { id: 'invited-user-1' }, error: null }) }) }) }),
+    })
+    const response = await createUser(new Request('http://localhost/api/admin/users/create', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'viewer@example.com', role: 'Viewer', all_clients: true }),
+    }))
+    expect(response.status).toBe(500)
+    expect(mocks.supabaseAdmin.auth.admin.deleteUser).toHaveBeenCalledWith('invited-user-1')
+  })
+
+  it('rejects conflicting all-client and single-client access', async () => {
+    const response = await createUser(new Request('http://localhost/api/admin/users/create', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'viewer@example.com', role: 'Viewer', all_clients: true, contact_id: 'contact-1' }),
+    }))
+    expect(response.status).toBe(400)
+    expect(mocks.supabaseAdmin.auth.admin.inviteUserByEmail).not.toHaveBeenCalled()
   })
 
   it('rejects a Viewer without a contact before sending an invitation', async () => {

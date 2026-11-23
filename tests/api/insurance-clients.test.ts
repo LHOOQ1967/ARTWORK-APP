@@ -19,7 +19,7 @@ describe('viewer insurance clients', () => {
       { contact: { id: 'artist', company_name: 'Artist', is_client: false } },
       { contact: null },
     ] })
-    const eq = vi.fn(() => ({ returns }))
+    const eq = vi.fn(() => ({ order: () => ({ range: () => ({ returns }) }) }))
     const select = vi.fn(() => ({ eq }))
     const from = vi.fn(() => ({ select }))
     mocks.requireUser.mockResolvedValue({ response: null, role: 'Viewer', userId: 'viewer-id', supabase: { from } })
@@ -29,10 +29,25 @@ describe('viewer insurance clients', () => {
   })
 
   it('reports failed link loading without returning a success-shaped empty list', async () => {
-    const from = vi.fn(() => ({ select: () => ({ eq: () => ({ returns: async () => ({ data: null, error: { message: 'Failed' } }) }) }) }))
+    const from = vi.fn(() => ({ select: () => ({ eq: () => ({ order: () => ({ range: () => ({ returns: async () => ({ data: null, error: { message: 'Failed' } }) }) }) }) }) }))
     mocks.requireUser.mockResolvedValue({ response: null, userId: 'viewer', supabase: { from } })
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect((await GET(new NextRequest('http://localhost/api/insurance/clients'))).status).toBe(500)
     log.mockRestore()
+  })
+
+  it('loads clients beyond the first page', async () => {
+    const row = (id: string) => ({ contact: { id, company_name: id, is_client: true } })
+    const returns = vi.fn()
+      .mockResolvedValueOnce({ data: Array.from({ length: 200 }, (_, i) => row(`client-${i}`)), error: null })
+      .mockResolvedValueOnce({ data: [row('last-client')], error: null })
+    const range = vi.fn(() => ({ returns }))
+    const from = vi.fn(() => ({ select: () => ({ eq: () => ({ order: () => ({ range }) }) }) }))
+    mocks.requireUser.mockResolvedValue({ response: null, userId: 'viewer', supabase: { from } })
+    const response = await GET(new NextRequest('http://localhost/api/insurance/clients'))
+    const result = await response.json()
+    expect(result.clients).toHaveLength(201)
+    expect(result.clients).toContainEqual({ id: 'last-client', label: 'last-client' })
+    expect(range).toHaveBeenNthCalledWith(2, 200, 399)
   })
 })

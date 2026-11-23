@@ -23,8 +23,11 @@ export async function POST(req: Request) {
     const requestedRole = body.role ?? 'Viewer'
     const contactId =
       typeof body.contact_id === 'string' ? body.contact_id.trim() : ''
+    const allClients = body.all_clients === true
 
-    if (!email || !isUserRole(requestedRole)) {
+    if (!email || !isUserRole(requestedRole) ||
+      (body.all_clients !== undefined && typeof body.all_clients !== 'boolean') ||
+      (allClients && (requestedRole !== 'Viewer' || contactId))) {
       return NextResponse.json(
         { error: 'A valid email and role are required' },
         { status: 400 }
@@ -33,14 +36,14 @@ export async function POST(req: Request) {
 
     const role = requestedRole
 
-    if (role === 'Viewer' && !contactId) {
+    if (role === 'Viewer' && !contactId && !allClients) {
       return NextResponse.json(
         { error: 'A contact is required for Viewer users' },
         { status: 400 }
       )
     }
 
-    if (role === 'Viewer') {
+    if (role === 'Viewer' && !allClients) {
       const { data: contact, error: contactError } = await supabaseAdmin
         .from('contacts')
         .select('id')
@@ -126,14 +129,19 @@ export async function POST(req: Request) {
     }
 
     if (role === 'Viewer') {
-      const { error: accessError } = await supabaseAdmin
-        .from('contact_users')
-        .insert({
-          user_id: data.user.id,
-          contact_id: contactId,
-          invited: true,
-          granted_by: authorization.userId,
+      const { error: accessError } = allClients
+        ? await authorization.supabase.rpc('set_viewer_client_access', {
+          p_user_id: data.user.id,
+          p_all_clients: true,
         })
+        : await supabaseAdmin
+          .from('contact_users')
+          .insert({
+            user_id: data.user.id,
+            contact_id: contactId,
+            invited: true,
+            granted_by: authorization.userId,
+          })
 
       if (accessError) {
           const { error: cleanupError } =
@@ -145,7 +153,7 @@ export async function POST(req: Request) {
             errorMessage: cleanupError
               ? `${accessError.message}; cleanup failed: ${cleanupError.message}`
               : accessError.message,
-            metadata: { role, contact_id: contactId },
+            metadata: allClients ? { role, all_clients: true } : { role, contact_id: contactId },
           })
           return NextResponse.json(
             {
@@ -164,7 +172,7 @@ export async function POST(req: Request) {
       outcome: 'success',
       subjectType: 'user',
       subjectId: data.user.id,
-      metadata: { role, contact_id: contactId || null },
+      metadata: allClients ? { role, all_clients: true } : { role, contact_id: contactId || null },
     })
 
     return NextResponse.json({

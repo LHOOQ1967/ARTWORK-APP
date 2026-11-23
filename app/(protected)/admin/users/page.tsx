@@ -17,6 +17,20 @@ type UserProfile = {
 }
 
 type UserSortKey = 'email' | 'role' | 'access' | 'status' | 'created' | 'activity'
+const ALL_CLIENTS = '__all_clients__'
+
+async function loadContactUsers() {
+  const rows: { user_id: string; contact_id: string; invited: boolean }[] = []
+  for (let offset = 0; ; offset += 200) {
+    const { data, error } = await supabase.from('contact_users')
+      .select('user_id, contact_id, invited')
+      .order('user_id').order('contact_id')
+      .range(offset, offset + 199)
+    if (error) return { data: null, error }
+    rows.push(...(data ?? []))
+    if (!data || data.length < 200) return { data: rows, error: null }
+  }
+}
 
 function formatLastActivity(value: string | null) {
   if (!value) return { date: 'Never', time: '' }
@@ -38,6 +52,7 @@ function formatLastActivity(value: string | null) {
 export default function UsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [accesses, setAccesses] = useState<any[]>([])
+  const [allClientUsers, setAllClientUsers] = useState<string[]>([])
 const [contacts, setContacts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<UserSortKey>('email')
@@ -56,15 +71,14 @@ async function loadUsers() {
     { data: profiles, error: profilesError },
     { data: contactUsers, error: accessError },
     { data: contactsData, error: contactsError },
+    { data: allClients, error: allClientsError },
   ] = await Promise.all([
     supabase
       .from('profiles')
       .select('*')
       .order('email'),
 
-    supabase
-      .from('contact_users')
-      .select('user_id, contact_id, invited'),
+    loadContactUsers(),
 
     supabase
       .from('contacts')
@@ -74,6 +88,7 @@ async function loadUsers() {
         first_name,
         last_name
       `),
+    supabase.from('viewer_all_clients').select('user_id'),
   ])
 
   if (profilesError) {
@@ -84,15 +99,25 @@ async function loadUsers() {
 
   if (accessError) {
     console.error(accessError)
+    alert('Unable to load user access.')
+    setLoading(false)
+    return
   }
 
   if (contactsError) {
     console.error(contactsError)
   }
+  if (allClientsError) {
+    console.error(allClientsError)
+    alert('Unable to load all-client access.')
+    setLoading(false)
+    return
+  }
 
   setUsers((profiles ?? []) as UserProfile[])
   setAccesses(contactUsers ?? [])
   setContacts(contactsData ?? [])
+  setAllClientUsers((allClients ?? []).map(row => row.user_id))
 
   setLoading(false)
 }
@@ -113,51 +138,30 @@ async function loadUsers() {
       return
     }
 
-    setUsers(prev =>
-      prev.map(u =>
-        u.id === userId
-          ? { ...u, role }
-          : u
-      )
-    )
+    await loadUsers()
   }
 
 async function updateUserAccess(
   userId: string,
   contactId: string
 ) {
-  try {
-    // supprimer ancien accès
-    await supabase
-      .from('contact_users')
-      .delete()
-      .eq('user_id', userId)
-
-    // créer nouveau accès
-    if (contactId) {
-      const { error } = await supabase
-        .from('contact_users')
-        .insert({
-          user_id: userId,
-          contact_id: contactId,
-        })
-
-      if (error) {
-        console.error(error)
-        alert(error.message)
-        return
-      }
-    }
-
-    await loadUsers()
-  } catch (error) {
+  const { error } = await supabase.rpc('set_viewer_client_access', {
+    p_user_id: userId,
+    p_all_clients: contactId === ALL_CLIENTS,
+    p_contact_id: contactId && contactId !== ALL_CLIENTS ? contactId : null,
+  })
+  if (error) {
     console.error(error)
+    alert(error.message)
+    return
   }
+  await loadUsers()
 }
 
 
 
 function getUserContactId(userId: string) {
+  if (allClientUsers.includes(userId)) return ALL_CLIENTS
   const access = accesses.find(
     a => a.user_id === userId
   )
@@ -256,6 +260,7 @@ if (
   ) {
     return 'All'
   }
+  if (allClientUsers.includes(userId)) return 'All clients'
 
   const contactIds = accesses
     .filter(a => a.user_id === userId)
@@ -405,6 +410,7 @@ if (
       <option value="">
         -- Select company --
       </option>
+      <option value={ALL_CLIENTS}>All clients (including future clients)</option>
 
       {[...contacts]
         .sort((a, b) =>
