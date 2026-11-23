@@ -3,7 +3,54 @@
 Validated on 2026-11-08: isolated dependency installation and production build
 through the Manager Builder, followed by a site execution-path switch.
 
-## Latest deployment: 2026-11-22
+## Latest deployment: 2026-11-23
+
+- Deployed source: `e9349dabb08ad7bca34db7b36b72fe81a93b51eb`
+  (Viewer access to all current and future clients). The release was packaged
+  before committing; all 485 source files were subsequently compared with the
+  clean worktree. Only the local, development-generated `next-env.d.ts` differed;
+  that file was restored to the committed release version before committing.
+- Active Manager path, independently checked after the restart:
+  `/artmuse-staging-20261123-tO06WQ`.
+- Active SSH path: `/srv/customer/artmuse-staging-20261123-tO06WQ`.
+- Previous Manager path retained for rollback:
+  `/artmuse-staging-20261122-R3OUOz`.
+- Complete previous-release backup:
+  `/srv/customer/artmuse-backup-20261123-clzbDt/active-release.tar`.
+  The private off-server copy at
+  `%USERPROFILE%\ArtMuse-private-backups\20261123\active-release.tar`
+  matched SHA256
+  `e7fea3c1d201893aab33533463732c00cd06c621dccdf11e3451bc5750390abd`.
+- Source archive: `artmuse-viewer-release.zip`, 485 source files, without
+  environment files, dependencies or generated output. Local and uploaded
+  ZIP SHA256 matched:
+  `6976003f7ef964b550a4a4ea6cdc31a313d511b900924f1dea757a0a0bb36f27`.
+- Isolated Builder installation (645 packages) and compilation reported
+  `STAGING_INSTALL_OK` and `STAGING_BUILD_OK`. Automatic reinstallation was
+  **No**, and preparation wrappers ended with `exit 1`. Logs are in the backup
+  directory as `viewer-install.log` and `viewer-build.log`.
+- Candidate `/login` returned HTTP 200 on port 3001. The user chose to skip
+  authenticated candidate validation through an SSH tunnel.
+- The user confirmed that an Administrator saved the English Updates notes
+  and that a non-administrator could read them without editing.
+- Runtime retained: Node 20, `node server.js`, port 3000, build command `true`.
+  After the switch, public `/login` and all of its script assets returned
+  HTTP 200. The user initially reported a normal-browser loading failure,
+  while private browsing worked, and then confirmed success after reloading
+  with browser caching disabled. Full authenticated business workflows and
+  a real Viewer all-client grant were not independently verified.
+- Release checks: 101 test files / 998 tests passed, TypeScript passed, and
+  the isolated local production build succeeded. The user applied Supabase
+  migration `20261123170000_viewer_all_clients.sql` separately before deployment;
+  restoring the previous release path does not revert it.
+- Remote follow-up remains to confirm stopping the port-3001 test process and
+  removing the mistakenly uploaded backup `active-release.tar` from the active
+  release root, while retaining the verified backups outside the release.
+
+The directory above is now active production. Never reinstall dependencies or
+rebuild there. Preserve the previous release and backup for rollback.
+
+## Previous deployment: 2026-11-22
 
 - Deployed source: `main`, commit `c5d7f4e` (clean worktree; `git archive HEAD`
   reproduces the release source).
@@ -44,8 +91,8 @@ through the Manager Builder, followed by a site execution-path switch.
   before this file deployment; restoring the previous release path does not
   revert it.
 
-The directory above is now active production. Never reinstall dependencies or
-rebuild there. Preserve the previous release and backup for rollback.
+This directory was replaced as production by the 2026-11-23 release above.
+It is retained as the rollback target; do not reinstall or rebuild in it.
 
 ## Previous deployment: 2026-11-15 (2026-11-16 UTC)
 
