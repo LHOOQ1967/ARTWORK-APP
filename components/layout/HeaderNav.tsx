@@ -457,8 +457,8 @@ export default function HeaderNav() {
         {isLoggedIn && canSelectClient && (
           <div className="app-header-client-filter" style={clientFilterStyle}>
             <select
-              aria-label="Filtrer par client"
-              title={selectedClient ? `Vue filtrée : ${selectedClient.label}` : 'Filtrer par client'}
+              aria-label="Filter by client"
+              title={selectedClient ? `Filtered view: ${selectedClient.label}` : 'Filter by client'}
               value={selectedClientId ?? ''}
               onChange={(event) => setSelectedClientId(event.target.value || null)}
               style={clientSelectStyle(Boolean(selectedClient))}
@@ -473,8 +473,8 @@ export default function HeaderNav() {
             {selectedClient ? (
               <button
                 type="button"
-                aria-label="Retirer le filtre client"
-                title="Retirer le filtre client"
+                aria-label="Clear client filter"
+                title="Clear client filter"
                 onClick={() => setSelectedClientId(null)}
                 style={clientClearButtonStyle}
               >

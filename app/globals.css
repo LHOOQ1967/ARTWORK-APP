@@ -1448,7 +1448,7 @@ button:focus-visible {
   }
 
   .market-calendar-table-editable .market-calendar-date-column {
-    width: 13%;
+    width: 18%;
   }
 
   .market-calendar-table-editable .market-calendar-time-column {
@@ -1460,15 +1460,15 @@ button:focus-visible {
   }
 
   .market-calendar-table-editable .market-calendar-sale-column {
-    width: 39%;
+    width: 36%;
   }
 
   .market-calendar-table-editable .market-calendar-status-column {
-    width: 24%;
+    width: 22%;
   }
 
   .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-date-column {
-    width: 17%;
+    width: 20%;
   }
 
   .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-time-column {
@@ -1480,7 +1480,7 @@ button:focus-visible {
   }
 
   .market-calendar-table:not(.market-calendar-table-editable) .market-calendar-sale-column {
-    width: 52%;
+    width: 49%;
   }
 
   .market-calendar-table th,
@@ -1491,7 +1491,11 @@ button:focus-visible {
     vertical-align: top;
   }
 
-  .market-calendar-table .market-calendar-date-cell,
+  .market-calendar-table .market-calendar-date-cell {
+    white-space: nowrap !important;
+    overflow-wrap: normal;
+  }
+
   .market-calendar-table .market-calendar-time-cell {
     white-space: normal !important;
   }

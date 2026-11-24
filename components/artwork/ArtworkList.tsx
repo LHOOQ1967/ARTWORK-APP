@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { ArtworkListItem } from '@/app/(protected)/types/artwork'
 import { useRouter } from 'next/navigation'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { canViewClientNames } from '@/lib/permissions'
 import ArtworkThumbnail from './ArtworkThumbnail'
 import { QualitySelect } from './ArtworkQuality'
 import type { ArtworkTableState } from './useArtworkListNavigation'
@@ -15,6 +16,7 @@ import {
   formatEstimate,
   formatSoldPremium,
   getArtistName,
+  getBuyerText,
   getDefaultSort,
   getDisplayDateValue,
   getMainImage,
@@ -156,13 +158,10 @@ export default function ArtworkList({
 }: ArtworkListProps) {
   const router = useRouter()
   
-const { role } = useSessionProfile()
-
-const normalizedRole =
-  typeof role === 'string' ? role.toLowerCase() : ''
+const { role, hasAllClientsAccess } = useSessionProfile()
 
 const isProposalList = mode !== 'bought'
-const canSeeProposedTo = normalizedRole === 'administrator' || normalizedRole === 'editor'
+const canSeeProposedTo = canViewClientNames(role, hasAllClientsAccess)
 
 const [localTableState, setLocalTableState] = useState<ArtworkTableState>({
   sortKey: null, sortDirection: 'asc', showAll: false,
@@ -315,6 +314,7 @@ return (
     {isProposalList ? (
       <div style={headerStaticLineStyle}>Location</div>
     ) : proposedToHeader}
+    {!isProposalList && canSeeProposedTo && <div style={headerStaticLineStyle}>Buyer</div>}
   </div>
 </th>
 
@@ -461,6 +461,7 @@ return (
             const proposedByText = getProposedByText(a)
 const proposedToText = getProposedToText(a)
             const locationText = getLocationText(a)
+            const buyerText = getBuyerText(a)
             const proposedToLine = canSeeProposedTo ? (
               <div
                 style={{
@@ -567,6 +568,11 @@ const proposedToText = getProposedToText(a)
         {truncateText(locationText, 26)}
       </div>
     ) : proposedToLine}
+    {!isProposalList && canSeeProposedTo && (
+      <div style={detailLine} title={buyerText}>
+        {truncateText(buyerText, 26)}
+      </div>
+    )}
 
   </div>
 </td>

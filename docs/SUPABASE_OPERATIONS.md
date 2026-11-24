@@ -107,6 +107,22 @@ nomment explicitement plusieurs contraintes `artworks_*_fkey`.
 
 ## Migrations
 
+### Client visibility for all-client Viewers
+
+Apply `20261123190000_viewer_client_visibility.sql` after
+`20261123170000_viewer_all_clients.sql` and before deploying the client-selector
+interface update. The read-only `can_view_client_names()` helper permits staff
+and Viewers with an all-client grant to see proposal recipient and buyer labels
+in paginated artwork lists. The list and category RPCs retain their original
+role-scoped sources, RLS, sorting and pagination. No editing or internal
+document/comment permissions are added.
+
+The shared selector is enabled only for staff and all-client Viewers; insurance
+uses the same selection for those accounts. Single-client Viewers retain their
+existing interface. Reload after an access change. Validate with the
+rollback-only `tests\db\viewer-all-clients.sql` and
+`tests\db\paginated-artwork-lists.sql`.
+
 ### Category factsheets follow Active Proposals sorting
 
 `20261115211500_match_category_factsheets_to_active_sort.sql` updates

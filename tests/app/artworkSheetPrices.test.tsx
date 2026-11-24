@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ArtworkSheet from '@/components/artwork/ArtworkSheet'
+import ArtworkList from '@/components/artwork/ArtworkList'
 import type { ArtworkPrint } from '@/app/(protected)/types/artwork'
 
-const session = vi.hoisted(() => ({ role: 'Editor' as string | undefined }))
+const session = vi.hoisted(() => ({ role: 'Editor' as string | undefined, hasAllClientsAccess: false }))
 const navigation = vi.hoisted(() => ({ returnTo: null as string | null }))
 vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(navigation.returnTo ? { returnTo: navigation.returnTo } : {}),
+  useRouter: () => ({ push: vi.fn() }),
 }))
 vi.mock('@/contexts/SessionContext', () => ({
-  useSessionProfile: () => ({ role: session.role }),
+  useSessionProfile: () => session,
 }))
 vi.mock('@/components/artwork/ArtworkViewerComment', () => ({
   default: () => null,
@@ -24,6 +26,7 @@ vi.mock('@/components/artwork/CertificateLocation', () => ({
 
 beforeEach(() => {
   session.role = 'Editor'
+  session.hasAllClientsAccess = false
   navigation.returnTo = null
   vi.spyOn(console, 'log').mockImplementation(() => {})
 })
@@ -117,6 +120,32 @@ describe('factsheet auction prices', () => {
     const html = render({ proposals: [{ id: 'p1', contact_label: 'Private Buyer' }] })
     expect(html).not.toContain('Proposed to:')
     expect(html).not.toContain('Private Buyer')
+  })
+
+  it('shows recipients on a global Viewer factsheet without edit controls', () => {
+    session.role = 'Viewer'
+    session.hasAllClientsAccess = true
+    const html = renderToStaticMarkup(<ArtworkSheet canEdit={false} artwork={{
+      id: 'work', proposals: [{ id: 'proposal', contact_label: 'Client Two' }],
+    }} />)
+    expect(html).toContain('Proposed to: Client Two')
+    expect(html).not.toContain('>Edit<')
+  })
+
+  it.each([true, false])('limits list recipients and collection buyers to all-client Viewers (%s)', granted => {
+    session.role = 'Viewer'
+    session.hasAllClientsAccess = granted
+    const artwork = {
+      id: 'work', proposals: [{ contact_id: 'client', contact_label: 'Client Two' }],
+      buyer: { id: 'buyer', company_name: 'Buyer Two' },
+    }
+    const proposals = renderToStaticMarkup(<ArtworkList artworks={[artwork]} />)
+    const collection = renderToStaticMarkup(<ArtworkList artworks={[artwork]} mode="bought" />)
+    expect(proposals.includes('Client Two')).toBe(granted)
+    expect(proposals.includes('Proposed to')).toBe(granted)
+    expect(collection.includes('Buyer Two')).toBe(granted)
+    expect(collection.includes('>Buyer<')).toBe(granted)
+    expect(collection).not.toContain('<select')
   })
 
   it('supports artwork_proposals and proposedTo contacts without a proposer', () => {

@@ -130,6 +130,7 @@ export default function ArtworkDocumentUploader({
   disabled = false,
   onUploaded,
   onBusyChange,
+  onPendingUploadsChange,
 }: {
   artworkId: string
   labelSuggestions?: readonly string[]
@@ -137,6 +138,7 @@ export default function ArtworkDocumentUploader({
   disabled?: boolean
   onUploaded: (document: ArtworkDocument) => void
   onBusyChange: (busy: boolean) => void
+  onPendingUploadsChange?: (count: number) => void
 }) {
   const [queue, setQueue] = useState<QueuedDocument[]>([])
   const [uploading, setUploading] = useState(false)
@@ -147,7 +149,7 @@ export default function ArtworkDocumentUploader({
     exhibitions_literature: { ...DEFAULT_DOCUMENT_ACCESS },
   })
   const [validationError, setValidationError] = useState('')
-  const [confirmFilenames, setConfirmFilenames] = useState(false)
+  const [confirmFilenames, setConfirmFilenames] = useState<{ targetIds?: string[] } | null>(null)
   const busyRef = useRef(false)
   const confirmDialogRef = useRef<HTMLDialogElement>(null)
   const locked = disabled || uploading
@@ -160,6 +162,13 @@ export default function ArtworkDocumentUploader({
   useEffect(() => {
     if (confirmFilenames) confirmDialogRef.current?.showModal()
   }, [confirmFilenames])
+
+  const pendingCount = queue.filter(item => item.status !== 'uploaded').length
+
+  useEffect(() => {
+    onPendingUploadsChange?.(pendingCount)
+    return () => onPendingUploadsChange?.(0)
+  }, [pendingCount, onPendingUploadsChange])
 
   useEffect(() => {
     if (!unfinished) return
@@ -195,13 +204,14 @@ export default function ArtworkDocumentUploader({
     setQueue(previous => previous.map(item => item.id === id ? { ...item, ...change } : item))
   }
 
-  async function upload(useFilenames = false) {
-    if (disabled || busyRef.current || uploadable.length === 0) return
-    if (!useFilenames && uploadable.some(item => !item.label.trim())) {
-      setConfirmFilenames(true)
+  async function upload(useFilenames = false, targetIds?: string[]) {
+    const targets = targetIds ? uploadable.filter(item => targetIds.includes(item.id)) : uploadable
+    if (disabled || busyRef.current || targets.length === 0) return
+    if (!useFilenames && targets.some(item => !item.label.trim())) {
+      setConfirmFilenames({ targetIds })
       return
     }
-    for (const item of uploadable) {
+    for (const item of targets) {
       const result = parseDocumentAccess(item.access)
       if ('error' in result) {
         setValidationError(`${item.file.name}: ${result.error}`)
@@ -211,7 +221,8 @@ export default function ArtworkDocumentUploader({
     setValidationError('')
     if (useFilenames) {
       setQueue(previous => previous.map(item =>
-        item.status !== 'uploaded' && !fileError(item.file) && !item.label.trim()
+        item.status !== 'uploaded' && !fileError(item.file) && !item.label.trim() &&
+        (!targetIds || targetIds.includes(item.id))
           ? { ...item, label: item.file.name }
           : item
       ))
@@ -221,7 +232,7 @@ export default function ArtworkDocumentUploader({
     onBusyChange(true)
     try {
       // Keep requests sequential to preserve document order and limit server memory usage.
-      for (const item of uploadable) {
+      for (const item of targets) {
         updateItem(item.id, { status: 'uploading', error: undefined })
         try {
           const form = new FormData()
@@ -352,15 +363,32 @@ export default function ArtworkDocumentUploader({
                         </span>
                       )}
                       {item.status !== 'uploaded' && (
-                        <button
-                          type="button"
-                          className="edit-button"
-                          aria-label={`Remove ${item.file.name}`}
-                          disabled={locked}
-                          onClick={() => setQueue(previous => previous.filter(entry => entry.id !== item.id))}
-                        >
-                          Remove
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="edit-button"
+                            aria-label={`Upload ${item.file.name}`}
+                            title={`Upload ${item.file.name}`}
+                            disabled={locked || Boolean(fileError(item.file))}
+                            onClick={() => void upload(false, [item.id])}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          >
+                            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none"
+                              stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M8 10.5V2.5M4.5 5.5 8 2l3.5 3.5M2.5 11.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" />
+                            </svg>
+                            Upload
+                          </button>
+                          <button
+                            type="button"
+                            className="edit-button"
+                            aria-label={`Remove ${item.file.name}`}
+                            disabled={locked}
+                            onClick={() => setQueue(previous => previous.filter(entry => entry.id !== item.id))}
+                          >
+                            Remove
+                          </button>
+                        </>
                       )}
                     </div>
                     {item.error && <p role="alert" style={{ color: '#a00000', margin: '4px 0' }}>{item.error}</p>}
@@ -402,15 +430,16 @@ export default function ArtworkDocumentUploader({
       )}
       {confirmFilenames && (
         <dialog ref={confirmDialogRef} role="alertdialog" aria-labelledby="empty-document-labels-title"
-          aria-describedby="empty-document-labels-message" onCancel={() => setConfirmFilenames(false)}
+          aria-describedby="empty-document-labels-message" onCancel={() => setConfirmFilenames(null)}
           style={{ margin: 'auto', padding: 24, borderRadius: 8, maxWidth: '90vw' }}>
           <h2 id="empty-document-labels-title">Missing document labels</h2>
           <p id="empty-document-labels-message">Some documents have no label. Return to enter labels, or use the filenames for those documents.</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" className="edit-button" autoFocus onClick={() => setConfirmFilenames(false)}>Return to labels</button>
+            <button type="button" className="edit-button" autoFocus onClick={() => setConfirmFilenames(null)}>Return to labels</button>
             <button type="button" className="edit-button" onClick={() => {
-              setConfirmFilenames(false)
-              void upload(true)
+              const targetIds = confirmFilenames.targetIds
+              setConfirmFilenames(null)
+              void upload(true, targetIds)
             }}>Use filenames</button>
           </div>
         </dialog>

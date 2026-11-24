@@ -76,6 +76,14 @@ removes its all-client access. The Viewer keeps Viewer permissions and client
 document/comment restrictions. Switching back to one client replaces the
 all-client grant; changing the user's role also removes it.
 
+All-client Viewers also have the shared client selector, proposal recipient
+names (including printed factsheets) and buyer names in collections/inventories.
+Single-client Viewers keep their existing interface. This does not grant editing
+rights or access to internal documents/comments. Reload the Viewer's page after
+changing access. Apply `20261123190000_viewer_client_visibility.sql` before
+deploying this interface update; it enables recipient names in the existing
+RLS-scoped pagination/category RPCs without changing their artwork sources.
+
 Deploy migration `20261123170000_viewer_all_clients.sql` before the application
 release. Validate it with the rollback-only `tests\db\viewer-all-clients.sql`
 and the existing client-comment and document-visibility SQL tests.

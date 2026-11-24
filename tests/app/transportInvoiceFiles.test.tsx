@@ -58,7 +58,6 @@ describe('transport final invoice upload UI', () => {
     mocks.fetchWithAuth.mockResolvedValueOnce(load())
     await act(async () => root.render(<TransportsPage />))
     expect(container.querySelector('input[type="url"]')).toBeNull()
-    expect(container.textContent).toContain('Final invoice')
     expect(container.textContent).toContain('Add Invoice')
     expect(container.querySelector('a[href="https://example.com/old-invoice.pdf"]')?.textContent).toBe('Open final invoice')
   })

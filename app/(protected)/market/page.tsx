@@ -1677,6 +1677,7 @@ const showCalendarStatusColumn = canEdit &&
                           )}
                           {outlookUrl ? (
                             <a
+                              className="no-print"
                               href={outlookUrl}
                               target="_blank"
                               rel="noreferrer"
@@ -2117,6 +2118,7 @@ const showCalendarStatusColumn = canEdit &&
                                   ) : null}
                                   {outlookUrl ? (
                                     <a
+                                      className="no-print"
                                       href={outlookUrl}
                                       target="_blank"
                                       rel="noreferrer"

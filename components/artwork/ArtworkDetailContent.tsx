@@ -248,6 +248,7 @@ const hasLoadedArtworkRef = useRef(false)
   const [newDocLabel, setNewDocLabel] = useState('')
   const [newDocUrl, setNewDocUrl] = useState('')
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [pendingUploadCount, setPendingUploadCount] = useState(0)
   const [newDocAccess, setNewDocAccess] = useState<DocumentAccess>(DEFAULT_DOCUMENT_ACCESS)
   const [newDocCategory, setNewDocCategory] = useState<DocumentCategory>('general')
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([])
@@ -661,6 +662,14 @@ useEffect(() => {
     if (yearError) {
       setError(yearError)
       return
+    }
+    if (pendingUploadCount > 0) {
+      const proceed = window.confirm(
+        pendingUploadCount === 1
+          ? 'A file was added but has not been uploaded yet. It will not be attached to the artwork. Save anyway without it?'
+          : `${pendingUploadCount} files were added but have not been uploaded yet. They will not be attached to the artwork. Save anyway without them?`
+      )
+      if (!proceed) return
     }
 
     try {
@@ -1632,6 +1641,7 @@ const artworkDocuments = useMemo(
                   clients={documentClients}
                   disabled={saving || deleting || categorizing}
                   onBusyChange={setUploadingDoc}
+                  onPendingUploadsChange={setPendingUploadCount}
                   onUploaded={document => setArtwork(previous =>
                     previous ? { ...previous, documents: [...(previous.documents ?? []), document] } : previous
                   )}

@@ -19,6 +19,8 @@ SELECT id, 'All client access test' FROM all_clients_test_ids WHERE name = 'work
 INSERT INTO public.artwork_proposals (artwork_id, contact_id)
 SELECT w.id, c.id FROM all_clients_test_ids w CROSS JOIN all_clients_test_ids c
 WHERE w.name = 'work' AND c.name IN ('client_a', 'client_b', 'nonclient');
+UPDATE public.artworks SET buyer_contact_id = (SELECT id FROM all_clients_test_ids WHERE name = 'client_a')
+WHERE id = (SELECT id FROM all_clients_test_ids WHERE name = 'work');
 INSERT INTO public.documents (artwork_id, document_type, label, url, visibility, recipient_contact_id)
 SELECT w.id, 'link', v.label, 'https://example.invalid/document', v.visibility, c.id
 FROM (VALUES ('Internal', 'internal', NULL), ('Client A', 'selected_client', 'client_a'),
@@ -38,10 +40,42 @@ END;
 $$;
 SELECT set_config('request.jwt.claim.sub', (SELECT id::text FROM all_clients_test_ids WHERE name = 'admin'), true);
 SELECT public.set_viewer_client_access((SELECT id FROM all_clients_test_ids WHERE name = 'viewer'), true);
+SELECT public.set_viewer_client_access((SELECT id FROM all_clients_test_ids WHERE name = 'other'), false,
+  (SELECT id FROM all_clients_test_ids WHERE name = 'client_a'));
 
 SELECT set_config('request.jwt.claim.sub', (SELECT id::text FROM all_clients_test_ids WHERE name = 'viewer'), true);
 DO $$
+DECLARE
+  result jsonb;
+  filters jsonb := jsonb_build_object('search', 'All client access test');
 BEGIN
+  IF NOT public.can_view_client_names() THEN
+    RAISE EXCEPTION 'All-client Viewer cannot see client names';
+  END IF;
+  result := public.artwork_list_page(filters);
+  IF (result->>'total')::int <> 1 OR jsonb_array_length(result->'recipients') <> 2
+    OR jsonb_array_length(result#>'{groups,0,rows,0,proposals}') <> 2
+    OR result#>>'{groups,0,rows,0,buyer,company_name}' IS DISTINCT FROM 'client_a' THEN
+    RAISE EXCEPTION 'All-client Viewer list lost scoped recipients or buyer';
+  END IF;
+  IF public.artwork_category_ids('market', filters,
+    '{"market-Other-others":{"sortKey":"proposed_to","sortDirection":"asc"}}')
+    IS DISTINCT FROM ARRAY[(SELECT id FROM all_clients_test_ids WHERE name = 'work')] THEN
+    RAISE EXCEPTION 'All-client category factsheets differ from the list';
+  END IF;
+  result := public.artwork_list_page(filters || jsonb_build_object('client',
+    (SELECT id FROM all_clients_test_ids WHERE name = 'client_b')));
+  IF (result->>'total')::int <> 1 THEN
+    RAISE EXCEPTION 'All-client Viewer cannot filter to another client';
+  END IF;
+  result := public.artwork_list_page(filters || jsonb_build_object('client',
+    (SELECT id FROM all_clients_test_ids WHERE name = 'nonclient')));
+  IF (result->>'total')::int <> 0 THEN
+    RAISE EXCEPTION 'All-client Viewer filter exposed an unauthorized contact';
+  END IF;
+  UPDATE public.artworks SET title = 'Unauthorized change'
+    WHERE id = (SELECT id FROM all_clients_test_ids WHERE name = 'work');
+  IF FOUND THEN RAISE EXCEPTION 'Client visibility granted artwork editing'; END IF;
   IF NOT public.user_has_any_access() OR
     (SELECT count(*) FROM public.artwork_comment_clients((SELECT id FROM all_clients_test_ids WHERE name = 'work'))) <> 2 THEN
     RAISE EXCEPTION 'All-client Viewer cannot access both client conversations';
@@ -58,6 +92,19 @@ BEGIN
     VALUES ((SELECT id FROM all_clients_test_ids WHERE name = 'work'), auth.uid(), 'Internal');
     RAISE EXCEPTION 'Viewer created an internal comment';
   EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END;
+$$;
+SELECT set_config('request.jwt.claim.sub', (SELECT id::text FROM all_clients_test_ids WHERE name = 'other'), true);
+DO $$
+DECLARE result jsonb;
+BEGIN
+  result := public.artwork_list_page('{"search":"All client access test"}');
+  IF public.can_view_client_names() OR (result->>'total')::int <> 1
+    OR result->'recipients' <> '[]'::jsonb
+    OR result#>'{groups,0,rows,0,proposals}' <> '[]'::jsonb
+    OR result#>'{groups,0,rows,0,buyer}' IS DISTINCT FROM 'null'::jsonb THEN
+    RAISE EXCEPTION 'Single-client Viewer client visibility changed';
+  END IF;
 END;
 $$;
 RESET ROLE;

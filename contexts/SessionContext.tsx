@@ -1,7 +1,7 @@
 
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseBrowser'
 import type { Session, User } from '@supabase/supabase-js'
 import { invalidateTemporaryCaches, observeMutationFetch } from '@/lib/temporaryCache'
@@ -16,6 +16,7 @@ type SessionProfileContextValue = {
   session: Session | null
   user: User | null
   role: UserRole | undefined
+  hasAllClientsAccess: boolean
   isAuthenticated: boolean
   loading: boolean
   refreshSession: () => Promise<void>
@@ -29,7 +30,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
   const [role, setRole] = useState<UserRole | undefined>(undefined)
+  const [allClientsUserId, setAllClientsUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const sessionRequest = useRef(0)
 
   useEffect(() => {
     const original = window.fetch
@@ -96,14 +99,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const loadSession = useCallback(
     async (currentSession?: Session | null) => {
+      const request = ++sessionRequest.current
       setLoading(true)
 
       const sessionPayload =
         currentSession ?? (await supabase.auth.getSession()).data.session
 
+      if (request !== sessionRequest.current) return
       const currentUser = sessionPayload?.user ?? null
       setSession(sessionPayload)
       setUser(currentUser)
+      setAllClientsUserId(null)
 
       if (!currentUser) {
         setRole(undefined)
@@ -113,7 +119,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       void updateLastActivity(currentUser.id)
 
       const profileRole = await fetchRole(currentUser.id)
+      let allClients = false
+      if (profileRole === 'Viewer') {
+        const { data, error } = await supabase.from('viewer_all_clients')
+          .select('user_id').eq('user_id', currentUser.id).maybeSingle()
+        if (error) console.error('[SESSION_PROFILE] Unable to load all-client access', error)
+        else allClients = Boolean(data)
+      }
+      if (request !== sessionRequest.current) return
       setRole(profileRole)
+      setAllClientsUserId(allClients ? currentUser.id : null)
       setLoading(false)
     },
     [fetchRole, updateLastActivity]
@@ -139,6 +154,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false
+      sessionRequest.current++
       subscription.unsubscribe()
     }
   }, [loadSession])
@@ -159,6 +175,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         session,
         user,
         role,
+        hasAllClientsAccess: !loading && role === 'Viewer' && Boolean(user && allClientsUserId === user.id),
         isAuthenticated: Boolean(session),
         loading,
         refreshSession: () => {

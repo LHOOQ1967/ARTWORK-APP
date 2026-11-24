@@ -435,4 +435,43 @@ describe('multiple artwork document uploads', () => {
     expect((fetchMock.mock.calls[2][1].body as FormData).get('visibility')).toBe('internal')
     expect((fetchMock.mock.calls[0][1].body as FormData).get('visibility')).toBe('all_clients')
   })
+
+  it('uploads a single file from its row button without touching the other files', async () => {
+    await render()
+    await selectFiles([file('One.pdf'), file('Two.pdf')])
+    await label('Two.pdf', 'Second document')
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Upload Two.pdf"]')!.click())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((fetchMock.mock.calls[0][1].body as FormData).get('label')).toBe('Second document')
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('1 of 2 files uploaded.')
+    expect(container.querySelector('[aria-label="Upload Two.pdf"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Upload One.pdf"]')).not.toBeNull()
+  })
+
+  it('confirms the filename for a single-row upload and uploads only that file', async () => {
+    await render()
+    await selectFiles([file('One.pdf'), file('Two.pdf')])
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Upload One.pdf"]')!.click())
+    expect(container.querySelector<HTMLDialogElement>('[role="alertdialog"]')?.open).toBe(true)
+    expect(fetchMock).not.toHaveBeenCalled()
+    await act(async () => button('Use filenames').click())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect((fetchMock.mock.calls[0][1].body as FormData).get('label')).toBe('One.pdf')
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Label for Two.pdf"]')?.value).toBe('')
+  })
+
+  it('reports pending uploads to the parent and resets after uploads complete', async () => {
+    const onPendingUploadsChange = vi.fn()
+    await act(async () => root.render(
+      <ArtworkDocumentUploader artworkId="work-1" labelSuggestions={suggestions} clients={[]}
+        onUploaded={onUploaded} onBusyChange={onBusyChange} onPendingUploadsChange={onPendingUploadsChange} />
+    ))
+    expect(onPendingUploadsChange).toHaveBeenLastCalledWith(0)
+    await selectFiles([file('One.pdf'), file('Two.pdf')])
+    expect(onPendingUploadsChange).toHaveBeenLastCalledWith(2)
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Remove Two.pdf"]')!.click())
+    expect(onPendingUploadsChange).toHaveBeenLastCalledWith(1)
+    await click('Upload files')
+    expect(onPendingUploadsChange).toHaveBeenLastCalledWith(0)
+  })
 })

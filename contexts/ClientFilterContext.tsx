@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabaseBrowser'
 import { useSessionProfile } from '@/contexts/SessionContext'
+import { canViewClientNames } from '@/lib/permissions'
 
 export type ClientOption = {
   id: string
@@ -50,12 +51,17 @@ function readStoredClientId() {
 
 export function ClientFilterProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname()
-  const { role, loading: sessionLoading } = useSessionProfile()
-  const canSelectClient = role === 'Administrator' || role === 'Editor'
+  const { role, user, hasAllClientsAccess, loading: sessionLoading } = useSessionProfile()
+  const userId = user?.id
+  const canSelectClient = !sessionLoading && canViewClientNames(role, hasAllClientsAccess)
 
-  const [clients, setClients] = useState<ClientOption[]>([])
+  const [loadedClients, setLoadedClients] = useState<{ userId: string; clients: ClientOption[] } | null>(null)
+  const clients = useMemo(
+    () => canSelectClient && loadedClients?.userId === userId ? loadedClients?.clients ?? [] : [],
+    [canSelectClient, loadedClients, userId]
+  )
   const [storedClientId, setStoredClientId] = useState<string | null>(null)
-  const [artworkIds, setArtworkIds] = useState<Set<string> | null>(null)
+  const [artworks, setArtworks] = useState<{ userId: string; clientId: string; ids: Set<string> } | null>(null)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -63,33 +69,40 @@ export function ClientFilterProvider({ children }: Readonly<{ children: React.Re
   }, [])
 
   useEffect(() => {
-    if (sessionLoading || !canSelectClient) return
+    if (!canSelectClient || !userId) return
     let cancelled = false
 
     void (async () => {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('id, company_name, first_name, last_name')
-        .eq('is_client', true)
-
-      if (cancelled) return
-      if (error) {
-        console.error('[CLIENT_FILTER] load clients', error)
-        setClients([])
-        return
+      const contacts: ClientContactRow[] = []
+      for (let offset = 0; ; offset += 200) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .select('id, company_name, first_name, last_name')
+          .eq('is_client', true)
+          .order('id')
+          .range(offset, offset + 199)
+        if (cancelled) return
+        if (error) {
+          console.error('[CLIENT_FILTER] load clients', error)
+          setLoadedClients(null)
+          return
+        }
+        contacts.push(...(data ?? []))
+        if (!data || data.length < 200) break
       }
 
-      setClients(
-        ((data ?? []) as ClientContactRow[])
+      setLoadedClients({
+        userId,
+        clients: contacts
           .map((contact) => ({ id: contact.id, label: clientLabel(contact) }))
-          .sort((a, b) => a.label.localeCompare(b.label, 'fr-CH', { sensitivity: 'base' }))
-      )
+          .sort((a, b) => a.label.localeCompare(b.label, 'fr-CH', { sensitivity: 'base' })),
+      })
     })()
 
     return () => {
       cancelled = true
     }
-  }, [sessionLoading, canSelectClient])
+  }, [canSelectClient, userId])
 
   const selectedClient = useMemo(
     () => (canSelectClient ? clients.find((client) => client.id === storedClientId) ?? null : null),
@@ -99,37 +112,39 @@ export function ClientFilterProvider({ children }: Readonly<{ children: React.Re
 
   // Reloaded on navigation so newly added proposals or acquisitions are reflected.
   useEffect(() => {
-    if (!selectedClientId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setArtworkIds(null)
-      return
-    }
+    if (!selectedClientId || !userId) return
     let cancelled = false
 
     void (async () => {
-      const [proposalsResult, boughtResult] = await Promise.all([
-        supabase.from('artwork_proposals').select('artwork_id').eq('contact_id', selectedClientId),
-        supabase.from('artworks').select('id').eq('buyer_contact_id', selectedClientId),
-      ])
-
-      if (cancelled) return
-      if (proposalsResult.error) console.error('[CLIENT_FILTER] load proposals', proposalsResult.error)
-      if (boughtResult.error) console.error('[CLIENT_FILTER] load acquisitions', boughtResult.error)
-
       const ids = new Set<string>()
-      for (const row of (proposalsResult.data ?? []) as { artwork_id: string }[]) ids.add(row.artwork_id)
-      for (const row of (boughtResult.data ?? []) as { id: string }[]) ids.add(row.id)
-      setArtworkIds(ids)
+      for (let offset = 0; ; offset += 200) {
+        const [proposalsResult, boughtResult] = await Promise.all([
+          supabase.from('artwork_proposals').select('artwork_id').eq('contact_id', selectedClientId)
+            .order('artwork_id').range(offset, offset + 199),
+          supabase.from('artworks').select('id').eq('buyer_contact_id', selectedClientId)
+            .order('id').range(offset, offset + 199),
+        ])
+        if (cancelled) return
+        if (proposalsResult.error || boughtResult.error) {
+          console.error('[CLIENT_FILTER] load artworks', proposalsResult.error || boughtResult.error)
+          setArtworks(null)
+          return
+        }
+        for (const row of proposalsResult.data ?? []) ids.add(row.artwork_id)
+        for (const row of boughtResult.data ?? []) ids.add(row.id)
+        if ((proposalsResult.data?.length ?? 0) < 200 && (boughtResult.data?.length ?? 0) < 200) break
+      }
+      setArtworks({ userId, clientId: selectedClientId, ids })
     })()
 
     return () => {
       cancelled = true
     }
-  }, [selectedClientId, pathname])
+  }, [selectedClientId, pathname, userId])
 
   const setSelectedClientId = useCallback((clientId: string | null) => {
     setStoredClientId(clientId)
-    setArtworkIds(null)
+    setArtworks(null)
     try {
       if (clientId) localStorage.setItem(STORAGE_KEY, clientId)
       else localStorage.removeItem(STORAGE_KEY)
@@ -143,9 +158,10 @@ export function ClientFilterProvider({ children }: Readonly<{ children: React.Re
   const matchesClient = useCallback(
     (artworkId: string | null | undefined) => {
       if (!isFilterActive) return true
-      return Boolean(artworkId && artworkIds?.has(artworkId))
+      return Boolean(artworkId && artworks?.userId === userId &&
+        artworks?.clientId === selectedClientId && artworks.ids.has(artworkId))
     },
-    [isFilterActive, artworkIds]
+    [isFilterActive, artworks, userId, selectedClientId]
   )
 
   const value = useMemo<ClientFilterContextValue>(

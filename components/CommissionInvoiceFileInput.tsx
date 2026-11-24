@@ -4,11 +4,13 @@ import { useRef, useState } from 'react'
 
 export default function CommissionInvoiceFileInput({
   label,
+  buttonLabel = 'Add Invoice',
   file,
   disabled = false,
   onChange,
 }: {
   label: string
+  buttonLabel?: string
   file?: File
   disabled?: boolean
   onChange: (file?: File) => void
@@ -47,7 +49,7 @@ export default function CommissionInvoiceFileInput({
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
         >
-          Add Invoice
+          {buttonLabel}
         </button>
         <input
           ref={inputRef}

@@ -134,6 +134,11 @@ export function getProposedToText(artwork: ArtworkListItem): string {
     .join(', ')
 }
 
+export function getBuyerText(artwork: ArtworkListItem): string {
+  return artwork.buyer?.company_name?.trim() ||
+    [artwork.buyer?.first_name, artwork.buyer?.last_name].filter(Boolean).join(' ').trim()
+}
+
 export function getLocationText(artwork: ArtworkListItem): string {
   const location = artwork.location
   const name = location?.company_name?.trim() ||

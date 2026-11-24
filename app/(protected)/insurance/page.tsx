@@ -101,10 +101,11 @@ export default function InsurancePage() {
   const [viewerClientId, setViewerClientId] = useState<string | null>(null)
   const [viewerClientsError, setViewerClientsError] = useState('')
   const [viewerClientsLoading, setViewerClientsLoading] = useState(false)
-  const clients = canEdit ? editorClients : viewerClients
-  const selectedClientId = canEdit ? editorSelectedClientId : viewerClientId
-  const selectedClient = canEdit ? editorSelectedClient : viewerClients.find(client => client.id === viewerClientId)
-  const setSelectedClientId = canEdit ? setEditorSelectedClientId : setViewerClientId
+  const useGlobalClientFilter = canSelectClient
+  const clients = useGlobalClientFilter ? editorClients : viewerClients
+  const selectedClientId = useGlobalClientFilter ? editorSelectedClientId : viewerClientId
+  const selectedClient = useGlobalClientFilter ? editorSelectedClient : viewerClients.find(client => client.id === viewerClientId)
+  const setSelectedClientId = useGlobalClientFilter ? setEditorSelectedClientId : setViewerClientId
 
   const [artworks, setArtworks] = useState<InsuranceArtwork[]>([])
   const [loadingArtworks, setLoadingArtworks] = useState(true)
@@ -134,7 +135,7 @@ export default function InsurancePage() {
   }, [canView, role, router])
 
   useEffect(() => {
-    if (role !== 'Viewer') return
+    if (role !== 'Viewer' || useGlobalClientFilter) return
     let active = true
     async function loadClients() {
       setViewerClientsLoading(true)
@@ -156,7 +157,7 @@ export default function InsurancePage() {
     }
     void loadClients()
     return () => { active = false }
-  }, [role])
+  }, [role, useGlobalClientFilter])
 
   useEffect(() => {
     let cancelled = false
@@ -496,7 +497,7 @@ export default function InsurancePage() {
             className="rounded border bg-white px-3 py-2"
             value={selectedClientId ?? ''}
             onChange={(event) => setSelectedClientId(event.target.value || null)}
-            disabled={canEdit ? !canSelectClient : viewerClientsLoading}
+            disabled={!useGlobalClientFilter && viewerClientsLoading}
           >
             <option value="">Select a client</option>
             {clients.map((client) => (
@@ -506,8 +507,8 @@ export default function InsurancePage() {
         </label>
       </header>
       {viewerClientsError && <p role="alert" className="text-red-700">{viewerClientsError}</p>}
-      {!canEdit && viewerClientsLoading && <p>Loading your clients…</p>}
-      {!canEdit && !viewerClientsLoading && !viewerClientsError && clients.length === 0 && (
+      {!useGlobalClientFilter && viewerClientsLoading && <p>Loading your clients…</p>}
+      {!useGlobalClientFilter && !viewerClientsLoading && !viewerClientsError && clients.length === 0 && (
         <p>No insurance clients are linked to your account.</p>
       )}
 

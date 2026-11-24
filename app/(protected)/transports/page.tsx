@@ -24,6 +24,7 @@ type Quote = {
   id: string
   transport_id: string
   carrier_contact_id: string | null
+  requested_date: string | null
   quote_date: string | null
   amount: number | null
   currency: string
@@ -112,7 +113,7 @@ function PlaceLine({
   return (
     <p>
       {label}: <span className="font-semibold">{contactLabel(contact)}</span>
-      {address && <span className="block text-sm text-gray-600">{addressLabel(address)}</span>}
+      {address && <span className="block text-gray-600">{addressLabel(address)}</span>}
     </p>
   )
 }
@@ -123,21 +124,21 @@ function formatDate(value: string | null) {
 }
 
 function transportStatus(transport: Transport) {
-  if (transport.arrival_date) return 'Arrivée'
-  if (transport.transport_date) return 'En transport'
-  if (transport.instruction_date) return 'Instruit'
+  if (transport.arrival_date) return 'Livré'
+  if (transport.transport_date || transport.instruction_date) return 'Transport en cours'
   if (transport.quotes.some((quote) => quote.accepted_date)) return 'Devis accepté'
-  if (transport.quotes.length > 0) return 'Devis en cours'
-  return 'À organiser'
+  if (transport.quotes.some((quote) => quote.submitted_to_buyer_date)) return 'Devis soumis'
+  if (transport.quotes.length > 0) return 'Devis à recevoir'
+  return 'Devis à demander'
 }
 
 const STATUSES = [
-  'À organiser',
-  'Devis en cours',
+  'Devis à demander',
+  'Devis à recevoir',
+  'Devis soumis',
   'Devis accepté',
-  'Instruit',
-  'En transport',
-  'Arrivée',
+  'Transport en cours',
+  'Livré',
 ]
 
 async function send(url: string, method: string, body?: unknown) {
@@ -165,6 +166,13 @@ export default function TransportsPage() {
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
   const [newArtworkId, setNewArtworkId] = useState('all')
+  const [artworkIdFilter, setArtworkIdFilter] = useState<string | null>(null)
+
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get('artworkId')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (param) setArtworkIdFilter(param)
+  }, [])
 
   const load = useCallback(async () => {
     const response = await fetchWithAuth('/api/transports')
@@ -214,10 +222,11 @@ export default function TransportsPage() {
     return transports.filter(
       (transport) =>
         matchesClient(transport.artwork_id) &&
+        (!artworkIdFilter || transport.artwork_id === artworkIdFilter) &&
         (!statusFilter || transportStatus(transport) === statusFilter) &&
         (!needle || artworkLabel(transport.artwork).toLowerCase().includes(needle))
     )
-  }, [transports, statusFilter, search, matchesClient])
+  }, [transports, statusFilter, search, matchesClient, artworkIdFilter])
 
   async function run(action: () => Promise<void>) {
     try {
@@ -301,6 +310,15 @@ export default function TransportsPage() {
             </option>
           ))}
         </select>
+        {artworkIdFilter && (
+          <button
+            className="edit-button"
+            type="button"
+            onClick={() => setArtworkIdFilter(null)}
+          >
+            Afficher tous les transports
+          </button>
+        )}
       </section>
 
       {loading ? (
@@ -390,7 +408,7 @@ function TransportCard({
         <div>
           <Link
             className="underline"
-            href={`/artworks/${transport.artwork_id}`}
+            href={`/artworks/print/${transport.artwork_id}`}
           >
             {artworkLabel(transport.artwork)}
           </Link>
@@ -427,20 +445,26 @@ function TransportCard({
           </div>
         </div>
         </div>
-        <span className="rounded bg-gray-100 px-3 py-1 text-sm font-medium">
-          {transportStatus(transport)}
-        </span>
       </div>
 
       <div>
-        <h3 className="mb-2 font-semibold">Devis</h3>
+        <div className="mb-2 flex items-center">
+          <h3 className="w-32 font-semibold">Devis</h3>
+          <span
+            className={`rounded bg-gray-100 px-3 py-1 text-[21px] font-bold ${
+              transportStatus(transport) === 'Livré' ? 'text-green-700' : 'text-red-700'
+            }`}
+          >
+            {transportStatus(transport)}
+          </span>
+        </div>
         <div className="space-y-2">
           {transport.quotes.length === 0 && (
             <p className="text-sm text-gray-600">Aucun devis.</p>
           )}
           {transport.quotes.map((quote) => (
             <QuoteRow
-              key={quote.id}
+              key={`${quote.id}:${quote.accepted_date ?? ''}`}
               quote={quote}
               canEdit={canEdit}
               contactOptions={contactOptions}
@@ -455,37 +479,13 @@ function TransportCard({
             onClick={() =>
               void run(() =>
                 send(`/api/transports/${transport.id}/quotes`, 'POST', {
-                  quote_date: new Date().toISOString().slice(0, 10),
+                  requested_date: new Date().toISOString().slice(0, 10),
                 })
               )
             }
           >
             Ajouter un devis
           </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3">
-        {canEdit && (
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Final invoice</p>
-            <CommissionInvoiceFileInput
-              label={`Final invoice file for ${artworkLabel(transport.artwork)}`}
-              file={finalInvoiceFile}
-              disabled={saving}
-              onChange={setFinalInvoiceFile}
-            />
-          </div>
-        )}
-        {transport.final_invoice_pdf_url && (
-          <a
-            className="pb-2 text-sm font-medium text-blue-700 underline"
-            href={transport.final_invoice_pdf_url}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open final invoice
-          </a>
         )}
       </div>
 
@@ -522,9 +522,30 @@ function TransportCard({
         </label>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         {canEdit && (
-          <>
+          <CommissionInvoiceFileInput
+            label={`Final invoice file for ${artworkLabel(transport.artwork)}`}
+            file={finalInvoiceFile}
+            disabled={saving}
+            onChange={setFinalInvoiceFile}
+          />
+        )}
+        {transport.final_invoice_pdf_url && (
+          <a
+            className="pb-2 text-sm font-medium text-blue-700 underline"
+            href={transport.final_invoice_pdf_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open final invoice
+          </a>
+        )}
+        <button className="edit-button" type="button" onClick={() => void toggleHistory()}>
+          {history ? 'Masquer l’historique' : 'Historique des localisations'}
+        </button>
+        {canEdit && (
+          <div className="ml-auto flex gap-3">
             <button
               className="edit-button"
               type="button"
@@ -568,20 +589,51 @@ function TransportCard({
             >
               Supprimer
             </button>
-          </>
+          </div>
         )}
-        <button className="edit-button" type="button" onClick={() => void toggleHistory()}>
-          {history ? 'Masquer l’historique' : 'Historique des localisations'}
-        </button>
       </div>
 
       {history && (
-        <ul className="text-sm">
+        <ul className="space-y-1 text-[17px]">
           {history.length === 0 && <li className="text-gray-600">Aucun historique.</li>}
           {history.map((row) => (
-            <li key={row.id}>
-              {contactLabel(row.contact)}{row.address ? ` (${addressLabel(row.address)})` : ''} — depuis le {formatDate(row.started_at)}
-              {row.ended_at ? ` jusqu’au ${formatDate(row.ended_at)}` : ' (actuelle)'}
+            <li key={row.id} className="flex items-center gap-3">
+              <span>
+                {formatDate(row.started_at)} — {contactLabel(row.contact)}{row.address ? ` (${addressLabel(row.address)})` : ''}
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  aria-label="Supprimer cette entrée d’historique"
+                  title="Supprimer"
+                  className="text-red-700 hover:text-red-900"
+                  onClick={() => {
+                    if (!window.confirm('Supprimer cette entrée d’historique ?')) return
+                    void run(async () => {
+                      await send(`/api/location-history/${row.id}`, 'DELETE')
+                      setHistory((prev) => (prev ? prev.filter((r) => r.id !== row.id) : prev))
+                    })
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -603,13 +655,14 @@ function QuoteRow({
 }>) {
   const [draft, setDraft] = useState({
     carrier_contact_id: quote.carrier_contact_id ?? 'all',
+    requested_date: quote.requested_date ?? '',
     quote_date: quote.quote_date ?? '',
     amount: quote.amount === null ? '' : String(quote.amount),
     currency: quote.currency,
     submitted_to_buyer_date: quote.submitted_to_buyer_date ?? '',
     accepted_date: quote.accepted_date ?? '',
-    quote_pdf_url: quote.quote_pdf_url ?? '',
   })
+  const [quoteFile, setQuoteFile] = useState<File>()
 
   const set = (key: keyof typeof draft, value: string) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -618,7 +671,21 @@ function QuoteRow({
   const label = 'flex flex-col gap-1 text-sm font-medium'
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded border bg-gray-50 p-3">
+    <div
+      className={`flex flex-wrap items-end gap-3 rounded border p-3 ${
+        quote.accepted_date ? 'border-green-300 bg-green-50' : 'bg-gray-50'
+      }`}
+    >
+      {quote.accepted_date && (
+        <span className="mb-2 rounded bg-green-100 px-2 py-1 text-sm font-medium text-green-800">
+          Accepté
+        </span>
+      )}
+      <label className={label}>
+        Devis demandé le
+        <input type="date" className={input} disabled={!canEdit} value={draft.requested_date}
+          onChange={(event) => set('requested_date', event.target.value)} />
+      </label>
       <label className={label}>
         Date du devis
         <input type="date" className={input} disabled={!canEdit} value={draft.quote_date}
@@ -643,14 +710,14 @@ function QuoteRow({
       <label className={label}>
         Montant
         <span className="flex gap-1">
-          <input type="number" min="0" step="0.01" className={`${input} w-32`} disabled={!canEdit}
-            value={draft.amount} onChange={(event) => set('amount', event.target.value)} />
           <select className={input} disabled={!canEdit} value={draft.currency}
             onChange={(event) => set('currency', event.target.value)}>
             {CURRENCIES.map((currency) => (
               <option key={currency} value={currency}>{currency}</option>
             ))}
           </select>
+          <input type="number" min="0" step="0.01" className={`${input} w-32`} disabled={!canEdit}
+            value={draft.amount} onChange={(event) => set('amount', event.target.value)} />
         </span>
       </label>
       <label className={label}>
@@ -663,17 +730,17 @@ function QuoteRow({
         <input type="date" className={input} disabled={!canEdit} value={draft.accepted_date}
           onChange={(event) => set('accepted_date', event.target.value)} />
       </label>
-      <label className={label}>
-        Lien PDF du devis (OneDrive)
-        <input
-          type="url"
-          className={`${input} w-64`}
-          disabled={!canEdit}
-          placeholder="https://..."
-          value={draft.quote_pdf_url}
-          onChange={(event) => set('quote_pdf_url', event.target.value)}
-        />
-      </label>
+      {canEdit && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Quote file</p>
+          <CommissionInvoiceFileInput
+            label="Quote file"
+            buttonLabel="Add quote file"
+            file={quoteFile}
+            onChange={setQuoteFile}
+          />
+        </div>
+      )}
       {quote.quote_pdf_url && (
         <a
           className="pb-2 text-sm font-medium text-blue-700 underline"
@@ -681,27 +748,50 @@ function QuoteRow({
           target="_blank"
           rel="noreferrer"
         >
-          PDF du devis
+          Open quote
         </a>
       )}
       {canEdit && (
         <>
+          {!quote.accepted_date && (
+            <button
+              className="edit-button"
+              type="button"
+              onClick={() =>
+                void run(() =>
+                  send(`/api/transports/${quote.transport_id}/quotes/${quote.id}`, 'PATCH', {
+                    accepted_date: new Date().toISOString().slice(0, 10),
+                  })
+                )
+              }
+            >
+              Accepter ce devis
+            </button>
+          )}
           <button
             className="edit-button"
             type="button"
             onClick={() =>
-              void run(() =>
-                send(`/api/transports/${quote.transport_id}/quotes/${quote.id}`, 'PATCH', {
+              void run(async () => {
+                const changes = {
                   carrier_contact_id:
                     draft.carrier_contact_id === 'all' ? null : draft.carrier_contact_id,
+                  requested_date: draft.requested_date || null,
                   quote_date: draft.quote_date || null,
                   amount: draft.amount === '' ? null : Number(draft.amount),
                   currency: draft.currency,
                   submitted_to_buyer_date: draft.submitted_to_buyer_date || null,
                   accepted_date: draft.accepted_date || null,
-                  quote_pdf_url: draft.quote_pdf_url || null,
-                })
-              )
+                }
+                let body: typeof changes | FormData = changes
+                if (quoteFile) {
+                  body = new FormData()
+                  body.set('quote', JSON.stringify(changes))
+                  body.set('file', quoteFile)
+                }
+                await send(`/api/transports/${quote.transport_id}/quotes/${quote.id}`, 'PATCH', body)
+                setQuoteFile(undefined)
+              })
             }
           >
             Enregistrer

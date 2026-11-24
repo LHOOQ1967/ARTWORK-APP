@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   client: null as { id: string; label: string } | null,
   buyer: null as string | null,
   buyerName: "Florac",
+  role: "Editor",
+  hasAllClientsAccess: false,
   writeFile: vi.fn(),
 }));
 
@@ -46,7 +48,7 @@ vi.mock("@/contexts/ClientFilterContext", () => ({
   }),
 }));
 vi.mock("@/contexts/SessionContext", () => ({
-  useSessionProfile: () => ({ role: "Editor" }),
+  useSessionProfile: () => ({ role: mocks.role, hasAllClientsAccess: mocks.hasAllClientsAccess }),
 }));
 vi.mock("@/lib/supabaseBrowser", () => ({ supabase: {} }));
 vi.mock("xlsx-js-style", async importOriginal => {
@@ -75,9 +77,19 @@ beforeEach(() => {
   mocks.client = null;
   mocks.buyer = null;
   mocks.buyerName = "Florac";
+  mocks.role = "Editor";
+  mocks.hasAllClientsAccess = false;
 });
 
 describe("USD inventory surfaces", () => {
+  it.each([true, false])("shows a Viewer the row's buyer name only with all-client access (%s)", granted => {
+    mocks.role = "Viewer";
+    mocks.hasAllClientsAccess = granted;
+    const html = renderToStaticMarkup(<InventoryPage />);
+    expect(html.includes("Buyer: Florac")).toBe(granted);
+    expect(html).not.toContain("Modifier");
+    expect(html).not.toContain("aria-label=\"Coût");
+  });
   it.each(["client YAL", "buyer YAL", "buyer Indianart"])("applies USD rules to %s", selection => {
     if (selection === "client YAL") mocks.client = { id: "yal", label: "YAL" };
     else {

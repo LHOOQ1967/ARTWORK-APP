@@ -76,6 +76,7 @@ export function parseQuoteInput(body: Record<string, unknown> | null, isCreate: 
     body,
     {
       carrier_contact_id: idOrNull,
+      requested_date: dateOrNull,
       quote_date: dateOrNull,
       submitted_to_buyer_date: dateOrNull,
       accepted_date: dateOrNull,

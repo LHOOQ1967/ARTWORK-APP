@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseBrowser";
 import { privateImageUrl } from "@/lib/privateImageUrl";
 import { useClientFilter } from "@/contexts/ClientFilterContext";
 import { useSessionProfile } from "@/contexts/SessionContext";
+import { canViewClientNames } from "@/lib/permissions";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { inventoryLocationLabel, type InventoryLocation } from "@/lib/inventoryLocation";
 import {
@@ -221,7 +222,8 @@ export default function BoughtInventoryPage() {
   const {
     canSelectClient, clients, selectedClient, selectedClientId, setSelectedClientId,
   } = useClientFilter();
-  const { role } = useSessionProfile();
+  const { role, hasAllClientsAccess } = useSessionProfile();
+  const showClientNames = canViewClientNames(role, hasAllClientsAccess);
   const [data, setData] = useState<InventoryRow[]>([]);
   const [buyerId, setBuyerId] = useState<string | null>(null);
   const [usdRates, setUsdRates] = useState<Record<string, HistoricalUsdRate>>({});
@@ -1044,6 +1046,12 @@ export default function BoughtInventoryPage() {
                   <td className="w-[140px] px-3 py-2">{getArtistName(r) || "—"}</td>
                   <td className="w-[300px] px-3 py-2">
                     {formatArtworkTitle(r.title, r.year_execution, r.year_execution_start) || "—"}
+                    {showClientNames && (
+                      <div className="text-xs text-gray-600">
+                        Buyer: {r.company_name ||
+                          [r.buyer_first_name, r.buyer_last_name].filter(Boolean).join(" ") || "—"}
+                      </div>
+                    )}
                   </td>
 
                   <td

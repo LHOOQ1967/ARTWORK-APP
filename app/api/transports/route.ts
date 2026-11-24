@@ -20,7 +20,7 @@ const TRANSPORT_SELECT = `
   origin:contacts!artwork_transports_origin_contact_id_fkey(id, company_name, first_name, last_name),
   destination:contacts!artwork_transports_destination_contact_id_fkey(id, company_name, first_name, last_name),
   quotes:artwork_transport_quotes(
-    id, transport_id, carrier_contact_id, quote_date, amount, currency,
+    id, transport_id, carrier_contact_id, requested_date, quote_date, amount, currency,
     submitted_to_buyer_date, accepted_date, quote_pdf_url, created_at,
     carrier:contacts!artwork_transport_quotes_carrier_contact_id_fkey(id, company_name, first_name, last_name)
   )
@@ -86,12 +86,25 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // The oldest history entry stems from the artwork proposal; show the acquisition date instead.
+  const historyRows = history.data ?? []
+  if (artworkId && historyRows.length > 0) {
+    const { data: acquisition } = await supabase
+      .from('artworks')
+      .select('date_acquisition')
+      .eq('id', artworkId)
+      .maybeSingle()
+    if (acquisition?.date_acquisition) {
+      historyRows[historyRows.length - 1].started_at = acquisition.date_acquisition
+    }
+  }
+
   return NextResponse.json({
     transports: (transports.data ?? []).map((t) => ({
       ...t,
       image_url: images[t.artwork_id] ?? null,
     })),
-    history: history.data ?? [],
+    history: historyRows,
     artworks: artworks.data ?? [],
     contacts: contacts.data ?? [],
     canEdit: authorization.role !== 'Viewer',

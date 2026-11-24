@@ -16,11 +16,12 @@ import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(prot
 import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
 import { LinkedText } from '@/components/ui/LinkedText'
 import { useSessionProfile } from '@/contexts/SessionContext'
-import { canEditArtworks } from '@/lib/permissions'
+import { canViewClientNames } from '@/lib/permissions'
 import { privateImageUrl } from '@/lib/privateImageUrl'
 import { supabase } from '@/lib/supabaseBrowser'
 import { QualityHistory } from './ArtworkQuality'
 import { CertificateAddress, CertificateLocationHistory } from './CertificateLocation'
+import ArtworkLocationHistory from './ArtworkLocationHistory'
 import {
   isHeirConditionReportDocumentLabel,
   sortArtworkDocuments,
@@ -173,6 +174,7 @@ export default function ArtworkSheet({ artwork, isEditMode, canEdit, floatingCon
           .from('artwork_transports')
           .select('id')
           .eq('artwork_id', artwork.id)
+          .is('arrival_date', null)
           .limit(1)
 
         if (cancelled) return
@@ -314,8 +316,8 @@ const links = [
 
 
 
-const { role } = useSessionProfile()
-const proposedTo = canEditArtworks(role)
+const { role, hasAllClientsAccess } = useSessionProfile()
+const proposedTo = canViewClientNames(role, hasAllClientsAccess)
   ? [...new Set((artwork.proposals ?? artwork.artwork_proposals ?? []).map(proposal => {
       const contact = proposal.contact ?? proposal.proposedTo
       return proposal.contact_label?.trim() ||
@@ -745,6 +747,38 @@ const displayTitle = (() => {
 
 
       {/* ✅ Metadata */}
+{artwork.location && (
+      <InfoRow
+        label={
+          <>
+            Location
+            <div>
+              <ArtworkLocationHistory artworkId={artwork.id} />
+            </div>
+          </>
+        }
+          value={
+            artwork.location.company_name ||
+              [artwork.location.first_name, artwork.location.last_name]
+                .filter(Boolean)
+                .join(' ')
+          }
+          detail={artwork.location.address}
+        />
+        )}
+{shipmentArtworkId === artwork.id && (
+  <InfoRowShort
+    label="Shipment"
+    value={
+      <Link
+        href={`/transports?artworkId=${artwork.id}`}
+        style={{ color: '#007a5e', textDecoration: 'underline' }}
+      >
+        See shipments
+      </Link>
+    }
+  />
+)}
 {artwork.view_date && (        
 <InfoRow
   label="Viewed on"
@@ -892,22 +926,6 @@ const displayTitle = (() => {
     value="Yes"
   />
 )}
-{artwork.location && (
-      <InfoRow
-        label="Location"
-          value={
-            artwork.location
-              ? artwork.location.company_name ||
-                [artwork.location.first_name, artwork.location.last_name]
-                  .filter(Boolean)
-                  .join(' ')
-              : null
-          }
-          detail={artwork.location.address}
-        />
-        )}
-
-
 {artwork.certificate === true && (
   <InfoRow
     label="Certificate"
@@ -1054,17 +1072,6 @@ const displayTitle = (() => {
         .join(' ')
     }
     detail={artwork.destination.address}
-  />
-)}
-
-{shipmentArtworkId === artwork.id && (
-  <InfoRowShort
-    label="Transports"
-    value={
-      <Link href="/transports" style={{ color: '#007a5e', textDecoration: 'underline' }}>
-        See shipments
-      </Link>
-    }
   />
 )}
 
