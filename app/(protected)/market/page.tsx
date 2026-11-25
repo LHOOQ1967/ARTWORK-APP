@@ -14,7 +14,7 @@ type MarketItemType = 'web_link' | 'document';
 type CatalogueStatus = 'Yes' | 'No' | 'Received' | 'Printed';
 type PaddlePlacesStatus = 'No' | 'Yes 1' | 'Yes 2';
 type ItemSortMode = 'label_asc' | 'created_desc' | 'auction_datetime_asc';
-type MarketViewMode = 'sections' | 'calendar';
+type MarketViewMode = 'sections' | 'calendar' | 'fairs';
 
 type AuctionFile = {
   id: string;
@@ -28,6 +28,13 @@ type AuctionFileLink = {
   section_id: string;
   kind: 'catalogue' | 'result';
   file_id: string;
+};
+
+type AuctionSession = {
+  id: string;
+  item_id: string;
+  session_datetime: string;
+  lot_info: string | null;
 };
 
 type MarketSection = {
@@ -61,6 +68,8 @@ type MarketSectionItemView = {
   document_id: string | null;
   document_url: string | null;
   document_type: string | null;
+  lot_info: string | null;
+  sessions: AuctionSession[];
 };
 
 type SectionWithItems = MarketSection & {
@@ -69,10 +78,26 @@ type SectionWithItems = MarketSection & {
   auctionFileLinks: AuctionFileLink[];
 };
 
+type CalendarEntry = {
+  key: string;
+  item: MarketSectionItemView;
+  datetime: string;
+  lotInfo: string | null;
+  /** True on the first row of each sale, which carries notes and statuses. */
+  showDetails: boolean;
+};
+
 type MarketDataResult = {
   role: ProfileRole;
   sections: SectionWithItems[] | null;
   errorMessage: string | null;
+};
+
+type SessionEditState = {
+  id: string | null;
+  date: string;
+  time: string;
+  lotInfo: string;
 };
 
 type EditState = {
@@ -87,6 +112,8 @@ type EditState = {
   auctionCity: string;
   auctionDate: string;
   auctionTime: string;
+  lotInfo: string;
+  sessions: SessionEditState[];
   catalogueStatus: CatalogueStatus | '';
 };
 
@@ -188,6 +215,15 @@ function formatCalendarDate(date: string) {
   });
 }
 
+function formatFairDateRange(start?: string | null, end?: string | null) {
+  if (start && end && start !== end) {
+    return `${formatCalendarDate(start)} – ${formatCalendarDate(end)}`;
+  }
+  if (start) return formatCalendarDate(start);
+  if (end) return `Until ${formatCalendarDate(end)}`;
+  return '—';
+}
+
 
 function sortSections(a: SectionWithItems, b: SectionWithItems) {
   const aDate = a.start_date ?? '0000-01-01';
@@ -226,6 +262,7 @@ async function fetchMarketData(): Promise<MarketDataResult> {
     { data: itemsData, error: itemsError },
     { data: filesData, error: filesError },
     { data: linksData, error: linksError },
+    { data: sessionsData, error: sessionsError },
   ] =
     await Promise.all([
       supabase
@@ -237,6 +274,10 @@ async function fetchMarketData(): Promise<MarketDataResult> {
       supabase.from('v_market_section_items').select('*'),
       supabase.from('market_auction_files').select('id, section_id, kind, file_name'),
       supabase.from('market_auction_file_links').select('item_id, section_id, kind, file_id'),
+      supabase
+        .from('market_auction_sessions')
+        .select('id, item_id, session_datetime, lot_info')
+        .order('session_datetime', { ascending: true }),
     ]);
 
   if (sectionsError) {
@@ -257,12 +298,13 @@ async function fetchMarketData(): Promise<MarketDataResult> {
     };
   }
 
-  if (filesError || linksError) {
-    console.error('LOAD AUCTION DOCUMENTS ERROR', filesError || linksError);
+  if (filesError || linksError || sessionsError) {
+    console.error('LOAD AUCTION DOCUMENTS ERROR', filesError || linksError || sessionsError);
     return { role, sections: null, errorMessage: 'Unable to load auction documents.' };
   }
 
   const sectionMap = new Map<string, SectionWithItems>();
+  const itemMap = new Map<string, MarketSectionItemView>();
 
   (sectionsData ?? []).forEach((section) => {
     sectionMap.set(section.id, {
@@ -276,8 +318,14 @@ async function fetchMarketData(): Promise<MarketDataResult> {
   (itemsData ?? []).forEach((item) => {
     const section = sectionMap.get(item.section_id);
     if (section) {
-      section.items.push(item as MarketSectionItemView);
+      const itemView = { ...(item as MarketSectionItemView), sessions: [] };
+      section.items.push(itemView);
+      itemMap.set(itemView.id, itemView);
     }
+  });
+
+  (sessionsData ?? []).forEach((session) => {
+    itemMap.get(session.item_id)?.sessions.push(session as AuctionSession);
   });
 
   (filesData ?? []).forEach((file) => {
@@ -350,6 +398,16 @@ function makeEditState(item: MarketSectionItemView): EditState {
     auctionCity: item.auction_city ?? '',
     auctionDate,
     auctionTime,
+    lotInfo: item.lot_info ?? '',
+    sessions: item.sessions.map((session) => {
+      const parsed = parseAuctionDateTimeRaw(session.session_datetime);
+      return {
+        id: session.id,
+        date: parsed.auctionDate,
+        time: parsed.auctionTime,
+        lotInfo: session.lot_info ?? '',
+      };
+    }),
     catalogueStatus: item.catalogue_status ?? '',
   };
 }
@@ -728,12 +786,90 @@ function getButtonStyle(kind: 'primary' | 'secondary' | 'danger', disabled = fal
   return disabled ? { ...base, ...styles.disabledButton } : base;
 }
 
+// Editor for the additional sale times of an auction resource. Each time
+// carries its own free-text lot/page note.
+function AuctionSessionsEditor({
+  sessions,
+  onChange,
+  disabled,
+  idPrefix,
+  originalSaleDate,
+}: {
+  sessions: SessionEditState[];
+  onChange: (sessions: SessionEditState[]) => void;
+  disabled?: boolean;
+  idPrefix: string;
+  originalSaleDate?: string;
+}) {
+  const update = (index: number, patch: Partial<SessionEditState>) => {
+    onChange(sessions.map((session, i) => (i === index ? { ...session, ...patch } : session)));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <span style={styles.label}>Additional sale times</span>
+      {sessions.map((session, index) => (
+        <div
+          key={`${idPrefix}-session-${index}`}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(90px, 0.7fr) minmax(150px, 1.5fr) auto',
+            gap: '8px',
+            alignItems: 'center',
+          }}
+        >
+          <input
+            type="time"
+            aria-label={`Additional sale time ${index + 1}`}
+            value={session.time}
+            onChange={(e) => update(index, { time: e.target.value })}
+            disabled={disabled}
+            style={styles.input}
+          />
+          <input
+            type="text"
+            aria-label={`Lot / page for additional sale time ${index + 1}`}
+            placeholder="Enter the first and last lot numbers and the total number of lots"
+            value={session.lotInfo}
+            onChange={(e) => update(index, { lotInfo: e.target.value })}
+            disabled={disabled}
+            style={styles.input}
+          />
+          <button
+            type="button"
+            onClick={() => onChange(sessions.filter((_, i) => i !== index))}
+            disabled={disabled}
+            style={getButtonStyle('secondary', Boolean(disabled))}
+            aria-label={`Remove additional sale time ${index + 1}`}
+          >
+            🗑
+          </button>
+        </div>
+      ))}
+      {sessions.some((session) => session.id && session.date && session.date !== originalSaleDate) ? (
+        <p style={styles.helperText}>Previously saved sale times on a different date keep their original date.</p>
+      ) : null}
+      <div>
+        <button
+          type="button"
+          onClick={() => onChange([...sessions, { id: null, date: '', time: '', lotInfo: '' }])}
+          disabled={disabled}
+          style={getButtonStyle('secondary', Boolean(disabled))}
+        >
+          + Add sale time
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function MarketPage() {
     console.log('✅ MarketPage rendered');
   const [role, setRole] = useState<ProfileRole>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<MarketViewMode>('sections');
+  const [showPastSections, setShowPastSections] = useState(false);
 
 
 const [sections, setSections] = useState<SectionWithItems[]>([]);
@@ -767,6 +903,8 @@ const [sectionSortModes, setSectionSortModes] = useState<Record<string, ItemSort
     auctionCity: '',
     auctionDate: '',
     auctionTime: '',
+    lotInfo: '',
+    sessions: [] as SessionEditState[],
     catalogueStatus: '',
   });
   const [itemFile, setItemFile] = useState<File | null>(null);
@@ -892,26 +1030,69 @@ const displaySections = useMemo(() => {
 }, [sections, sectionSortModes, todayDate]);
 
 const calendarSections = useMemo(() => displaySections
-  .map((section) => ({
-    ...section,
-    items: section.items
-      .filter((item) => {
-        const { auctionDate } = parseAuctionDateTimeRaw(item.auction_datetime);
-        return Boolean(auctionDate) && auctionDate > todayDate;
+  .map((section) => {
+    const entries: CalendarEntry[] = section.items
+      .flatMap((item) => {
+        const times = [
+          { key: item.id, datetime: item.auction_datetime, lotInfo: item.lot_info },
+          ...item.sessions.map((session) => ({
+            key: session.id,
+            datetime: session.session_datetime as string | null,
+            lotInfo: session.lot_info,
+          })),
+        ];
+        return times
+          .filter((time) => {
+            const { auctionDate } = parseAuctionDateTimeRaw(time.datetime);
+            return Boolean(auctionDate) && auctionDate > todayDate;
+          })
+          .map((time) => ({
+            key: time.key,
+            item,
+            datetime: time.datetime as string,
+            lotInfo: time.lotInfo,
+            showDetails: false,
+          }));
       })
       .sort((a, b) =>
-        (a.auction_datetime ?? '').localeCompare(b.auction_datetime ?? '') ||
-        a.label.localeCompare(b.label, 'en', { sensitivity: 'base' })
-      ),
-  }))
-  .filter((section) => section.items.length > 0), [displaySections, todayDate]);
+        a.datetime.localeCompare(b.datetime) ||
+        a.item.label.localeCompare(b.item.label, 'en', { sensitivity: 'base' })
+      );
+
+    const seenItems = new Set<string>();
+    entries.forEach((entry) => {
+      if (!seenItems.has(entry.item.id)) {
+        seenItems.add(entry.item.id);
+        entry.showDetails = true;
+      }
+    });
+
+    return { ...section, entries };
+  })
+  .filter((section) => section.entries.length > 0), [displaySections, todayDate]);
 
 const calendarEntryCount = calendarSections.reduce(
-  (count, section) => count + section.items.length,
+  (count, section) => count + section.entries.length,
+  0
+);
+const calendarSaleCount = calendarSections.reduce(
+  (count, section) =>
+    count + section.entries.filter((entry) => entry.showDetails).length,
   0
 );
 const showCalendarStatusColumn = canEdit &&
   calendarSections.some((section) => section.category === 'Ventes aux enchères');
+
+const fairCalendarSections = useMemo(() => displaySections
+  .filter((section) => {
+    if (section.category !== 'Foire') return false;
+    const lastDay = section.end_date ?? section.start_date;
+    return Boolean(lastDay && lastDay >= todayDate);
+  })
+  .sort((a, b) =>
+    (a.start_date ?? a.end_date ?? '').localeCompare(b.start_date ?? b.end_date ?? '') ||
+    a.title.localeCompare(b.title, 'en', { sensitivity: 'base' })
+  ), [displaySections, todayDate]);
 
 
   function toggleSection(sectionId: string) {
@@ -956,6 +1137,23 @@ const showCalendarStatusColumn = canEdit &&
       return;
     }
 
+    if (editState.sessions.length > 0 && !editState.auctionDate) {
+      setErrorMessage('Enter the sale date before adding sale times.');
+      setSaving(false);
+      return;
+    }
+    if (editState.sessions.some((session) => !session.time)) {
+      setErrorMessage('Enter a time for each additional sale time.');
+      setSaving(false);
+      return;
+    }
+
+    const sessionsWithIds = editState.sessions.map((session) => ({
+      ...session,
+      id: session.id ?? crypto.randomUUID(),
+    }));
+    setEditState((prev) => prev ? { ...prev, sessions: sessionsWithIds } : prev);
+
     const auctionHouse = editState.auctionHouse.trim() || null;
     const auctionCity = editState.auctionCity.trim() || null;
     const auctionDateTime = buildAuctionDateTime(editState.auctionDate, editState.auctionTime);
@@ -971,6 +1169,7 @@ const showCalendarStatusColumn = canEdit &&
         auction_house: auctionHouse,
         auction_city: auctionCity,
         auction_datetime: auctionDateTime,
+        lot_info: editState.lotInfo.trim() || null,
         catalogue_status: editState.catalogueStatus || null,
         ...(item.item_type === 'web_link' ? { url } : {}),
       })
@@ -983,6 +1182,46 @@ const showCalendarStatusColumn = canEdit &&
       return;
     }
 
+    const originalDate = parseAuctionDateTimeRaw(item.auction_datetime).auctionDate;
+    const sessionRows = sessionsWithIds
+      .map((session) => ({
+        id: session.id,
+        item_id: item.id,
+        session_datetime: buildAuctionDateTime(
+          item.sessions.some((existing) => existing.id === session.id) && session.date !== originalDate
+            ? session.date
+            : editState.auctionDate,
+          session.time
+        ),
+        lot_info: session.lotInfo.trim() || null,
+      }));
+
+    const { error: sessionsError } = sessionRows.length === 0
+      ? { error: null }
+      : await supabase.from('market_auction_sessions').upsert(sessionRows);
+    if (sessionsError) {
+      console.error('UPDATE MARKET AUCTION SESSIONS ERROR', sessionsError);
+      setErrorMessage(`The resource was updated, but its additional sale times could not be saved: ${sessionsError.message}`);
+      setSaving(false);
+      return;
+    }
+
+    const removedSessionIds = item.sessions
+      .filter((session) => !editState.sessions.some((edited) => edited.id === session.id))
+      .map((session) => session.id);
+    if (removedSessionIds.length > 0) {
+      const { error } = await supabase
+        .from('market_auction_sessions')
+        .delete()
+        .eq('item_id', item.id)
+        .in('id', removedSessionIds);
+      if (error) {
+        console.error('DELETE MARKET AUCTION SESSIONS ERROR', error);
+        setErrorMessage(`The resource was updated, but removed sale times could not be deleted: ${error.message}`);
+        setSaving(false);
+        return;
+      }
+    }
     if (item.item_type === 'document' && item.document_id) {
       const { error: documentUpdateError } = await supabase
         .from('documents')
@@ -1241,6 +1480,15 @@ const showCalendarStatusColumn = canEdit &&
     const auctionHouse = itemForm.auctionHouse.trim() || null;
     const auctionCity = itemForm.auctionCity.trim() || null;
     const auctionDateTime = buildAuctionDateTime(itemForm.auctionDate, itemForm.auctionTime);
+    const lotInfo = isAuctionItemSection ? itemForm.lotInfo.trim() || null : null;
+    const sessionRowsFor = (itemId: string) =>
+      (isAuctionItemSection ? itemForm.sessions : [])
+        .map((session) => ({
+          item_id: itemId,
+          session_datetime: buildAuctionDateTime(itemForm.auctionDate, session.time),
+          lot_info: session.lotInfo.trim() || null,
+        }))
+        .filter((row) => row.session_datetime);
 
     if (!sectionId) {
       setErrorMessage('Veuillez sélectionner une section.');
@@ -1254,6 +1502,17 @@ const showCalendarStatusColumn = canEdit &&
       return;
     }
 
+    if (isAuctionItemSection && itemForm.sessions.length > 0 && !itemForm.auctionDate) {
+      setErrorMessage('Enter the sale date before adding sale times.');
+      setSaving(false);
+      return;
+    }
+    if (isAuctionItemSection && itemForm.sessions.some((session) => !session.time)) {
+      setErrorMessage('Enter a time for each additional sale time.');
+      setSaving(false);
+      return;
+    }
+
     if (itemForm.itemType === 'web_link') {
       const url = itemForm.url.trim();
 
@@ -1263,7 +1522,7 @@ const showCalendarStatusColumn = canEdit &&
         return;
       }
 
-      const { error } = await supabase.from('market_section_items').insert({
+      const { data: linkData, error } = await supabase.from('market_section_items').insert({
         section_id: sectionId,
         item_type: 'web_link',
         label,
@@ -1274,14 +1533,29 @@ const showCalendarStatusColumn = canEdit &&
         auction_house: auctionHouse,
         auction_city: auctionCity,
         auction_datetime: auctionDateTime,
+        lot_info: lotInfo,
         catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
-      });
+      }).select('id').single();
 
       if (error) {
         console.error('CREATE MARKET WEB LINK ERROR', error);
         setErrorMessage(`Impossible d’ajouter le lien : ${error.message}`);
         setSaving(false);
         return;
+      }
+
+      const linkSessionRows = linkData?.id ? sessionRowsFor(linkData.id) : [];
+      if (linkSessionRows.length > 0) {
+        const { error: sessionsError } = await supabase
+          .from('market_auction_sessions')
+          .insert(linkSessionRows);
+        if (sessionsError) {
+          console.error('CREATE MARKET AUCTION SESSIONS ERROR', sessionsError);
+          setErrorMessage(`Unable to save the additional sale times: ${sessionsError.message}`);
+          setSaving(false);
+          await loadData();
+          return;
+        }
       }
 
       setItemForm((prev) => ({
@@ -1295,6 +1569,8 @@ const showCalendarStatusColumn = canEdit &&
         auctionCity: '',
         auctionDate: '',
         auctionTime: '',
+        lotInfo: '',
+        sessions: [],
         catalogueStatus: '',
       }));
 
@@ -1324,6 +1600,7 @@ const showCalendarStatusColumn = canEdit &&
         auction_house: auctionHouse,
         auction_city: auctionCity,
         auction_datetime: auctionDateTime,
+        lot_info: lotInfo,
         catalogue_status: isAuctionItemSection ? itemForm.catalogueStatus || null : null,
       })
       .select('id')
@@ -1336,6 +1613,21 @@ const showCalendarStatusColumn = canEdit &&
       );
       setSaving(false);
       return;
+    }
+
+    const documentSessionRows = sessionRowsFor(itemData.id);
+    if (documentSessionRows.length > 0) {
+      const { error: sessionsError } = await supabase
+        .from('market_auction_sessions')
+        .insert(documentSessionRows);
+      if (sessionsError) {
+        console.error('CREATE MARKET AUCTION SESSIONS ERROR', sessionsError);
+        // Sessions are removed with the item thanks to the cascade delete.
+        await supabase.from('market_section_items').delete().eq('id', itemData.id);
+        setErrorMessage(`Unable to save the additional sale times: ${sessionsError.message}`);
+        setSaving(false);
+        return;
+      }
     }
 
     if (itemFile) {
@@ -1395,6 +1687,8 @@ const showCalendarStatusColumn = canEdit &&
       auctionCity: '',
       auctionDate: '',
       auctionTime: '',
+      lotInfo: '',
+      sessions: [],
       catalogueStatus: '',
     }));
 
@@ -1534,8 +1828,10 @@ const showCalendarStatusColumn = canEdit &&
           <div style={styles.pillRow}>
             <span className="market-page-count">
               {viewMode === 'calendar'
-                ? `${calendarEntryCount} sales`
-                : `${displaySections.length} sections`}
+                ? `${calendarSaleCount} sales`
+                : viewMode === 'fairs'
+                  ? `${fairCalendarSections.length} fairs`
+                  : `${displaySections.length} sections`}
             </span>
             <button
               type="button"
@@ -1559,6 +1855,17 @@ const showCalendarStatusColumn = canEdit &&
             >
               Auction calendar
             </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('fairs')}
+              aria-pressed={viewMode === 'fairs'}
+              style={{
+                ...styles.sortButton,
+                ...(viewMode === 'fairs' ? styles.sortButtonActive : {}),
+              }}
+            >
+              Fairs calendar
+            </button>
           </div>
         </div>
 
@@ -1568,7 +1875,61 @@ const showCalendarStatusColumn = canEdit &&
 
 
 
-{viewMode === 'calendar' ? (
+{viewMode === 'fairs' ? (
+  <div style={styles.card}>
+    <div style={styles.cardHeader}>
+      <h2 style={styles.cardTitle}>Fairs calendar</h2>
+      <p style={styles.cardSubtitle}>Upcoming and ongoing art fairs sorted by start date.</p>
+    </div>
+    <div style={styles.cardBody}>
+      {loading ? (
+        <div style={styles.emptyBox}>Loading…</div>
+      ) : fairCalendarSections.length === 0 ? (
+        <div style={styles.emptyBox}>No upcoming fairs found. Add dates to a fair section to show it here.</div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table
+            className="market-calendar-table"
+            aria-label="Fairs calendar"
+            style={{ width: '100%', minWidth: '480px', borderCollapse: 'collapse', textAlign: 'left' }}
+          >
+            <thead>
+              <tr style={{ borderBottom: '2px solid #cbd5e1', color: '#334155' }}>
+                <th scope="col" style={{ padding: '12px 10px' }}>Dates</th>
+                <th scope="col" style={{ padding: '12px 10px' }}>Fair</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fairCalendarSections.map((section) => (
+                <tr key={section.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '12px 10px', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                    {formatFairDateRange(section.start_date, section.end_date)}
+                  </td>
+                  <td style={{ padding: '12px 10px', minWidth: '220px', verticalAlign: 'top' }}>
+                    <span style={{ fontWeight: 700, color: '#143b2d' }}>{section.title}</span>
+                    {section.notes ? (
+                      <p
+                        style={{
+                          margin: '4px 0 0',
+                          color: '#475569',
+                          fontSize: '12px',
+                          lineHeight: 1.4,
+                          whiteSpace: 'pre-wrap',
+                        }}
+                      >
+                        <LinkedText text={section.notes} />
+                      </p>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+) : viewMode === 'calendar' ? (
   <div style={styles.card}>
     <div style={styles.cardHeader}>
       <h2 style={styles.cardTitle}>Auction calendar — local time</h2>
@@ -1624,22 +1985,23 @@ const showCalendarStatusColumn = canEdit &&
                       {section.title}
                     </th>
                   </tr>
-                  {section.items.map((item) => {
+                  {section.entries.map((entry) => {
+                    const item = entry.item;
                     const href = getItemHref(item);
-                    const { auctionDate, auctionTime } = parseAuctionDateTimeRaw(item.auction_datetime);
+                    const { auctionDate, auctionTime } = parseAuctionDateTimeRaw(entry.datetime);
                     const outlookUrl =
                       section.category === 'Ventes aux enchères'
                         ? buildOutlookEventUrl({
                             title: item.label,
                             auctionHouse: item.auction_house,
                             city: item.auction_city,
-                            auctionDateTime: item.auction_datetime,
+                            auctionDateTime: entry.datetime,
                             url: href !== '#' ? href : null,
                             notes: item.notes,
                           })
                         : null;
                     return (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <tr key={entry.key} style={{ borderBottom: '1px solid #e2e8f0' }}>
                         <td className="market-calendar-date-cell" style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                           {formatCalendarDate(auctionDate)}
                         </td>
@@ -1688,7 +2050,20 @@ const showCalendarStatusColumn = canEdit &&
                               📅
                             </a>
                           ) : null}
-                          {item.notes ? (
+                          {entry.lotInfo ? (
+                            <p
+                              style={{
+                                margin: '4px 0 0',
+                                color: '#334155',
+                                fontSize: '12px',
+                                lineHeight: 1.4,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {entry.lotInfo}
+                            </p>
+                          ) : null}
+                          {entry.showDetails && item.notes ? (
                             <p
                               style={{
                                 margin: '4px 0 0',
@@ -1702,7 +2077,7 @@ const showCalendarStatusColumn = canEdit &&
                             </p>
                           ) : null}
                         </td>
-                        {section.category === 'Ventes aux enchères' && showCalendarStatusColumn ? (
+                        {section.category === 'Ventes aux enchères' && showCalendarStatusColumn && entry.showDetails ? (
                           <td className="market-calendar-status-cell" style={{ padding: '8px 10px', minWidth: '160px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <select
@@ -1776,35 +2151,65 @@ const showCalendarStatusColumn = canEdit &&
         isPastSection(displaySections[index - 1], todayDate) !== sectionIsPast;
       const isExpanded = expandedSections[section.id] ?? false;
 
+      const periodSeparator = startsPeriod && sectionIsPast ? (
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          style={{
+            width: '100%',
+            height: '2px',
+            flexShrink: 0,
+            backgroundColor: '#a3b0aa',
+            margin: '8px 0 0',
+          }}
+        />
+      ) : null;
+
+      const periodHeading = startsPeriod ? (
+        <h2
+          style={{
+            margin: sectionIsPast ? 0 : '8px 0 0',
+            fontSize: '1.92rem',
+            fontWeight: 500,
+            paddingBottom: '12px',
+            borderBottom: '1px solid rgba(0,96,57,0.18)',
+            textAlign: 'center',
+          }}
+        >
+          {sectionIsPast ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setShowPastSections((prev) => !prev)}
+                style={styles.toggleButton}
+                aria-expanded={showPastSections}
+                aria-label={showPastSections ? 'Hide past sections' : 'Show past sections'}
+              >
+                {showPastSections ? '−' : '+'}
+              </button>
+              Past
+            </span>
+          ) : (
+            'Future'
+          )}
+        </h2>
+      ) : null;
+
+      // Past sections stay hidden until the Past heading is expanded.
+      if (sectionIsPast && !showPastSections) {
+        if (!startsPeriod) return null;
+        return (
+          <Fragment key={section.id}>
+            {periodSeparator}
+            {periodHeading}
+          </Fragment>
+        );
+      }
+
       return (
         <Fragment key={section.id}>
-        {startsPeriod && sectionIsPast ? (
-          <div
-            role="separator"
-            aria-orientation="horizontal"
-            style={{
-              width: '100%',
-              height: '2px',
-              flexShrink: 0,
-              backgroundColor: '#a3b0aa',
-              margin: '8px 0 0',
-            }}
-          />
-        ) : null}
-        {startsPeriod ? (
-          <h2
-            style={{
-              margin: sectionIsPast ? 0 : '8px 0 0',
-              fontSize: '1.92rem',
-              fontWeight: 500,
-              paddingBottom: '12px',
-              borderBottom: '1px solid rgba(0,96,57,0.18)',
-              textAlign: 'center',
-            }}
-          >
-            {sectionIsPast ? 'Past' : 'Future'}
-          </h2>
-        ) : null}
+        {periodSeparator}
+        {periodHeading}
         <div style={{ ...styles.card, background: '#f5f6f5' }}>
           <div style={{ ...styles.cardHeader, background: '#f5f6f5' }}>
             <div style={styles.sectionHeaderRow}>
@@ -2048,17 +2453,16 @@ const showCalendarStatusColumn = canEdit &&
                   {section.items.map((item) => {
                     const href = getItemHref(item);
                     const canOpen = href !== '#';
-                    const outlookUrl =
-                      section.category === 'Ventes aux enchères'
-                        ? buildOutlookEventUrl({
-                            title: item.label,
-                            auctionHouse: item.auction_house,
-                            city: item.auction_city,
-                            auctionDateTime: item.auction_datetime,
-                            url: canOpen ? href : null,
-                            notes: item.notes,
-                          })
-                        : null;
+                    const saleTimes = [
+                      ...(item.auction_datetime
+                        ? [{ id: item.id, dateTime: item.auction_datetime, lotInfo: item.lot_info }]
+                        : []),
+                      ...item.sessions.map((session) => ({
+                        id: session.id,
+                        dateTime: session.session_datetime,
+                        lotInfo: session.lot_info,
+                      })),
+                    ];
                     const itemLinks = section.auctionFileLinks.filter(link => link.item_id === item.id);
                     const isEditing =
                       editingItemId === item.id && editState?.id === item.id;
@@ -2069,6 +2473,14 @@ const showCalendarStatusColumn = canEdit &&
                           <>
                             <div style={styles.itemContent}>
                               <div style={styles.itemHeaderRow}>
+                                {section.category === 'Ventes aux enchères' && item.auction_house ? (
+                                  <span style={{ ...styles.itemMetaText, color: getAuctionHouseColor(item.auction_house), fontWeight: 700 }}>
+                                    {item.auction_house}
+                                  </span>
+                                ) : null}
+                                {section.category === 'Ventes aux enchères' && item.auction_city ? (
+                                  <span style={styles.itemMetaText}>{item.auction_city}:</span>
+                                ) : null}
                                 {canOpen ? (
                                   <a
                                     href={href}
@@ -2095,39 +2507,49 @@ const showCalendarStatusColumn = canEdit &&
                                 )}
                               </div>
 
-                              {item.auction_house || item.auction_city || item.auction_datetime || item.notes ? (
+                              {item.auction_house || item.auction_city || item.auction_datetime || item.lot_info || item.sessions.length > 0 || item.notes ? (
                                 <div style={styles.itemHeaderRow}>
-                                  {item.auction_datetime ? (
-                                    <span style={styles.itemMetaText}>
-                                      {formatAuctionDateTimeLocal(item.auction_datetime)}
-                                    </span>
-                                  ) : null}
-                                  {item.auction_datetime && item.auction_house ? (
-                                    <span style={styles.itemMetaText}>—</span>
-                                  ) : null}
-                                  {item.auction_house ? (
+                                  {saleTimes.map((saleTime) => {
+                                    const outlookUrl = section.category === 'Ventes aux enchères'
+                                      ? buildOutlookEventUrl({
+                                          title: item.label,
+                                          auctionHouse: item.auction_house,
+                                          city: item.auction_city,
+                                          auctionDateTime: saleTime.dateTime,
+                                          url: canOpen ? href : null,
+                                          notes: item.notes,
+                                        })
+                                      : null;
+                                    return (
+                                      <span key={saleTime.id} style={{ ...styles.itemMetaText, display: 'inline-flex', alignItems: 'center', flexBasis: '100%', flexWrap: 'wrap', gap: '6px' }}>
+                                        {formatAuctionDateTimeLocal(saleTime.dateTime)}
+                                        {saleTime.lotInfo ? ` — ${saleTime.lotInfo}` : ''}
+                                        {outlookUrl ? (
+                                          <a
+                                            className="no-print"
+                                            href={outlookUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={styles.outlookButton}
+                                            title="Create an Outlook meeting for this auction"
+                                            aria-label={`Create an Outlook meeting for ${item.label} at ${saleTime.dateTime}`}
+                                          >
+                                            📅
+                                          </a>
+                                        ) : null}
+                                      </span>
+                                    );
+                                  })}
+                                  {section.category !== 'Ventes aux enchères' && item.auction_house ? (
                                     <span style={{ ...styles.itemMetaText, color: getAuctionHouseColor(item.auction_house), fontWeight: 700 }}>
                                       {item.auction_house}
                                     </span>
                                   ) : null}
-                                  {item.auction_city ? (
+                                  {section.category !== 'Ventes aux enchères' && item.auction_city ? (
                                     <span style={styles.itemMetaText}>{item.auction_city}</span>
                                   ) : null}
                                   {item.notes ? (
                                     <span style={styles.itemSecondaryText}><LinkedText text={item.notes} /></span>
-                                  ) : null}
-                                  {outlookUrl ? (
-                                    <a
-                                      className="no-print"
-                                      href={outlookUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      style={styles.outlookButton}
-                                      title="Create an Outlook meeting for this auction"
-                                      aria-label={`Create an Outlook meeting for ${item.label}`}
-                                    >
-                                      📅
-                                    </a>
                                   ) : null}
                                 </div>
                               ) : null}
@@ -2476,6 +2898,38 @@ const showCalendarStatusColumn = canEdit &&
                                   />
                                 </div>
                               </div>
+
+                              {section.category === 'Ventes aux enchères' ? (
+                                <>
+                                  <div>
+                                    <label htmlFor={`item-lot-${item.id}`} style={styles.label}>
+                                      Lot / page (main sale time)
+                                    </label>
+                                    <input
+                                      id={`item-lot-${item.id}`}
+                                      type="text"
+                                      value={editState.lotInfo}
+                                      placeholder="Enter the first and last lot numbers and the total number of lots"
+                                      onChange={(e) =>
+                                        setEditState((prev) =>
+                                          prev ? { ...prev, lotInfo: e.target.value } : prev
+                                        )
+                                      }
+                                      style={styles.input}
+                                    />
+                                  </div>
+
+                                  <AuctionSessionsEditor
+                                    sessions={editState.sessions}
+                                    onChange={(sessions) =>
+                                      setEditState((prev) => (prev ? { ...prev, sessions } : prev))
+                                    }
+                                    disabled={saving}
+                                    idPrefix={`edit-${item.id}`}
+                                    originalSaleDate={parseAuctionDateTimeRaw(item.auction_datetime).auctionDate}
+                                  />
+                                </>
+                              ) : null}
 
                               <div>
                                 <label style={styles.label}>Notes</label>
@@ -2889,6 +3343,33 @@ const showCalendarStatusColumn = canEdit &&
                       />
                     </div>
                   </div>
+
+                  {isAuctionItemSection ? (
+                    <>
+                      <div>
+                        <label htmlFor="item-lot-info" style={styles.label}>
+                          Lot / page (main sale time)
+                        </label>
+                        <input
+                          id="item-lot-info"
+                          type="text"
+                          value={itemForm.lotInfo}
+                          placeholder="Enter the first and last lot numbers and the total number of lots"
+                          onChange={(e) =>
+                            setItemForm((prev) => ({ ...prev, lotInfo: e.target.value }))
+                          }
+                          style={styles.input}
+                        />
+                      </div>
+
+                      <AuctionSessionsEditor
+                        sessions={itemForm.sessions}
+                        onChange={(sessions) => setItemForm((prev) => ({ ...prev, sessions }))}
+                        disabled={saving}
+                        idPrefix="new-item"
+                      />
+                    </>
+                  ) : null}
 
                   <div>
                     <label htmlFor="item-notes" style={styles.label}>Notes</label>

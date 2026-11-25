@@ -3,7 +3,47 @@
 Validated on 2026-11-08: isolated dependency installation and production build
 through the Manager Builder, followed by a site execution-path switch.
 
-## Latest deployment: 2026-11-24
+## Latest deployment: 2026-11-25
+
+- Deployed source: the uncommitted `main` worktree based on `65c5296`,
+  including the new auction-session migration. The archive used the committed
+  `next-env.d.ts`; retain the source ZIP because the commit alone does not
+  reproduce the release.
+- Active Manager path: `/artmuse-staging-20261125-Zl3jF3`.
+- Active SSH path: `/srv/customer/artmuse-staging-20261125-Zl3jF3`.
+- Previous Manager path retained for rollback:
+  `/artmuse-staging-20261124-gpW1PA`.
+- Complete previous-release backup:
+  `/srv/customer/artmuse-backup-20261125-0z15Ak/active-release.tar`.
+  The private off-server copy at
+  `%USERPROFILE%\ArtMuse-private-backups\20261125\active-release.tar`
+  matched SHA256
+  `6fbb0937244d922315ada22c07be9f1ed19b6863944fa961c23cc55566090cdb`.
+- Source archive: `artmuse-source-20261125.zip`, 494 files, local and uploaded
+  SHA256
+  `3edcfcac67044e75a62019ea0a42cb8146a491c60ea45e0e2d335c267e6a8f7b`.
+- Isolated Builder installation and compilation reported `STAGING_INSTALL_OK`,
+  `STAGING_BUILD_OK` and `BUILD_ID_PRESENT`. Automatic reinstallation was **No**,
+  and preparation wrappers ended with `exit 1`. Installation warned about
+  deprecated `uuid` and `glob`. Logs are in the backup directory as
+  `candidate-install.log` and `candidate-build.log`.
+- The user declined the candidate smoke test on port 3001. After the path was
+  saved, the previous build was still served until the user restarted the
+  application. Public `/login` and the candidate Market JavaScript bundle
+  then returned HTTP 200. The user reported that startup logs and production
+  sign-in and Market checks were OK.
+- The user later clarified that the Updates page had not been updated for this
+  release. Runtime retained: Node 20, `node server.js`, port 3000, build
+  command `true`.
+- Release checks: 103 test files / 1025 tests passed; TypeScript and targeted
+  ESLint passed. Supabase migration
+  `20261125120000_add_market_auction_sessions.sql` was applied separately;
+  restoring the previous release path does not revert it.
+
+This directory is active production. Never reinstall dependencies or rebuild
+there. Preserve the previous release and backup for rollback.
+
+## Previous deployment: 2026-11-24
 
 - Deployed source: `main`, commit `50e1037` (clean worktree; `git archive HEAD`
   reproduces the release source). Transport workflow overhaul, factsheet
@@ -44,8 +84,8 @@ through the Manager Builder, followed by a site execution-path switch.
   `20261124164500_move_destination_to_location.sql` were applied separately
   before deployment; restoring the previous release path does not revert them.
 
-The directory above is now active production. Never reinstall dependencies or
-rebuild there. Preserve the previous release and backup for rollback.
+This directory is retained as the rollback target; do not reinstall or rebuild
+in it.
 
 ## Previous deployment: 2026-11-23
 
@@ -345,29 +385,12 @@ The successful release used Node 20.20.2, npm 10.8.2 and Next.js 16.2.3.
 Node 20 remains a separate maintenance item; check dependency engine requirements
 and supported Infomaniak runtimes before the next release.
 
-## 4. Test the exact launch command
+## 4. Candidate startup
 
-In the candidate directory, run:
-
-```sh
-PORT=3001 node server.js
-```
-
-Keep that SSH terminal open. Do not run the candidate on the active site's port
-3000. From a second SSH terminal:
-
-```sh
-curl -I --max-time 15 http://127.0.0.1:3001/login
-```
-
-Require a ready message and HTTP 200. This is a startup smoke test only: it does
-not validate OAuth, authorization, images, editing or all business functionality.
-The existing custom server may listen on all interfaces; do not assume the
-test port is private. For a strictly private test, bind a candidate test server
-explicitly to loopback or use an approved protected staging environment.
-
-Stop only the candidate process with Ctrl+C in its terminal. Do not use Manager
-Stop, which controls the active site.
+The user has declined the candidate smoke test on port 3001 for future
+deployments. Do not run it. Candidate startup is therefore not verified before
+the production switch; check startup logs, HTTPS and business workflows after
+the switch, and keep the previous release available for rollback.
 
 ## 5. Switch production with explicit approval
 

@@ -92,7 +92,8 @@ migration canonique une fois celle-ci extraite.
 | `artwork_viewer_comments` | Commentaires des viewers associes aux oeuvres et aux profils. |
 | `contact_users` | Association entre un utilisateur Supabase et un contact, avec statut d'invitation. |
 | `market_sections` | Sections du marche (titre, categorie, dates, notes, position et horodatages). |
-| `market_section_items` | Liens ou documents d'une section de marche, avec ordre, informations de vente et statut du catalogue (`Yes`, `No`, `Received` ou `Printed`). |
+| `market_section_items` | Liens ou documents d'une section de marche, avec ordre, informations de vente, lot/page et statut du catalogue (`Yes`, `No`, `Received` ou `Printed`). |
+| `market_auction_sessions` | Horaires supplementaires d'une vente aux encheres, chacun avec sa note lot/page; supprimes en cascade avec la ressource. |
 | `fx_rates_history` | Historique de taux de change utilise par l'inventaire. |
 | `v_inventory_bought_florac` | Vue historique limitee aux oeuvres achetees par Florac; conservee pour compatibilite. |
 | `v_inventory_bought` | Inventaire de toutes les oeuvres au statut `Bought`, avec buyer, artiste, premiere image et taux EUR; respecte RLS via `security_invoker`. |
@@ -229,6 +230,22 @@ release. It adds the nullable `paddle_places` field, constrains it to `No`,
 `Yes 1` or `Yes 2`, and exposes it through `v_market_section_items`. The
 Auction Calendar lets Editors and Administrators update this status; existing
 resources remain valid with a null value.
+
+### Market auction sessions and lot/page
+
+Apply `20261125120000_add_market_auction_sessions.sql` with the matching Art
+Market release. It adds the nullable free-text `lot_info` field to
+`market_section_items` (lot/page for the main sale time, appended as the last
+`v_market_section_items` view column) and creates the
+`market_auction_sessions` table for additional sale times, each with its own
+`lot_info`. Sessions are deleted in cascade with their resource. RLS mirrors
+the other market tables: all authenticated users can read, Editors and
+Administrators can write. The Auction Calendar shows one row per sale time.
+Applied to the linked production project on 2026-11-25 after operator approval.
+The migration history, table, view column and enabled RLS were verified; a
+subsequent dry-run showed no pending migrations.
+Rollback: drop the table and the column and restore the previous view
+definition from `20261122191000_add_market_auction_city.sql`.
 
 ### Stored artwork thumbnails
 
