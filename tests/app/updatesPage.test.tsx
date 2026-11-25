@@ -42,10 +42,18 @@ async function click(label: string) {
 }
 
 async function enterText(text: string) {
-  const textarea = container.querySelector('textarea')!
+  const editor = container.querySelector('[aria-label="Updates content"]') as HTMLDivElement
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, text)
-    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    editor.textContent = text
+    editor.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+async function enterHtml(html: string) {
+  const editor = container.querySelector('[aria-label="Updates content"]') as HTMLDivElement
+  await act(async () => {
+    editor.innerHTML = html
+    editor.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
 
@@ -76,20 +84,21 @@ describe('shared Updates page', () => {
     expect(container.querySelector('article')?.textContent).toContain(documentData.content)
     expect(container.querySelector('time')?.dateTime).toBe(documentData.updated_at)
     expect(container.textContent?.includes('Edit updates')).toBe(role === 'Administrator')
-    expect(container.querySelector('textarea')).toBeNull()
+    expect(container.querySelector('[role="textbox"]')).toBeNull()
   })
 
   it('lets an administrator save shared content with a stale-write guard and show the persisted result', async () => {
     mocks.role = 'Administrator'
     await render()
     await click('Edit updates')
-    expect(container.querySelector('textarea')?.value).toBe(documentData.content)
+    expect(container.querySelector('[aria-label="Updates content"]')?.innerHTML)
+      .toBe('Latest improvements<br>Auction sale ordering')
     await enterText('New release notes')
     await click('Save updates')
     expect(mocks.update).toHaveBeenCalledWith({ content: 'New release notes' })
     expect(mocks.eq).toHaveBeenCalledWith('id', true)
     expect(mocks.eq).toHaveBeenCalledWith('updated_at', documentData.updated_at)
-    expect(container.querySelector('textarea')).toBeNull()
+    expect(container.querySelector('[role="textbox"]')).toBeNull()
     expect(container.querySelector('article')?.textContent).toContain('New release notes')
     expect(container.querySelector('[role="status"]')?.textContent).toContain('Updates saved.')
   })
@@ -103,7 +112,8 @@ describe('shared Updates page', () => {
     expect(mocks.update).not.toHaveBeenCalled()
     expect(container.querySelector('article')?.textContent).toContain(documentData.content)
     await click('Edit updates')
-    expect(container.querySelector('textarea')?.value).toBe(documentData.content)
+    expect(container.querySelector('[aria-label="Updates content"]')?.innerHTML)
+      .toBe('Latest improvements<br>Auction sale ordering')
   })
 
   it.each([
@@ -117,7 +127,7 @@ describe('shared Updates page', () => {
     await click('Edit updates')
     await enterText('Keep this draft')
     await click('Save updates')
-    expect(container.querySelector('textarea')?.value).toBe('Keep this draft')
+    expect(container.querySelector('[aria-label="Updates content"]')?.textContent).toBe('Keep this draft')
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(response.expected)
     expect(container.textContent).not.toContain('Updates saved.')
   })
@@ -151,5 +161,18 @@ describe('shared Updates page', () => {
     await enterText('New release notes')
     await click('Save updates')
     expect(container.querySelector('article')?.textContent).toContain('New release notes')
+  })
+
+  it('saves and displays bold text as rich formatting', async () => {
+    mocks.role = 'Administrator'
+    mocks.maybeSingle.mockResolvedValue({
+      data: { content: 'New **release** notes', updated_at: '2026-11-16T20:00:00Z' }, error: null,
+    })
+    await render()
+    await click('Edit updates')
+    await enterHtml('New <strong>release</strong> notes')
+    await click('Save updates')
+    expect(mocks.update).toHaveBeenCalledWith({ content: 'New **release** notes' })
+    expect(container.querySelector('article strong')?.textContent).toBe('release')
   })
 })

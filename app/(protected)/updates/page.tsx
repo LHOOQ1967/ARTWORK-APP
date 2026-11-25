@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { supabase } from '@/lib/supabaseBrowser'
+import { RichTextContent } from '@/components/ui/RichTextContent'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 import styles from './updates.module.css'
 
 type UpdatesDocument = { content: string; updated_at: string }
@@ -95,8 +97,8 @@ function UpdatesContent({ canEdit }: { canEdit: boolean }) {
         {editing ? <form className={styles.panel} onSubmit={save}>
           <label htmlFor="updates-content">Updates content</label>
           <p>Visible to all signed-in users. Update this page before every production release.</p>
-          <textarea id="updates-content" value={draft} maxLength={50000} rows={18}
-            disabled={saving} onChange={event => setDraft(event.target.value)} />
+          <RichTextEditor id="updates-content" label="Updates content" value={draft} maxLength={50000}
+            minHeight={300} disabled={saving} onChange={setDraft} />
           {saveError && <p role="alert">{saveError}</p>}
           <div className={styles.actions}>
             <button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save updates'}</button>
@@ -111,7 +113,7 @@ function UpdatesContent({ canEdit }: { canEdit: boolean }) {
               {new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeStyle: 'short' })
                 .format(new Date(document.updated_at))}
             </time></p>
-            <div className={styles.content}>{document.content}</div>
+            <div className={styles.content}><RichTextContent text={document.content} /></div>
           </article>
             : <div className="ux-empty-state">No updates have been published yet.</div>}
       </>}

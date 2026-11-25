@@ -6,6 +6,7 @@ import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
 import { artworkStatusChange } from '@/lib/artworkStatus'
 import { QualitySelect } from './ArtworkQuality'
 import { AuctionPremiumFields, type PremiumPendingChange } from './AuctionPremiumFields'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 
 import {
   useEffect,
@@ -1470,28 +1471,9 @@ export function ArtworkFieldsLayout({
         <h3 style={{ textAlign: 'center', fontSize: '1.3rem' }}>Notes</h3>
 
         <EditRow label=" ">
-          <textarea
-            value={artwork.notes ?? ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                notes: e.target.value,
-              })
-            }
-            style={{
-              marginTop: '10px',
-              width: '100%',
-              minHeight: 120,
-              padding: 8,
-              fontSize: '0.95rem',
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              resize: 'vertical',
-              backgroundColor: 'white',
-              boxSizing: 'border-box',
-            }}
-            disabled={!isEditing}
-          />
+          <RichTextEditor label="Artwork notes" value={artwork.notes ?? ''}
+            onChange={notes => setArtwork(previous => ({ ...previous, notes }))}
+            disabled={!isEditing} />
         </EditRow>
       </SectionBlock>
     </div>

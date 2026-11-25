@@ -14,7 +14,7 @@ import { useSearchParams } from 'next/navigation'
 import { artworkNavigationUrl } from '@/lib/factsheetNavigation'
 import type { ArtworkPrint, ArtworkDocument, Contact, Artist,} from '@/app/(protected)/types/artwork'
 import ArtworkViewerComment from '@/components/artwork/ArtworkViewerComment'
-import { LinkedText } from '@/components/ui/LinkedText'
+import { RichTextContent } from '@/components/ui/RichTextContent'
 import { useSessionProfile } from '@/contexts/SessionContext'
 import { canViewClientNames } from '@/lib/permissions'
 import { privateImageUrl } from '@/lib/privateImageUrl'
@@ -1170,7 +1170,7 @@ const displayTitle = (() => {
       {artwork.notes && (
         <div style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>
           <strong>Notes</strong>
-          <p><LinkedText text={artwork.notes} /></p>
+          <p><RichTextContent text={artwork.notes} /></p>
         </div>
       )}
 <ArtworkViewerComment artworkId={artwork.id} />

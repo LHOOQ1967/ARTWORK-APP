@@ -49,6 +49,14 @@ describe('certificate location creation fields', () => {
 })
 
 describe('certificate location editing', () => {
+  it('provides rich text controls for artwork notes', () => {
+    const artwork = { id: 'work', notes: 'Existing notes' } as ArtworkWithRelations
+    const html = renderToStaticMarkup(<ArtworkSection artwork={artwork} setArtwork={vi.fn()} isEditing />)
+    expect(html).toContain('aria-label="Artwork notes"')
+    expect(html).toContain('aria-label="Bold"')
+    expect(html).toContain('contentEditable="true"')
+  })
+
   it.each([true, false])('places history next to the certificate selector (certificate: %s)', certificate => {
     const artwork = { id: 'work', certificate } as ArtworkWithRelations
     const html = renderToStaticMarkup(<ArtworkSection artwork={artwork} setArtwork={vi.fn()} isEditing />)

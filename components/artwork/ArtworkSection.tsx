@@ -7,6 +7,7 @@ import ContactAddressSelect from '@/components/contacts/ContactAddressSelect'
 import { CertificateAddress, CertificateLocationHistory } from './CertificateLocation'
 import { auctionHouseContactFields } from '@/lib/artworkAuctionHouse'
 import { AuctionPremiumFields, type PremiumPendingChange } from './AuctionPremiumFields'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 
 import {
   useEffect,
@@ -2472,28 +2473,9 @@ async function handleAddProposal() {
         </h3>
 
         <EditRow label=" ">
-          <textarea
-            value={artwork.notes ?? ''}
-            onChange={(e) =>
-              setArtwork({
-                ...artwork,
-                notes: e.target.value,
-              })
-            }
-            style={{
-              width: '100%',
-              minHeight: 120,
-              padding: 8,
-              fontSize: '0.95rem',
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              resize: 'vertical',
-              backgroundColor: 'white',
-              marginTop: '10px',
-              boxSizing: 'border-box',
-            }}
-            disabled={!isEditing}
-          />
+          <RichTextEditor label="Artwork notes" value={artwork.notes ?? ''}
+            onChange={notes => setArtwork(previous => ({ ...previous, notes }))}
+            disabled={!isEditing} />
         </EditRow>
       </SectionBlock>
     </div>
